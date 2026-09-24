@@ -1,0 +1,7 @@
+node_modules
+dist
+test
+assets
+.env
+*.pem
+.vitest-result.json

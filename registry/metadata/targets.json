@@ -1,0 +1,48 @@
+{
+ "signatures": [
+  {
+   "keyid": "69a87c1eebbf08d8d14d10440534a5e821b40d6a0eee4b09fa85358a7216cd3b",
+   "sig": "83561c971240abe665131b2562c8a913aa27a8280db0b3f4fd23e7819ede9cb89236fde237b08f8340854584b6f3f51e72a140a0cbc3d8bb1d94e02dd680bf00"
+  }
+ ],
+ "signed": {
+  "_type": "targets",
+  "delegations": {
+   "keys": {
+    "d93bb9f91a22e29193f2e2c6e68435716b2134ffacc0823abb5a9b2c616899da": {
+     "keytype": "ed25519",
+     "keyval": {
+      "public": "8586d25fc9768c6ad7e369ce8c33616d1048455c711b2660b2703bf3ae930118"
+     },
+     "scheme": "ed25519"
+    }
+   },
+   "roles": [
+    {
+     "keyids": [
+      "d93bb9f91a22e29193f2e2c6e68435716b2134ffacc0823abb5a9b2c616899da"
+     ],
+     "name": "morelitea",
+     "paths": [
+      "publishers/morelitea/*/listing.json",
+      "publishers/morelitea/*/*/manifest.json",
+      "publishers/morelitea/*/assets/*"
+     ],
+     "terminating": true,
+     "threshold": 1
+    }
+   ]
+  },
+  "expires": "2027-09-24T22:20:00Z",
+  "spec_version": "1.0.31",
+  "targets": {
+   "publishers/morelitea.json": {
+    "hashes": {
+     "sha256": "62be7266b4e2aa3618c3618015460009216356114ef79ee20608cccd78f53ba2"
+    },
+    "length": 380
+   }
+  },
+  "version": 1
+ }
+}

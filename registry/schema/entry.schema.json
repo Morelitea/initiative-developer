@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:initiative-registry:schema:entry",
+  "title": "Listing entry",
+  "description": "The signed target publishers/<prefix>/<uid>/listing.json that a client reads. A listing (listing.schema.json) with every file it names published as a target beside it: paths are relative to the listing's target directory, and every sha256 is present.",
+  "allOf": [
+    {
+      "$ref": "urn:initiative-registry:schema:listing"
+    },
+    {
+      "properties": {
+        "avatar": {
+          "$ref": "#/$defs/published_asset"
+        },
+        "images": {
+          "items": {
+            "$ref": "#/$defs/published_asset"
+          }
+        },
+        "versions": {
+          "items": {
+            "required": [
+              "sha256"
+            ],
+            "properties": {
+              "manifest": {
+                "type": "string",
+                "pattern": "^[0-9][0-9a-z.+-]*/manifest\\.json$"
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "published_asset": {
+      "required": [
+        "sha256"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "pattern": "^assets/[0-9a-f]{64}\\.[a-z0-9]+$"
+        }
+      }
+    }
+  }
+}

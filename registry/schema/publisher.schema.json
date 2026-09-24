@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:initiative-registry:schema:publisher",
+  "title": "Publisher",
+  "description": "A publisher record: publishers/<prefix>.json. The top-level targets role delegates publishers/<prefix>/ to the key named here, and signs this record as the target publishers/<prefix>.json.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "prefix",
+    "name",
+    "verified",
+    "key"
+  ],
+  "properties": {
+    "schema": {
+      "const": 1
+    },
+    "prefix": {
+      "description": "The namespace the publisher's listings live under: every public_id starts '<prefix>.'. Equals the file name. 'core' is reserved.",
+      "type": "string",
+      "maxLength": 120,
+      "pattern": "^[a-z0-9_-]+$",
+      "not": {
+        "enum": [
+          "core",
+          "root",
+          "targets",
+          "snapshot",
+          "timestamp"
+        ]
+      }
+    },
+    "name": {
+      "description": "The display name.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "verified": {
+      "description": "Whether the registry has confirmed who the publisher is.",
+      "type": "boolean"
+    },
+    "url": {
+      "type": "string",
+      "maxLength": 300,
+      "pattern": "^https://[^\\s]+$"
+    },
+    "key": {
+      "description": "The public key of the publisher's delegated role: the .pub.json that 'initiative-registry keygen' writes.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "keytype",
+        "scheme",
+        "keyval"
+      ],
+      "properties": {
+        "keyid": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "keytype": {
+          "const": "ed25519"
+        },
+        "scheme": {
+          "const": "ed25519"
+        },
+        "keyval": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "public"
+          ],
+          "properties": {
+            "public": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          }
+        }
+      }
+    }
+  }
+}

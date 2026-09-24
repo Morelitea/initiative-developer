@@ -1,0 +1,17 @@
+{
+  "schema": 1,
+  "uid": "0ACME000000002",
+  "public_id": "acme.weekly-overview",
+  "publisher": "acme",
+  "kind": "dashboard",
+  "name": "Weekly overview",
+  "summary": "An example content listing: a dashboard, with its manifest inline.",
+  "avatar": {"path": "assets/avatar.png"},
+  "versions": [
+    {
+      "version": "2.1.0",
+      "manifest": {"layout": {"columns": 12}, "widgets": []}
+    }
+  ],
+  "price": null
+}

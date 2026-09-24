@@ -1,0 +1,8 @@
+{
+  "schema": 1,
+  "prefix": "morelitea",
+  "name": "Morelitea",
+  "verified": true,
+  "url": "https://github.com/Morelitea",
+  "key": "PLACEHOLDER: replace this string with the morelitea.pub.json written by 'initiative-registry keygen --role morelitea --out <a directory outside the repository>'"
+}

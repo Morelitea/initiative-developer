@@ -1,0 +1,9 @@
+{
+  "protocol_version": 1,
+  "public_id": "acme.tracker",
+  "kind": "app",
+  "definition": {
+    "name": "Acme Tracker",
+    "scopes": ["projects:read", "projects:write", "comments:write"]
+  }
+}

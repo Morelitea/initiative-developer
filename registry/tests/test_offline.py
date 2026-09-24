@@ -105,9 +105,20 @@ def test_nothing_to_sign(world: World) -> None:
         sign_offline(world.metadata)
 
 
-def test_placeholder_key_is_explained() -> None:
+def test_placeholder_key_is_explained(tmp_path: Path) -> None:
+    record = json.loads((layout.DEFAULT_PUBLISHERS_DIR / "morelitea.json").read_text())
+    record["key"] = "PLACEHOLDER: paste the keygen output here"
+    path = tmp_path / "morelitea.json"
+    path.write_text(json.dumps(record))
     with pytest.raises(RegistryError, match="still a placeholder"):
-        load_publisher(layout.DEFAULT_PUBLISHERS_DIR / "morelitea.json")
+        load_publisher(path)
+
+
+def test_committed_record_is_valid() -> None:
+    assert (
+        load_publisher(layout.DEFAULT_PUBLISHERS_DIR / "morelitea.json").prefix
+        == "morelitea"
+    )
 
 
 def test_seed_record_is_otherwise_valid(tmp_path: Path) -> None:

@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+# Built repositories and keys never live here.
+registry/out/
+*.key
+*.pem
+.env

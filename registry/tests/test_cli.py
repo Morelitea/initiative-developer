@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import shutil
+import tarfile
 from pathlib import Path
 
 import pytest
@@ -93,6 +94,23 @@ def test_commands_end_to_end(
     ]
     assert after > before
     assert main(["verify", "--repo", str(out), "--root", root]) == 0
+    capsys.readouterr()
+
+    bundle = tmp_path / "bundle.tar.gz"
+    assert main(["export-bundle", "--repo", str(out), "--out", str(bundle)]) == 0
+    assert f"wrote {bundle}" in capsys.readouterr().out
+
+    unpacked = tmp_path / "unpacked"
+    with tarfile.open(bundle) as tar:
+        tar.extractall(unpacked, filter="data")
+    assert main(["verify", "--repo", str(unpacked), "--root", root]) == 0
+
+    long = tmp_path / "long.tar.gz"
+    args = ["export-bundle", "--repo", str(out), "--out", str(long)]
+    with pytest.raises(SystemExit):
+        main([*args, "--expires-days", "366"])
+    assert main([*args, "--expires-days", "365"]) == 0
+    assert "when acme does, not in 365 days" in capsys.readouterr().err
 
 
 def test_errors_are_reported_not_raised(tmp_path: Path, capsys) -> None:

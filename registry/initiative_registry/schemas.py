@@ -15,6 +15,10 @@ from .layout import SCHEMA_DIR
 LISTING = "listing"
 ENTRY = "entry"
 PUBLISHER = "publisher"
+#: A version's manifest target, described in ``entry.schema.json``.
+MANIFEST = "manifest"
+
+_SUBSCHEMAS = {MANIFEST: "urn:initiative-registry:schema:entry#/$defs/manifest"}
 
 
 @cache
@@ -33,8 +37,11 @@ def _validator(name: str) -> Draft202012Validator:
         (document["$id"], Resource.from_contents(document))
         for document in documents.values()
     )
-    schema = documents[name]
-    Draft202012Validator.check_schema(schema)
+    if name in _SUBSCHEMAS:
+        schema = {"$ref": _SUBSCHEMAS[name]}
+    else:
+        schema = documents[name]
+        Draft202012Validator.check_schema(schema)
     return Draft202012Validator(schema, registry=registry)
 
 
@@ -48,9 +55,15 @@ def problems(name: str, document: Any) -> list[str]:
     return lines
 
 
+def _source(name: str) -> str:
+    if name in _SUBSCHEMAS:
+        return f"entry.schema.json#/$defs/{name}"
+    return f"{name}.schema.json"
+
+
 def validate(name: str, document: Any, *, what: str) -> None:
     found = problems(name, document)
     if found:
         raise RegistryError(
-            f"{what} does not match {name}.schema.json:\n  " + "\n  ".join(found)
+            f"{what} does not match {_source(name)}:\n  " + "\n  ".join(found)
         )

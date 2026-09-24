@@ -168,29 +168,77 @@ def _publish_asset(
     return published
 
 
+def _document(listing: Listing, value: Any, *, what: str) -> dict[str, Any]:
+    """A JSON object a version gives: inline, or a path to a file holding one."""
+    if not isinstance(value, str):
+        return value
+    data = _listing_file(listing.source, value, what=what)
+    try:
+        parsed = json.loads(data)
+    except ValueError as exc:
+        raise RegistryError(f"{what} {value!r} is not valid JSON: {exc}") from exc
+    if not isinstance(parsed, dict):
+        raise RegistryError(f"{what} {value!r} must be a JSON object")
+    return parsed
+
+
+def service_public_id(definition: dict[str, Any]) -> str | None:
+    """The app service a kit manifest names, if it is a service app."""
+    if definition.get("app_kind") != "service":
+        return None
+    service = definition.get("service")
+    if not isinstance(service, dict):
+        return None
+    public_id = service.get("public_id")
+    return public_id if isinstance(public_id, str) and public_id else None
+
+
+def manifest_document(
+    listing: Listing,
+    kind: str,
+    definition: dict[str, Any],
+    example: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """The manifest target a version publishes."""
+    manifest: dict[str, Any] = {
+        "uid": listing.uid,
+        "public_id": listing.public_id,
+        "kind": kind,
+        "definition": definition,
+    }
+    if example is not None:
+        manifest["example"] = example
+    return manifest
+
+
 def _publish_version(
-    listing: Listing, version: dict[str, Any], *, what: str
+    listing: Listing, version: dict[str, Any], *, kind: str, what: str
 ) -> dict[str, Any]:
     number = version["version"]
-    manifest = version["manifest"]
-    if isinstance(manifest, str):
-        data = _listing_file(listing.source, manifest, what=f"{what} manifest")
-        try:
-            parsed = json.loads(data)
-        except ValueError as exc:
+    definition = _document(listing, version["definition"], what=f"{what} definition")
+    example = None
+    if "example" in version:
+        example = _document(listing, version["example"], what=f"{what} example")
+    if "registration" in listing.entry:
+        named = service_public_id(definition)
+        if named != listing.public_id:
             raise RegistryError(
-                f"{what} manifest {manifest!r} is not valid JSON: {exc}"
-            ) from exc
-        if not isinstance(parsed, dict):
-            raise RegistryError(f"{what} manifest {manifest!r} must be a JSON object")
-    else:
-        data = dumps(manifest)
-    digest = _check_digest(version.get("sha256"), data, what=f"{what} manifest")
+                f"{what} definition: a listing with a registration is a service "
+                f"app, and its service.public_id must be {listing.public_id!r} "
+                f"(it is {named!r})"
+            )
+    manifest = manifest_document(listing, kind, definition, example)
+    schemas.validate(schemas.MANIFEST, manifest, what=f"{what} manifest")
+    data = dumps(manifest)
     target = layout.manifest_target(listing.publisher, listing.uid, number)
     listing.targets[target] = Blob(target, data)
-    published = dict(version)
+    published = {
+        key: value
+        for key, value in version.items()
+        if key not in ("definition", "example")
+    }
     published["manifest"] = f"{number}/manifest.json"
-    published["sha256"] = digest
+    published["sha256"] = sha256(data)
     return published
 
 
@@ -249,7 +297,12 @@ def load_listing(
             raise RegistryError(f"{what}: version {version['version']} is listed twice")
         seen.add(version["version"])
         versions.append(
-            _publish_version(listing, version, what=f"{what} versions[{index}]")
+            _publish_version(
+                listing,
+                version,
+                kind=document["kind"],
+                what=f"{what} versions[{index}]",
+            )
         )
     entry["versions"] = versions
 

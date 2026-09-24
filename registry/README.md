@@ -11,7 +11,7 @@ correctly signed catalogue from anything else.
 registry/
   sources/<publisher>/<uid>/listing.json   one per listing
   sources/<publisher>/<uid>/assets/…       its avatar and images
-  sources/<publisher>/<uid>/<version>/…    its manifests, when not inline
+  sources/<publisher>/<uid>/<version>/…    its definitions and examples, when not inline
   publishers/<prefix>.json                 publisher records
   schema/                                  JSON schemas for all of the above
   metadata/                                the signed root and targets metadata
@@ -37,7 +37,7 @@ pull request review is the listing's review: merging it publishes the listing.
   "avatar": {"path": "assets/avatar.png"},
   "images": [{"path": "assets/board.png", "alt": "A board with Acme tickets"}],
   "versions": [
-    {"version": "1.0.0", "manifest": "1.0.0/manifest.json", "min_app_version": "0.73.0"}
+    {"version": "1.0.0", "definition": "1.0.0/manifest.json", "min_app_version": "0.73.0"}
   ],
   "registration": {
     "kind": "container",
@@ -60,13 +60,27 @@ them:
 - **`publisher`** names a record in `publishers/` and the directory above the
   listing. **`public_id`** is `<publisher>.<slug>`. The `core` prefix is
   reserved and never accepted.
-- **Paths** (`avatar`, `images`, a manifest) are relative to the listing's
-  directory and stay inside it. Images are PNG, JPEG, WebP, GIF, AVIF or SVG,
-  and each one in `images` needs `alt` text.
-- **`sha256`** is optional on any file. If you give one, the build checks the
-  file against it. If you leave it out, the build computes it.
-- **`versions[].manifest`** is a path to a JSON file or the manifest inline.
-- **`registration`** is required for an app and not allowed for content.
+- **`kind`** is one of:
+  - `app`;
+  - `auto`, an automation;
+  - `profile_pack`, a pack of profile decorations, art included;
+  - a tool's content: `calendar`, `counter_group`, `dashboard`, `document`,
+    `gallery`, `post`, `project`, `queue` or `wiki`.
+- **Paths** (`avatar`, `images`, a definition or an example) are relative to the
+  listing's directory and stay inside it. Images are PNG, JPEG, WebP, GIF, AVIF
+  or SVG, and each one in `images` needs `alt` text.
+- **`sha256`** is optional on an avatar or image. If you give one, the build
+  checks the file against it. If you leave it out, the build computes it.
+- **`versions[].definition`** is what the version installs, as a path to a JSON
+  file or an object inline:
+  - for an app, its kit manifest (`manifest.json`). It is a service app
+    (`"app_kind": "service"`) whose `service.public_id` is the listing's
+    `public_id`;
+  - for a tool's content, that tool's definition.
+- **`versions[].example`** is optional, and only for a tool's content: the
+  filled-in example shown beside the listing, as a path or inline.
+- **`registration`** is required for an app and not allowed for anything
+  else.
   - `container`: `image` pinned by digest, and `jwks`. The deployment's
     operator gives the location it runs at.
   - `hosted`: `base_url`, `embed_origin`, and `jwks` or `jwks_uri`.
@@ -76,8 +90,20 @@ them:
 - **`price`** is `null` for a free listing.
 
 The published entry, `publishers/<prefix>/<uid>/listing.json`, is the same
-document with every path rewritten to the target beside it and every `sha256`
-filled in ([`schema/entry.schema.json`](schema/entry.schema.json)).
+document with every image path rewritten to the target beside it and every
+`sha256` filled in ([`schema/entry.schema.json`](schema/entry.schema.json)).
+Each version's definition and example move into its own target,
+`<version>/manifest.json`, which the entry names with its `sha256`:
+
+```json
+{
+  "uid": "0ACME000000001",
+  "public_id": "acme.tracker",
+  "kind": "app",
+  "definition": {"app_kind": "service", "service": {"public_id": "acme.tracker", "protocol": 1}, "features": []},
+  "example": {"…": "only when the source gives one"}
+}
+```
 
 ## Targets
 
@@ -224,10 +250,12 @@ uv run initiative-registry init-root …
 uv run initiative-registry sign-offline …
 uv run initiative-registry build --target public --sources sources --out <dir> [--keys <dir>]
 uv run initiative-registry refresh-timestamp --repo <dir> [--keys <dir>]
+uv run initiative-registry export-bundle --repo <dir> --out <file.tar.gz> [--expires-days N] [--keys <dir>]
 uv run initiative-registry verify --repo <dir or URL> --root metadata/1.root.json [--target public]
 ```
 
-`build` and `refresh-timestamp` look for each online key in this order:
+`build`, `refresh-timestamp` and `export-bundle` look for each online key in
+this order:
 1. `--snapshot-key`, `--timestamp-key` or `--publisher-key PREFIX=PATH`;
 2. `<--keys>/<name>.pem`;
 3. the environment variables above.
@@ -243,8 +271,32 @@ root you give it:
 
 It works on a directory or on the published URL.
 
+### Offline bundles
+
+A deployment with no route to the published site uploads the catalogue as a
+bundle instead: a gzipped tar of a built repository's `metadata/` and
+`targets/`, read with the same TUF client. `export-bundle` writes one from a
+built directory:
+- it signs a new snapshot over the same roles, and a new timestamp over that;
+- both take the next version numbers and last `--expires-days` (default 90, at
+  most 365), where the published ones last a week and a day;
+- it signs them with the online snapshot and timestamp keys;
+- it only reads the built directory, and refuses to write the bundle inside it.
+
+A bundle is usable until the first of its metadata expires, and the publisher
+roles last 90 days from the build that signed them. The new snapshot and
+timestamp are therefore capped at the earliest expiry of any role in the bundle
+(a publisher role, `targets` or root), and `export-bundle` says so when that
+cuts the request short by a day or more. For the longest-lived bundle, export
+it straight after a build.
+
+```sh
+uv run initiative-registry export-bundle --repo site/public --out catalogue.tar.gz --keys $keys
+```
+
 `scripts/ephemeral-build.sh` runs the whole sequence (keys, root, build,
-verify) over this checkout's sources with throwaway keys, outside the checkout.
+verify, then an offline bundle and its verification) over this checkout's
+sources with throwaway keys, outside the checkout.
 CI runs it on every pull request.
 
 ## CI

@@ -2,37 +2,23 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "urn:initiative-registry:schema:entry",
   "title": "Listing entry",
-  "description": "The signed target publishers/<prefix>/<uid>/listing.json that a client reads. A listing (listing.schema.json) with every file it names published as a target beside it: paths are relative to the listing's target directory, and every sha256 is present.",
-  "allOf": [
-    {
-      "$ref": "urn:initiative-registry:schema:listing"
+  "description": "The signed target publishers/<prefix>/<uid>/listing.json that a client reads. A listing (listing.schema.json) with every file it names published as a target beside it: asset paths are relative to the listing's target directory, every sha256 is present, and each version names its manifest target instead of carrying its definition. That target (manifest.schema in $defs) is {uid, public_id, kind, definition, example?}.",
+  "$ref": "urn:initiative-registry:schema:listing#/$defs/listing_base",
+  "properties": {
+    "avatar": {
+      "$ref": "#/$defs/published_asset"
     },
-    {
-      "properties": {
-        "avatar": {
-          "$ref": "#/$defs/published_asset"
-        },
-        "images": {
-          "items": {
-            "$ref": "#/$defs/published_asset"
-          }
-        },
-        "versions": {
-          "items": {
-            "required": [
-              "sha256"
-            ],
-            "properties": {
-              "manifest": {
-                "type": "string",
-                "pattern": "^[0-9][0-9a-z.+-]*/manifest\\.json$"
-              }
-            }
-          }
-        }
+    "images": {
+      "items": {
+        "$ref": "#/$defs/published_asset"
+      }
+    },
+    "versions": {
+      "items": {
+        "$ref": "#/$defs/published_version"
       }
     }
-  ],
+  },
   "$defs": {
     "published_asset": {
       "required": [
@@ -42,6 +28,52 @@
         "path": {
           "type": "string",
           "pattern": "^assets/[0-9a-f]{64}\\.[a-z0-9]+$"
+        }
+      }
+    },
+    "published_version": {
+      "$ref": "urn:initiative-registry:schema:listing#/$defs/version_base",
+      "required": [
+        "manifest",
+        "sha256"
+      ],
+      "properties": {
+        "manifest": {
+          "description": "The version's manifest target, relative to the listing's target directory.",
+          "type": "string",
+          "pattern": "^[0-9][0-9a-z.+-]*/manifest\\.json$"
+        },
+        "sha256": {
+          "$ref": "urn:initiative-registry:schema:listing#/$defs/sha256"
+        }
+      },
+      "unevaluatedProperties": false
+    },
+    "manifest": {
+      "description": "The target publishers/<prefix>/<uid>/<version>/manifest.json. uid, public_id and kind equal the entry's.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "uid",
+        "public_id",
+        "kind",
+        "definition"
+      ],
+      "properties": {
+        "uid": {
+          "type": "string"
+        },
+        "public_id": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "definition": {
+          "type": "object"
+        },
+        "example": {
+          "type": "object"
         }
       }
     }

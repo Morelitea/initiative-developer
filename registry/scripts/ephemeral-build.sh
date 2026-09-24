@@ -2,7 +2,9 @@
 # Builds and verifies the public repository from this checkout's sources with
 # keys made for this run only: every top-level role and every publisher record
 # gets a fresh key, the records are copied with those keys filled in, and a new
-# root and targets are signed for them. Nothing is written inside the checkout.
+# root and targets are signed for them. The built repository is then packed as
+# an offline bundle, and the bundle is verified too. Nothing is written inside
+# the checkout.
 #
 # Usage: scripts/ephemeral-build.sh [work-dir]   (default: a new temporary dir)
 set -euo pipefail
@@ -44,3 +46,7 @@ done
 "${cli[@]}" build --target public --sources "$registry/sources" \
   --metadata "$metadata" --publishers "$publishers" --keys "$keys" --out "$out"
 "${cli[@]}" verify --repo "$out" --root "$metadata/1.root.json" --target public
+"${cli[@]}" export-bundle --repo "$out" --out "$work/bundle.tar.gz" --keys "$keys"
+mkdir -p "$work/bundle"
+tar -xzf "$work/bundle.tar.gz" -C "$work/bundle"
+"${cli[@]}" verify --repo "$work/bundle" --root "$metadata/1.root.json" --target public

@@ -14,7 +14,7 @@
   "versions": [
     {
       "version": "1.0.0",
-      "manifest": "1.0.0/manifest.json",
+      "definition": "1.0.0/manifest.json",
       "min_app_version": "0.73.0",
       "release_notes": "First release."
     }

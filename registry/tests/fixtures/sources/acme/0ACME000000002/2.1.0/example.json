@@ -1,0 +1,6 @@
+{
+  "w1": {
+    "columns": [{"name": "n", "type": "number"}],
+    "rows": [[12]]
+  }
+}

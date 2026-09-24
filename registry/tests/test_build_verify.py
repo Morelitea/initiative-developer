@@ -175,9 +175,10 @@ def test_source_digest_mismatch_is_refused(world: World) -> None:
         world.build()
 
 
-def test_manifest_digest_mismatch_is_refused(world: World) -> None:
+def test_source_version_gives_no_digest(world: World) -> None:
+    """The build writes each manifest target, so a source cannot pin its digest."""
     world.edit_listing(APP, lambda d: d["versions"][0].update(sha256="f" * 64))
-    with pytest.raises(RegistryError, match="manifest: the listing says sha256"):
+    with pytest.raises(RegistryError, match="'sha256' was unexpected"):
         world.build()
 
 

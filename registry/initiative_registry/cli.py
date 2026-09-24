@@ -11,6 +11,7 @@ from pathlib import Path
 
 from . import layout
 from .build import BUILD_TARGETS, build, refresh_timestamp
+from .bundle import DEFAULT_BUNDLE_DAYS, MAX_BUNDLE_DAYS, export_bundle
 from .errors import RegistryError
 from .keys import (
     PASSPHRASE_ENV,
@@ -89,6 +90,15 @@ def _publisher_key_flags(values: list[str]) -> dict[str, Path]:
     return keys
 
 
+def _online_signer(name: str, *, explicit: Path | None, key_dir: Path | None):
+    env = (
+        layout.role_key_env(name)
+        if name in layout.TOP_LEVEL_ROLES
+        else layout.publisher_key_env(name)
+    )
+    return resolve_signer(name, explicit=explicit, key_dir=key_dir, env_var=env)
+
+
 def _build(args: argparse.Namespace) -> None:
     explicit = {
         layout.SNAPSHOT: args.snapshot_key,
@@ -97,14 +107,7 @@ def _build(args: argparse.Namespace) -> None:
     }
 
     def keys(name: str):
-        env = (
-            layout.role_key_env(name)
-            if name in layout.TOP_LEVEL_ROLES
-            else layout.publisher_key_env(name)
-        )
-        return resolve_signer(
-            name, explicit=explicit.get(name), key_dir=args.keys, env_var=env
-        )
+        return _online_signer(name, explicit=explicit.get(name), key_dir=args.keys)
 
     result = build(
         target=args.target,
@@ -134,6 +137,48 @@ def _refresh_timestamp(args: argparse.Namespace) -> None:
         f"re-signed timestamp v{timestamp.signed.version}, "
         f"expires {timestamp.signed.expires:%Y-%m-%dT%H:%M:%SZ}"
     )
+
+
+def _export_bundle(args: argparse.Namespace) -> None:
+    result = export_bundle(
+        args.repo,
+        args.out,
+        snapshot_signer=_online_signer(
+            layout.SNAPSHOT, explicit=args.snapshot_key, key_dir=args.keys
+        ),
+        timestamp_signer=_online_signer(
+            layout.TIMESTAMP, explicit=args.timestamp_key, key_dir=args.keys
+        ),
+        expires_days=args.expires_days,
+    )
+    if result.limited_by is not None:
+        renew = (
+            "re-sign it with sign-offline"
+            if result.limited_by in layout.TOP_LEVEL_ROLES
+            else f"a publisher role lasts {layout.EXPIRY['publisher'].days} days "
+            "from the build that signed it, so build again for a bundle that "
+            "lasts longer"
+        )
+        print(
+            f"note: the bundle expires {result.expires:%Y-%m-%dT%H:%M:%SZ}, when "
+            f"{result.limited_by} does, not in {args.expires_days} days; {renew}",
+            file=sys.stderr,
+        )
+    print(
+        f"wrote {result.out}: {result.files} files, snapshot "
+        f"v{result.snapshot_version} and timestamp v{result.timestamp_version}, "
+        f"expires {result.expires:%Y-%m-%dT%H:%M:%SZ}"
+    )
+
+
+def _expires_days(value: str) -> int:
+    try:
+        days = int(value)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"{value!r} is not a number") from None
+    if not 1 <= days <= MAX_BUNDLE_DAYS:
+        raise argparse.ArgumentTypeError(f"must be 1 to {MAX_BUNDLE_DAYS}")
+    return days
 
 
 def _verify(args: argparse.Namespace) -> None:
@@ -282,6 +327,29 @@ def parser() -> argparse.ArgumentParser:
     refresh.add_argument("--keys", type=_path)
     refresh.add_argument("--timestamp-key", type=_path)
     refresh.set_defaults(run=_refresh_timestamp)
+
+    bundle = commands.add_parser(
+        "export-bundle",
+        help="pack a built repository as an offline bundle with a longer expiry",
+        epilog="The snapshot and timestamp keys are found as for build. The bundle "
+        "expires when its first role does, if that is sooner than --expires-days.",
+    )
+    bundle.add_argument(
+        "--repo", type=_path, required=True, help="a built directory; only read"
+    )
+    bundle.add_argument("--out", type=_path, required=True, help="the .tar.gz to write")
+    bundle.add_argument(
+        "--expires-days",
+        type=_expires_days,
+        default=DEFAULT_BUNDLE_DAYS,
+        metavar="N",
+        help=f"days the bundle's snapshot and timestamp last "
+        f"(default {DEFAULT_BUNDLE_DAYS}, at most {MAX_BUNDLE_DAYS})",
+    )
+    bundle.add_argument("--keys", type=_path, help="a directory of <name>.pem keys")
+    bundle.add_argument("--snapshot-key", type=_path)
+    bundle.add_argument("--timestamp-key", type=_path)
+    bundle.set_defaults(run=_export_bundle)
 
     check = commands.add_parser("verify", help="consume a repository with ngclient")
     check.add_argument(

@@ -24,7 +24,7 @@ from tuf.ngclient.fetcher import FetcherInterface
 from . import layout, schemas
 from .build import PUBLIC
 from .errors import RegistryError
-from .sources import sha256
+from .sources import service_public_id, sha256
 
 #: A uid no listing can have: it probes a delegation without naming a target.
 _PROBE_UID = "_"
@@ -139,6 +139,7 @@ def _check_entry(
     base = f"publishers/{prefix}/{uid}/"
     named = [entry["avatar"], *entry.get("images", [])]
     files = [(base + item["path"], item["sha256"]) for item in named]
+    manifests = {base + v["manifest"] for v in entry["versions"]}
     files += [(base + v["manifest"], v["sha256"]) for v in entry["versions"]]
     for file_path, expected in files:
         _, content = _download(updater, work, file_path, signer=prefix)
@@ -146,7 +147,27 @@ def _check_entry(
             raise RegistryError(
                 f"{file_path} does not match the sha256 {path} gives it"
             )
+        if file_path in manifests:
+            _check_manifest(file_path, content, entry)
     return 1 + len(files)
+
+
+def _check_manifest(path: str, data: bytes, entry: dict) -> None:
+    """A version's manifest names its listing and carries its definition."""
+    try:
+        manifest = json.loads(data)
+    except ValueError as exc:
+        raise RegistryError(f"{path} is not valid JSON: {exc}") from exc
+    schemas.validate(schemas.MANIFEST, manifest, what=path)
+    for key in ("uid", "public_id", "kind"):
+        if manifest[key] != entry[key]:
+            raise RegistryError(f"{path} names a different {key}")
+    if "registration" in entry and (
+        service_public_id(manifest["definition"]) != entry["public_id"]
+    ):
+        raise RegistryError(
+            f"{path}: its definition is not the service app {entry['public_id']!r}"
+        )
 
 
 def verify(

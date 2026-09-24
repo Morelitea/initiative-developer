@@ -165,10 +165,11 @@ def sign_timestamp(
     *,
     version: int,
     now: datetime,
+    expires: datetime | None = None,
 ) -> Metadata[Timestamp]:
     timestamp = Timestamp(
         version=version,
-        expires=now + layout.EXPIRY[layout.TIMESTAMP],
+        expires=expires or now + layout.EXPIRY[layout.TIMESTAMP],
         snapshot_meta=MetaFile(
             version=snapshot_version,
             length=len(snapshot_bytes),

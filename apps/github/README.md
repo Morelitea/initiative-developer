@@ -40,6 +40,13 @@ tokens, and mints the organization's installation tokens from the GitHub App's
 key. The app asks Initiative for a token when it calls GitHub, and stores
 nothing.
 
+**Other apps use it through Initiative.** Every read and write is public: an
+app the community has let use GitHub (`apps:morelitea.github`) calls it
+through Initiative, as the community or as one of its members. A read takes
+either and answers on the organization's installation. A write takes only a
+member and runs on that member's own GitHub account, so an automation's
+"comment on the issue" is theirs. Writes are reachable only this way.
+
 **Removing it.** When a member disconnects, leaves or is blocked, or the app is
 removed, Initiative ends the member's GitHub authorization (the grant, so its
 refresh token goes too) by calling the app's revoke hook. Turning the app off,

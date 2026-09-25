@@ -1,4 +1,4 @@
-import { memberToken } from "../credentials.js";
+import { callerToken } from "../credentials.js";
 import { graphql, rest } from "../github/http.js";
 import {
   ACCOUNT,
@@ -42,9 +42,11 @@ import {
   limit,
   list,
   nodes,
-  orNull,
   ordering,
+  orNull,
   pick,
+  PUBLIC_READ,
+  PUBLIC_WRITE,
   readFailure,
   repoAccess,
   ROW_FIELDS,
@@ -85,7 +87,7 @@ export function isLogin(value: string): boolean {
 
 /**
  * Pull requests waiting on one reviewer, through GitHub's search. `@me` means
- * the member asking, so it runs on the member's own credential.
+ * the member the call is for, so it runs on the member's own credential.
  */
 async function waitingOn(call: Call, reviewer: string): Promise<ReadOutcome> {
   const actor = reviewer === "@me" ? "member" : "installation";
@@ -99,10 +101,12 @@ async function waitingOn(call: Call, reviewer: string): Promise<ReadOutcome> {
 
   let token = access.token;
   if (reviewer === "@me") {
-    const ref = call.claims.connection_refs?.[ACCOUNT];
-    if (!ref) return { actor, result: unavailable("not-connected") };
-    const own = await memberToken(call.context, call.installation, ref);
-    if (!own.ok) return { actor, result: unavailable(own.reason === "not-connected" ? "not-connected" : "vendor-error") };
+    // A call made as the community names no member for `@me` to mean.
+    const own = await callerToken(call);
+    if (!own.ok) {
+      const reason = own.reason === "no-member" ? "member-required" : own.reason === "not-connected" ? "not-connected" : "vendor-error";
+      return { actor, result: unavailable(reason) };
+    }
     token = own.token;
   }
 
@@ -137,8 +141,8 @@ export const findPullRequests: Read = {
       "Les pull requests correspondant à une question, y compris celles en attente de revue."
     ),
     group: "reviews",
-    // `@me` is the member asking; everything else runs on the installation.
-    actors: ["installation", "member"],
+    // `@me` is the member the call is for; everything else runs on the installation.
+    ...PUBLIC_READ,
     cache_ttl_seconds: 60,
     params: [
       REPO,
@@ -217,7 +221,7 @@ export const getPullRequest: Read = {
       "Une pull request par numéro : si c'est un brouillon, et si elle a été fusionnée."
     ),
     group: "reviews",
-    actors: ["installation"],
+    ...PUBLIC_READ,
     cache_ttl_seconds: 0,
     params: [REPO, NUMBER],
     returns: [
@@ -298,8 +302,7 @@ export const requestReview: Write = {
       "Demande à des personnes ou des équipes de relire une pull request, en tant que le membre."
     ),
     group: "reviews",
-    actors: ["member"],
-    requires: { all_of: [WORKSPACE, ACCOUNT] },
+    ...PUBLIC_WRITE,
     params: [
       REPO,
       NUMBER,

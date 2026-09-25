@@ -1,5 +1,20 @@
 # Changelog
 
+## [2.1.0]
+
+Other apps can use GitHub through Initiative.
+
+### Added
+
+- Every read and write can be called by another app the community has let use
+  GitHub. A read answers on the organization's installation, whether the app
+  calls as the community or as a member. A write runs only as a member, on
+  their own GitHub account; a member who has not connected is told to.
+
+### Upgrading
+
+- Needs an Initiative that lets apps call one another.
+
 ## [2.0.0]
 
 Initiative runs the GitHub connections.

@@ -70,6 +70,18 @@ describe("manifest", () => {
     }
   });
 
+  it("offers every read and write to other apps, and no announcement", () => {
+    for (const endpoint of manifest.endpoints ?? []) {
+      if (endpoint.direction === "emit") {
+        expect(endpoint.public).toBeUndefined();
+        continue;
+      }
+      expect(endpoint.public).toBe(true);
+      expect(endpoint.admin_only).toBeUndefined();
+      if (endpoint.direction === "read") expect(endpoint.actors).toEqual(["installation", "member"]);
+    }
+  });
+
   it("has Initiative run both GitHub connections with the GitHub App's own values", () => {
     expect(manifest.vendor!.fields.map((field) => [field.key, field.type, field.required])).toEqual([
       ["client_id", "string", true],

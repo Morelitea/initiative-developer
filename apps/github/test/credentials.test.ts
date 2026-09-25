@@ -1,14 +1,14 @@
 /**
  * A member's GitHub token, asked of Initiative by the handle a context token
- * names: used for the call and not kept, refused when the member's connection
- * is gone, blocked or expired, and found for a member another app names.
+ * names: used for the call and not kept, and refused when the member's
+ * connection is gone, blocked or expired.
  */
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { delegatedMemberToken, memberToken } from "../src/credentials.js";
+import { memberToken } from "../src/credentials.js";
 import { WRITE_IDS } from "../src/vocabulary.js";
-import { startHarness, type Harness } from "./support/harness.js";
+import { asMember, startHarness, type Harness } from "./support/harness.js";
 
 const INSTALLATION = "gapp_one";
 let h: Harness;
@@ -33,7 +33,7 @@ describe("a member's token", () => {
         INSTALLATION,
         WRITE_IDS.comment,
         { repo: "widgets", number: "7", body: `round ${round}` },
-        { connectionRefs: { account: "cref_alice" } }
+        asMember("cref_alice")
       );
       expect(status).toBe(200);
     }
@@ -64,18 +64,5 @@ describe("a member's token", () => {
     h.initiative.install(INSTALLATION, { members: { cref_alice: "ghu_alice" } });
     h.initiative.connectionTokenFails = 502;
     expect(await memberToken(h.context, INSTALLATION, "cref_alice")).toEqual({ ok: false, reason: "unavailable" });
-  });
-});
-
-describe("a member another app names", () => {
-  it("is resolved to this app's own handle for them", async () => {
-    const install = h.initiative.install(INSTALLATION, { members: { cref_alice: "ghu_alice" } });
-    install.delegated.set("morelitea.automations uapp_alice", "cref_alice");
-    expect(
-      await delegatedMemberToken(h.context, INSTALLATION, { delegate: "morelitea.automations", subject: "uapp_alice" })
-    ).toEqual({ ok: true, token: "ghu_alice" });
-    expect(
-      await delegatedMemberToken(h.context, INSTALLATION, { delegate: "morelitea.automations", subject: "uapp_nobody" })
-    ).toEqual({ ok: false, reason: "not-connected" });
   });
 });

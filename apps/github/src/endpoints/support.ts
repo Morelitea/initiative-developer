@@ -12,6 +12,7 @@ import type { ActorKind, ContextClaims, Endpoint } from "initiative-app-kit";
 import type { AppContext } from "../context.js";
 import type { Failure } from "../github/http.js";
 import type { Workspace } from "../installs.js";
+import { ACCOUNT, WORKSPACE } from "../vocabulary.js";
 
 export interface Call {
   context: AppContext;
@@ -41,6 +42,26 @@ export interface Write {
   declaration: Endpoint;
   run(call: Call, token: string, place: Place): Promise<WriteOutcome>;
 }
+
+/**
+ * A read other apps may call through Initiative, as the community or as one of
+ * its members. It runs on the organization's installation either way, so it
+ * answers the same for both.
+ */
+export const PUBLIC_READ = {
+  public: true,
+  actors: ["installation", "member"],
+} satisfies Pick<Endpoint, "public" | "actors">;
+
+/**
+ * A write other apps may call through Initiative, as one of the community's
+ * members only: it runs on that member's own GitHub account.
+ */
+export const PUBLIC_WRITE = {
+  public: true,
+  actors: ["member"],
+  requires: { all_of: [WORKSPACE, ACCOUNT] },
+} satisfies Pick<Endpoint, "public" | "actors" | "requires">;
 
 /** Where a call lands: the community's GitHub account and installation. */
 export type Place = Workspace;

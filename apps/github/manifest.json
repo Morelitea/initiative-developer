@@ -187,8 +187,10 @@
         "fr": "Les dépôts couverts par l'installation de l'organisation."
       },
       "group": "repositories",
+      "public": true,
       "actors": [
-        "installation"
+        "installation",
+        "member"
       ],
       "cache_ttl_seconds": 300,
       "returns": [
@@ -250,8 +252,10 @@
         "fr": "Toutes les étiquettes qui existent dans le dépôt."
       },
       "group": "issues",
+      "public": true,
       "actors": [
-        "installation"
+        "installation",
+        "member"
       ],
       "cache_ttl_seconds": 300,
       "params": [
@@ -335,8 +339,10 @@
         "fr": "Un ticket par numéro : son état, ses étiquettes et à qui il est assigné."
       },
       "group": "issues",
+      "public": true,
       "actors": [
-        "installation"
+        "installation",
+        "member"
       ],
       "cache_ttl_seconds": 0,
       "params": [
@@ -483,8 +489,10 @@
         "fr": "Les tickets correspondant à une question, sous forme des numéros sur lesquels agir."
       },
       "group": "issues",
+      "public": true,
       "actors": [
-        "installation"
+        "installation",
+        "member"
       ],
       "cache_ttl_seconds": 60,
       "params": [
@@ -716,8 +724,10 @@
         "fr": "Une pull request par numéro : si c'est un brouillon, et si elle a été fusionnée."
       },
       "group": "reviews",
+      "public": true,
       "actors": [
-        "installation"
+        "installation",
+        "member"
       ],
       "cache_ttl_seconds": 0,
       "params": [
@@ -890,6 +900,7 @@
         "fr": "Les pull requests correspondant à une question, y compris celles en attente de revue."
       },
       "group": "reviews",
+      "public": true,
       "actors": [
         "installation",
         "member"
@@ -1116,8 +1127,10 @@
         "fr": "Alertes de dépendances ouvertes, avec la gravité et le paquet de chacune."
       },
       "group": "security",
+      "public": true,
       "actors": [
-        "installation"
+        "installation",
+        "member"
       ],
       "cache_ttl_seconds": 300,
       "params": [
@@ -1220,8 +1233,10 @@
         "fr": "Les tableaux Projects du compte de l'installation."
       },
       "group": "projects",
+      "public": true,
       "actors": [
-        "installation"
+        "installation",
+        "member"
       ],
       "cache_ttl_seconds": 300,
       "returns": [
@@ -1304,8 +1319,10 @@
         "fr": "Les champs à choix unique d'un tableau : ses colonnes, et tout autre du même type."
       },
       "group": "projects",
+      "public": true,
       "actors": [
-        "installation"
+        "installation",
+        "member"
       ],
       "cache_ttl_seconds": 300,
       "params": [
@@ -1391,8 +1408,10 @@
         "fr": "Ce à quoi un champ à choix unique d'un tableau peut être défini."
       },
       "group": "projects",
+      "public": true,
       "actors": [
-        "installation"
+        "installation",
+        "member"
       ],
       "cache_ttl_seconds": 300,
       "params": [
@@ -1494,8 +1513,10 @@
         "fr": "La carte qu'un ticket ou une pull request a sur un tableau."
       },
       "group": "projects",
+      "public": true,
       "actors": [
-        "installation"
+        "installation",
+        "member"
       ],
       "cache_ttl_seconds": 0,
       "params": [
@@ -1595,6 +1616,7 @@
         "fr": "En ouvre un dans un dépôt couvert par l'installation, en tant que le membre."
       },
       "group": "issues",
+      "public": true,
       "actors": [
         "member"
       ],
@@ -1724,6 +1746,7 @@
         "fr": "Ajoute un commentaire à un ticket ou une pull request, en tant que le membre."
       },
       "group": "issues",
+      "public": true,
       "actors": [
         "member"
       ],
@@ -1824,6 +1847,7 @@
         "fr": "Le ferme comme terminé ou comme non planifié, en tant que le membre."
       },
       "group": "issues",
+      "public": true,
       "actors": [
         "member"
       ],
@@ -1921,6 +1945,7 @@
         "fr": "Remet un ticket fermé à l'état ouvert, en tant que le membre."
       },
       "group": "issues",
+      "public": true,
       "actors": [
         "member"
       ],
@@ -2004,6 +2029,7 @@
         "fr": "Ajoute ou retire des étiquettes sur un ticket ou une pull request, en tant que le membre."
       },
       "group": "issues",
+      "public": true,
       "actors": [
         "member"
       ],
@@ -2109,6 +2135,7 @@
         "fr": "Demande à des personnes ou des équipes de relire une pull request, en tant que le membre."
       },
       "group": "reviews",
+      "public": true,
       "actors": [
         "member"
       ],
@@ -2210,6 +2237,7 @@
         "fr": "Définit un champ à choix unique sur une carte Projects, en tant que le membre."
       },
       "group": "projects",
+      "public": true,
       "actors": [
         "member"
       ],

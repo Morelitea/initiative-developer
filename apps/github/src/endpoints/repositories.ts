@@ -1,4 +1,4 @@
-import { installationAccess, isResult, readFailure, type Read } from "./support.js";
+import { installationAccess, isResult, PUBLIC_READ, readFailure, type Read } from "./support.js";
 import {
   COUNT_OUT,
   many,
@@ -22,7 +22,7 @@ export const listRepositories: Read = {
       "Les dépôts couverts par l'installation de l'organisation."
     ),
     group: "repositories",
-    actors: ["installation"],
+    ...PUBLIC_READ,
     cache_ttl_seconds: 300,
     returns: [
       many(out("names", "string", { label: text("Repositories", "Repositories", "Repositorios", "Dépôts") })),

@@ -40,9 +40,9 @@ in their own connection there. The app holds short-lived copies in memory.
 **Removing it.** When Initiative stops listing an installation, the app ends
 every member's GitHub authorization under it (the grant, so its refresh token
 goes too), and forgets what it cached. When a member disconnects, leaves or is
-blocked, their authorization is ended at the next sync. Initiative lists only
-installations that are turned on, so turning the app off is treated the same
-way.
+blocked, their authorization is ended at the next sync. Turning the app off, or
+a community being put on hold, only pauses it: everything is kept, and nobody
+has to authorize again when it is turned back on.
 
 ## Installing it
 

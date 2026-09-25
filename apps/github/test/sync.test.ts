@@ -49,6 +49,20 @@ describe("an installation that is gone", () => {
     expect(h.context.installs.known()).toEqual(["gapp_two"]);
   });
 
+  it("keeps a paused installation's authorizations, and reads it again once it is active", async () => {
+    await h.sync.run();
+    h.initiative.inactive.add("gapp_one");
+    for (let pass = 0; pass < MISSING_PASSES + 1; pass += 1) {
+      expect(await h.sync.run()).toMatchObject({ listed: 2, removed: [] });
+    }
+    expect(h.github.revoked).toEqual([]);
+    expect(h.context.installs.known().sort()).toEqual(["gapp_one", "gapp_two"]);
+
+    h.initiative.inactive.delete("gapp_one");
+    expect(await h.sync.run()).toMatchObject({ listed: 2, removed: [] });
+    expect(h.github.revoked).toEqual([]);
+  });
+
   it("comes back as a new installation without revoking anything", async () => {
     await h.sync.run();
     h.initiative.listed = ["gapp_two"];

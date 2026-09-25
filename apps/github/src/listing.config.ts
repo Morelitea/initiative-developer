@@ -16,14 +16,19 @@ import { createHash } from "node:crypto";
 
 import { LISTING_UID, PUBLIC_ID, SCOPES } from "./vocabulary.js";
 
-export const VERSION = "1.0.0";
+export const VERSION = "2.0.0";
 
-/** The oldest Initiative that serves this app's installation calls. */
-export const MIN_APP_VERSION = "0.73.0";
+/**
+ * The oldest Initiative that runs this app's connections. Development builds
+ * report the last release until the next one, and no release before the next
+ * one follows the registry, so this admits development builds and every later
+ * release.
+ */
+export const MIN_APP_VERSION = "0.72.0";
 
 /** The image this version runs, pinned by digest. */
 export const IMAGE =
-  "ghcr.io/morelitea/initiative-github@sha256:80304aa552eebb4259f902fafe841e57d113ba2c1000d6e0e2af882e9b621768";
+  "ghcr.io/morelitea/initiative-github@sha256:8f3b4e230c19c257d71a10429d34b85260384157bbaeb9c63a3911475e252929";
 
 /** The public key the app's token requests are verified with. */
 export const JWKS = {
@@ -58,7 +63,7 @@ export function listingEntry(avatar: Buffer): Record<string, unknown> {
         definition: DEFINITION_PATH,
         min_app_version: MIN_APP_VERSION,
         release_notes:
-          "Rewritten on the installation-token platform. Existing installs are removed and installed again, then the GitHub organization is connected again.",
+          "Initiative now runs the GitHub sign-ins and holds the tokens. Each member connects their GitHub account again, once.",
       },
     ],
     registration: {

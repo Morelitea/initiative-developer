@@ -1,5 +1,32 @@
 # Changelog
 
+## [2.0.0]
+
+Initiative runs the GitHub connections.
+
+### Changed
+
+- Initiative sends people to GitHub's install and authorization pages, keeps
+  every token, renews members' tokens and mints the organization's
+  installation tokens. The app asks it for a token for each call, and ends a
+  member's authorization at GitHub when Initiative calls its revoke hook.
+- A write GitHub refuses for want of a permission the organization did not
+  grant answers GitHub's own `forbidden`, rather than being refused before it
+  is sent.
+- The configuration is reported unavailable when no installation token can be
+  had for several syncs in a row.
+
+### Upgrading
+
+- Needs an Initiative that runs app connections. On the GitHub App, the
+  callback URL becomes `{APP_URL}/api/v1/app-connections/callback` and the
+  setup URL `{APP_URL}/api/v1/app-connections/setup`; the GitHub App's client
+  ID, client secret, slug, app ID and private key are entered on the app's
+  registration in Initiative.
+- Members connect their GitHub account again, once.
+- `APP_PUBLIC_URL`, `GITHUB_APP_PRIVATE_KEY` and `GITHUB_APP_SLUG` are no
+  longer read.
+
 ## [1.0.0]
 
 Rewritten on the installation-token platform.

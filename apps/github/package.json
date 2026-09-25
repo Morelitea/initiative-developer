@@ -1,6 +1,6 @@
 {
   "name": "initiative-github",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "private": true,
   "description": "A GitHub organization's issues, reviews and dependency alerts in an Initiative community: endpoints an automation can call, widgets a dashboard can draw.",
   "license": "MIT",
@@ -18,7 +18,7 @@
     "manifest:check": "npm run build && node dist/scripts/build-manifest.js --check && initiative-app validate manifest.json"
   },
   "dependencies": {
-    "initiative-app-kit": "github:Morelitea/initiative-app-kit#v0.23.1"
+    "initiative-app-kit": "github:Morelitea/initiative-app-kit#feat/connection-flows"
   },
   "devDependencies": {
     "@types/node": "^26.6.2",

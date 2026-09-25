@@ -3,8 +3,9 @@
  *
  * The context token says which community and which endpoint; the body names
  * the endpoint and its parameters. A read runs on the organization's
- * installation. A write runs on the credential of the member it is done for,
- * which the token names by handle, and never falls back to the app.
+ * installation. A write runs on the token of the member it is done for, which
+ * the context token names by handle and Initiative hands over, and never
+ * falls back to the app.
  */
 
 import {
@@ -18,7 +19,6 @@ import {
 import type { AppContext } from "./context.js";
 import { memberToken } from "./credentials.js";
 import { ENDPOINTS, READ_HANDLERS, WRITE_HANDLERS } from "./endpoints/index.js";
-import { grants } from "./github/app.js";
 import type { Call, Write } from "./endpoints/support.js";
 import { ACCOUNT, PUBLIC_ID } from "./vocabulary.js";
 
@@ -83,17 +83,15 @@ async function runWrite(call: Call, write: Write): Promise<Answer> {
 
   // The member this write is done for, by the handle the token carries.
   const ref = call.claims.connection_refs?.[ACCOUNT];
-  const token = ref ? await memberToken(call.context, call.installation, ref) : null;
-  if (!token) return refuse(409, "not-connected", "the member has no connected GitHub account");
-
-  // Refused here, naming the permission, when the organization never granted it.
-  const minted = await call.context.github.installationToken(snapshot.workspace.installationId);
-  if (!minted) return refuse(409, "installation-unavailable");
-  if (minted.grant && !write.needs.some((permission) => grants(minted.grant!, permission, "write"))) {
-    return refuse(403, "missing-permission", write.needs.join(" or "));
+  if (!ref) return refuse(409, "not-connected", "the member has no connected GitHub account");
+  const member = await memberToken(call.context, call.installation, ref);
+  if (!member.ok) {
+    return member.reason === "not-connected"
+      ? refuse(409, "not-connected", "the member has no connected GitHub account")
+      : refuse(502, "vendor-error", "no GitHub token could be had for the member");
   }
 
-  const outcome = await write.run(call, token, { ...snapshot.workspace, grant: minted.grant });
+  const outcome = await write.run(call, member.token, snapshot.workspace);
   if (!outcome.ok) return refuse(outcome.status, outcome.error, outcome.detail);
   return { status: 200, body: { endpoint, actor: "member", result: outcome.result } };
 }

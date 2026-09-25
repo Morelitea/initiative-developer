@@ -1,19 +1,14 @@
 /** Keys for the tests, generated once per run. None of them is ever written to disk. */
 
-import { createSign, generateKeyPairSync } from "node:crypto";
+import { createSign } from "node:crypto";
 
 import { generateAppKeys, loadPrivateKey, publicJwks } from "initiative-app-kit";
 
-/** The deployment's platform key: signs context tokens and connect returns. */
+/** The deployment's platform key: signs context and lifecycle tokens. */
 export const platform = generateAppKeys({ alg: "RS256", kid: "platform-1" });
 
 /** The app's own key, registered with Initiative. */
 export const appKey = generateAppKeys({ alg: "ES256", kid: "app-1" });
-
-/** The GitHub App's private key. */
-export const githubAppKey = generateKeyPairSync("rsa", { modulusLength: 2048 })
-  .privateKey.export({ type: "pkcs8", format: "pem" })
-  .toString();
 
 /** A key the deployment never published. */
 export const stranger = generateAppKeys({ alg: "RS256", kid: "platform-1" });

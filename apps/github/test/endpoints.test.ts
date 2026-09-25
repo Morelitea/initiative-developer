@@ -1,8 +1,8 @@
 /**
- * Every endpoint, called as Initiative calls it: each read's answer and its
- * answer when GitHub refuses the installation, and each write's call to
- * GitHub as the member and its refusal when the organization never granted
- * the permission it needs.
+ * Every endpoint, called as Initiative calls it: each read's answer on the
+ * installation token Initiative mints, and its answer when GitHub refuses the
+ * installation; each write's call to GitHub on the member's token Initiative
+ * hands over, and GitHub's refusal passed through.
  */
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -12,17 +12,12 @@ import { startHarness, type Harness } from "./support/harness.js";
 
 const INSTALLATION = "gapp_one";
 const MEMBER = "cref_alice";
-const FAR = Math.floor(Date.now() / 1000) + 8 * 3600;
 
 let h: Harness;
 
 beforeEach(async () => {
   h = await startHarness();
-  h.initiative.install(INSTALLATION, {
-    members: {
-      [MEMBER]: { access_token: "ghu_alice", refresh_token: "ghr_alice", expires_at: FAR, refresh_expires_at: FAR },
-    },
-  });
+  h.initiative.install(INSTALLATION, { members: { [MEMBER]: "ghu_alice" } });
   h.github.install(42);
 });
 
@@ -268,6 +263,19 @@ describe("reads", () => {
     expect(body.result).toEqual({ unavailable: "not-configured" });
   });
 
+  it("says so when Initiative can get no token for the installation", async () => {
+    h.github.installations.delete(42);
+    const { body } = await h.invoke(INSTALLATION, READ_IDS.listRepositories, {});
+    expect(body.result).toEqual({ unavailable: "installation-unavailable" });
+  });
+
+  it("reuses the installation token until it is about to expire", async () => {
+    await h.invoke(INSTALLATION, READ_IDS.listRepositories, {});
+    h.github.graphql.set("Labels", () => ({ body: { data: { repository: { labels: { totalCount: 0, nodes: [] } } } } }));
+    await h.invoke(INSTALLATION, READ_IDS.listLabels, { repo: "widgets" });
+    expect(h.initiative.installs.get(INSTALLATION)!.tokenAsks).toEqual(["cref_ws_gapp_one"]);
+  });
+
   it("answers @me on the member's own token", async () => {
     h.github.graphql.set("ReviewRequested", (variables) => ({
       body: { data: { search: { issueCount: 1, nodes: [{ ...row, number: 9 }] } } },
@@ -372,16 +380,6 @@ describe("writes", () => {
       expect(sent[0].token).toBe("ghu_alice");
       if (one.sent) expect(sent[0].body).toEqual(one.sent);
     });
-
-    it(`${name} is refused when the organization never granted what it needs`, async () => {
-      h.github.install(42, { permissions: { metadata: "read", vulnerability_alerts: "read" } });
-      h.github.rest.set(one.route, () => one.answer);
-      const { status, body } = await h.invoke(INSTALLATION, one.id, one.params, { connectionRefs: { account: MEMBER } });
-      expect(status).toBe(403);
-      expect(body.error).toBe("missing-permission");
-      const [method, path] = one.route.split(" ");
-      expect(h.github.callsTo(method, path)).toHaveLength(0);
-    });
   }
 
   it("move-project-item sets the card's field as the member", async () => {
@@ -397,19 +395,6 @@ describe("writes", () => {
     );
     expect(status).toBe(200);
     expect(body).toMatchObject({ actor: "member", result: { item_id: "PVTI_7" } });
-  });
-
-  it("move-project-item is refused without a projects permission", async () => {
-    h.github.install(42, { permissions: { issues: "write", metadata: "read" } });
-    const { status, body } = await h.invoke(
-      INSTALLATION,
-      WRITE_IDS.moveProjectItem,
-      { project_id: "PVT_1", item_id: "PVTI_7", field_id: "F_1", option_id: "O_2" },
-      { connectionRefs: { account: MEMBER } }
-    );
-    expect(status).toBe(403);
-    expect(body).toMatchObject({ error: "missing-permission", detail: "organization_projects or repository_projects" });
-    expect(h.github.operations()).not.toContain("Move");
   });
 
   it("covers all seven", () => {
@@ -450,6 +435,18 @@ describe("writes", () => {
     expect(status).toBe(409);
     expect(body.error).toBe("not-connected");
     expect(h.github.callsTo("POST", "/repos/acme/widgets/issues")).toHaveLength(0);
+  });
+
+  it("says GitHub did not answer when Initiative could not renew the member's token", async () => {
+    h.initiative.connectionTokenFails = 502;
+    const { status, body } = await h.invoke(
+      INSTALLATION,
+      WRITE_IDS.openIssue,
+      { repo: "widgets", title: "x" },
+      { connectionRefs: { account: MEMBER } }
+    );
+    expect(status).toBe(502);
+    expect(body.error).toBe("vendor-error");
   });
 
   it("refuses a handle Initiative does not hold a credential for", async () => {

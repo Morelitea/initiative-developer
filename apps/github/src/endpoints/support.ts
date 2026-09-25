@@ -10,7 +10,6 @@
 import type { ActorKind, ContextClaims, Endpoint } from "initiative-app-kit";
 
 import type { AppContext } from "../context.js";
-import type { Grant } from "../github/app.js";
 import type { Failure } from "../github/http.js";
 import type { Workspace } from "../installs.js";
 
@@ -40,19 +39,11 @@ export type WriteOutcome =
 
 export interface Write {
   declaration: Endpoint;
-  /**
-   * The GitHub permissions this write needs at write level, any one of which
-   * is enough. Checked against what the organization granted before the call
-   * goes out.
-   */
-  needs: readonly string[];
   run(call: Call, token: string, place: Place): Promise<WriteOutcome>;
 }
 
 /** Where a call lands: the community's GitHub account and installation. */
-export interface Place extends Workspace {
-  grant: Grant | null;
-}
+export type Place = Workspace;
 
 /** Why a read has no answer. */
 export type Unavailable = { unavailable: string };
@@ -81,9 +72,9 @@ export interface InstallationAccess extends Place {
 export async function installationAccess(call: Call): Promise<InstallationAccess | Unavailable> {
   const snapshot = await call.context.installs.snapshot(call.installation);
   if (!snapshot.workspace) return unavailable("not-configured");
-  const minted = await call.context.github.installationToken(snapshot.workspace.installationId);
-  if (!minted) return unavailable("installation-unavailable");
-  return { ...snapshot.workspace, token: minted.token, grant: minted.grant };
+  const token = await call.context.github.installationToken(call.installation, snapshot.workspace);
+  if (!token) return unavailable("installation-unavailable");
+  return { ...snapshot.workspace, token };
 }
 
 export function isResult(value: object): value is Unavailable {
@@ -101,7 +92,7 @@ export async function repository(
 ): Promise<{ repo: string } | Unavailable> {
   const asked = text(call.params, "repo");
   if (!asked) return { unavailable: "repository-required" };
-  const covered = await call.context.github.installationRepositories(workspace.installationId);
+  const covered = await call.context.github.installationRepositories(call.installation, workspace);
   if ("failure" in covered) return { unavailable: covered.failure === "invalid" ? "vendor-error" : covered.failure };
   const repo = covered.names.find((name) => name.toLowerCase() === asked.toLowerCase());
   return repo ? { repo } : { unavailable: "repository-not-listed" };

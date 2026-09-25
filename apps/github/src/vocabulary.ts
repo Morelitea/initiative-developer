@@ -29,17 +29,12 @@ export const SCOPES: readonly Scope[] = [
   "tags:read",
 ];
 
-/** The community's GitHub installation, written back by the install flow. */
+/** The community's GitHub installation, which Initiative connects on GitHub's install page. */
 export const WORKSPACE = "workspace";
-/** Each member's own GitHub authorization, written back by the connect flow. */
+/** Each member's own GitHub authorization, which Initiative runs and holds. */
 export const ACCOUNT = "account";
 
 export const PATHS = {
-  connect: "/connect/github",
-  connectCallback: "/connect/github/callback",
-  install: "/install/github",
-  installSetup: "/install/github/setup",
-  installVerify: "/install/github/verify",
   webhook: "/github/webhook",
   jwks: "/.well-known/jwks.json",
 } as const;

@@ -299,7 +299,6 @@ export const findProjectItem: Read = {
 export const moveProjectItem: Write = {
   // A board belongs to an organization or to a repository, and either
   // permission reaches it.
-  needs: ["organization_projects", "repository_projects"],
   declaration: {
     id: WRITE_IDS.moveProjectItem,
     direction: "write",

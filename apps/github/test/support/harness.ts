@@ -10,13 +10,14 @@ import type { Config } from "../../src/config.js";
 import { createContext, settle, type AppContext, type Logger } from "../../src/context.js";
 import { createAppServer } from "../../src/server.js";
 import { InstallationSync } from "../../src/sync.js";
-import { ENDPOINTS_PATH } from "initiative-app-kit";
+import { ENDPOINTS_PATH, HOOKS_PATH } from "initiative-app-kit";
 import { FakeGitHub, GITHUB_API, GITHUB_WEB } from "./fake-github.js";
 import { FakeInitiative, INITIATIVE_BASE, INITIATIVE_ORIGIN } from "./fake-initiative.js";
-import { appKey, githubAppKey } from "./keys.js";
+import { appKey } from "./keys.js";
 
 export const WEBHOOK_SECRET = "webhook-secret-for-tests";
-export const PUBLIC_URL = "https://github-app.test";
+export const CLIENT_ID = "Iv1.testclient";
+export const CLIENT_SECRET = "client-secret-for-tests";
 
 export interface Harness {
   initiative: FakeInitiative;
@@ -32,8 +33,13 @@ export interface Harness {
     params?: Record<string, unknown>,
     options?: { connectionRefs?: Record<string, string>; token?: string }
   ): Promise<{ status: number; body: Record<string, any> }>;
-  /** Visit a browser route without following its redirect. */
-  visit(path: string): Promise<{ status: number; location: string | null; text: string }>;
+  /** Call one hook as Initiative would. */
+  hook(
+    installation: string,
+    name: string,
+    body: unknown,
+    options?: { token?: string }
+  ): Promise<{ status: number; body: Record<string, any> | null }>;
   settle(): Promise<void>;
   close(): Promise<void>;
 }
@@ -41,14 +47,11 @@ export interface Harness {
 export function testConfig(): Config {
   return {
     port: 0,
-    publicUrl: PUBLIC_URL,
     initiative: { baseUrl: INITIATIVE_BASE, privateKey: appKey.privateKeyPem, keyId: appKey.kid },
     github: {
-      clientId: "Iv1.testclient",
-      clientSecret: "client-secret-for-tests",
-      privateKey: githubAppKey,
+      clientId: CLIENT_ID,
+      clientSecret: CLIENT_SECRET,
       webhookSecret: WEBHOOK_SECRET,
-      appSlug: null,
       apiBase: GITHUB_API,
       webBase: GITHUB_WEB,
     },
@@ -57,8 +60,8 @@ export function testConfig(): Config {
 }
 
 export async function startHarness(): Promise<Harness> {
-  const initiative = new FakeInitiative();
   const github = new FakeGitHub();
+  const initiative = new FakeInitiative(github);
   const logs: string[] = [];
   const log: Logger = {
     info: (message) => logs.push(`info ${message}`),
@@ -96,9 +99,15 @@ export async function startHarness(): Promise<Harness> {
       });
       return { status: response.status, body: (await response.json()) as Record<string, any> };
     },
-    async visit(path) {
-      const response = await fetch(`${url}${path}`, { redirect: "manual" });
-      return { status: response.status, location: response.headers.get("location"), text: await response.text() };
+    async hook(installation, name, body, options = {}) {
+      const token = options.token ?? initiative.hookToken(installation, name);
+      const response = await fetch(`${url}${HOOKS_PATH}/${name}`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const text = await response.text();
+      return { status: response.status, body: text ? (JSON.parse(text) as Record<string, any>) : null };
     },
     settle: () => settle(context),
     close: () => new Promise<void>((resolve) => server.close(() => resolve())),

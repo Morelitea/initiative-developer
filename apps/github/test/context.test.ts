@@ -41,7 +41,6 @@ describe("context verification", () => {
       h.initiative.contextToken(INSTALLATION, READ_IDS.listRepositories, {
         claims: { iat: Math.floor(Date.now() / 1000) - 600, exp: Math.floor(Date.now() / 1000) - 300 },
       })],
-    ["a connect return presented as a context token", (h) => h.initiative.connectReturn(INSTALLATION, "account", "cref_x")],
     ["something that is not a JWT", () => "not-a-token"],
   ];
 

@@ -1,0 +1,39 @@
+{
+  "schema": 1,
+  "uid": "0ACME000000001",
+  "public_id": "acme.tracker",
+  "publisher": "acme",
+  "kind": "app",
+  "name": "Acme Tracker",
+  "summary": "Links Acme tickets to your projects and shows their status on a board.",
+  "description": "An example app listing. It runs as a container that the operator deploys and points Initiative at.",
+  "avatar": {"path": "assets/avatar.png"},
+  "images": [
+    {"path": "assets/board.png", "alt": "A project board with Acme tickets on it"}
+  ],
+  "versions": [
+    {
+      "version": "1.0.0",
+      "definition": "1.0.0/manifest.json",
+      "min_app_version": "0.73.0",
+      "release_notes": "First release."
+    }
+  ],
+  "registration": {
+    "kind": "container",
+    "image": "ghcr.io/acme/tracker@sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    "jwks": {
+      "keys": [
+        {
+          "kty": "OKP",
+          "crv": "Ed25519",
+          "kid": "example",
+          "x": "11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlrwIaaPcHURo"
+        }
+      ]
+    },
+    "scope_ceiling": ["projects:read", "projects:write", "comments:write"],
+    "reference_sectors": []
+  },
+  "price": null
+}

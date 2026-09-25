@@ -1,0 +1,116 @@
+name: Registry
+
+# Builds the signed catalogue in registry/ and publishes it to GitHub Pages.
+#
+# Pull requests: lint, tests, and a build and verify of the public repository
+# from this branch's sources with keys made for the run.
+#
+# main: the same checks, then the public repository built from the committed
+# root and targets metadata and signed with the online keys held in the
+# repository's secrets, verified with ngclient, and published at /public/.
+#
+# Daily: the same build and publish, so every online role is re-signed well
+# inside its expiry (timestamp 1 day, snapshot 7 days, publisher roles 90 days)
+# even when nothing merges.
+#
+# Publishing needs GitHub Pages set to deploy from GitHub Actions
+# (Settings > Pages > Source) and three secrets, each the PEM text of a key
+# made by `initiative-registry keygen`:
+#   REGISTRY_SNAPSHOT_KEY, REGISTRY_TIMESTAMP_KEY, REGISTRY_PUBLISHER_KEY_MORELITEA
+
+on:
+  pull_request:
+    paths:
+      - "registry/**"
+      - ".github/workflows/registry.yml"
+  push:
+    branches: [main]
+    paths:
+      - "registry/**"
+      - ".github/workflows/registry.yml"
+  schedule:
+    - cron: "17 4 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: registry
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+        with:
+          version: "0.11.21"
+          enable-cache: true
+          cache-dependency-glob: registry/uv.lock
+      - run: uv sync --locked
+      - run: uv run ruff check
+      - run: uv run ruff format --check
+      - run: uv run pytest
+      - name: Build and verify with keys made for this run
+        run: scripts/ephemeral-build.sh "$RUNNER_TEMP/registry"
+
+  publish:
+    needs: check
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    defaults:
+      run:
+        working-directory: registry
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+        with:
+          version: "0.11.21"
+          enable-cache: true
+          cache-dependency-glob: registry/uv.lock
+      - run: uv sync --locked
+      - name: The offline metadata is committed
+        id: signed
+        run: |
+          if [ -f metadata/1.root.json ] && [ -f metadata/targets.json ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::registry/metadata holds no signed root and targets yet; nothing is published."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Build the public repository
+        if: steps.signed.outputs.ready == 'true'
+        env:
+          REGISTRY_SNAPSHOT_KEY: ${{ secrets.REGISTRY_SNAPSHOT_KEY }}
+          REGISTRY_TIMESTAMP_KEY: ${{ secrets.REGISTRY_TIMESTAMP_KEY }}
+          REGISTRY_PUBLISHER_KEY_MORELITEA: ${{ secrets.REGISTRY_PUBLISHER_KEY_MORELITEA }}
+        run: >-
+          uv run initiative-registry build --target public
+          --sources sources
+          --out "$RUNNER_TEMP/site/public"
+      - name: Verify it as a client would
+        if: steps.signed.outputs.ready == 'true'
+        run: >-
+          uv run initiative-registry verify --target public
+          --repo "$RUNNER_TEMP/site/public"
+          --root metadata/1.root.json
+      - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
+        if: steps.signed.outputs.ready == 'true'
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        if: steps.signed.outputs.ready == 'true'
+        with:
+          path: ${{ runner.temp }}/site
+      - uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
+        if: steps.signed.outputs.ready == 'true'
+        id: deployment

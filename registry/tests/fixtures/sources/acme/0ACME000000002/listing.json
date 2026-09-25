@@ -1,0 +1,26 @@
+{
+  "schema": 1,
+  "uid": "0ACME000000002",
+  "public_id": "acme.weekly-overview",
+  "publisher": "acme",
+  "kind": "dashboard",
+  "name": "Weekly overview",
+  "summary": "An example content listing: a dashboard, with its definition inline and its example in a file.",
+  "avatar": {"path": "assets/avatar.png"},
+  "versions": [
+    {
+      "version": "2.1.0",
+      "definition": {
+        "widgets": [
+          {
+            "id": "w1",
+            "type": "stat",
+            "binding": {"source": "query", "sql": "SELECT count(*) AS n FROM tasks"}
+          }
+        ]
+      },
+      "example": "2.1.0/example.json"
+    }
+  ],
+  "price": null
+}

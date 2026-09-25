@@ -1,0 +1,7 @@
+{
+  "schema": 1,
+  "prefix": "acme",
+  "name": "Acme",
+  "verified": false,
+  "key": "PLACEHOLDER: the tests fill this in with an ephemeral key"
+}

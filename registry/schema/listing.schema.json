@@ -1,0 +1,423 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:initiative-registry:schema:listing",
+  "title": "Listing",
+  "description": "One listing: an app or a piece of content. This is the file a pull request adds as sources/<publisher>/<uid>/listing.json. Paths are relative to that directory. A sha256 given on an asset is checked against the file it names; the build fills in any that are left out. The signed listing.json a client reads is the same document with every asset path rewritten to its target, every sha256 filled in, and each version's definition and example moved into its manifest target (entry.schema.json).",
+  "$ref": "#/$defs/listing_base",
+  "properties": {
+    "versions": {
+      "items": {
+        "$ref": "#/$defs/source_version"
+      }
+    }
+  },
+  "if": {
+    "required": [
+      "kind"
+    ],
+    "properties": {
+      "kind": {
+        "enum": [
+          "app",
+          "auto",
+          "profile_pack"
+        ]
+      }
+    }
+  },
+  "then": {
+    "properties": {
+      "versions": {
+        "items": {
+          "not": {
+            "required": [
+              "example"
+            ]
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "listing_base": {
+      "description": "What a source listing and a published entry share. Each narrows 'versions' to its own shape.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "uid",
+        "public_id",
+        "publisher",
+        "kind",
+        "name",
+        "summary",
+        "avatar",
+        "versions"
+      ],
+      "properties": {
+        "schema": {
+          "description": "The version of this format.",
+          "const": 1
+        },
+        "uid": {
+          "description": "The catalogue code: 14 characters of Crockford base32 without I, L, O or U. Assigned by the publisher, never reused.",
+          "type": "string",
+          "pattern": "^[0-9ABCDEFGHJKMNPQRSTVWXYZ]{14}$"
+        },
+        "public_id": {
+          "description": "'<publisher>.<slug>'. The part before the first dot must equal publisher.",
+          "type": "string",
+          "maxLength": 120,
+          "pattern": "^[a-z0-9_-]+\\.[a-z0-9._-]+$"
+        },
+        "publisher": {
+          "description": "The publisher's prefix. Must have a record under publishers/.",
+          "type": "string",
+          "maxLength": 120,
+          "pattern": "^[a-z0-9_-]+$"
+        },
+        "kind": {
+          "description": "What is listed: an app ('app'), an automation ('auto'), a pack of profile decorations ('profile_pack'), or one tool's content, named by the tool.",
+          "enum": [
+            "app",
+            "auto",
+            "profile_pack",
+            "calendar",
+            "counter_group",
+            "dashboard",
+            "document",
+            "gallery",
+            "post",
+            "project",
+            "queue",
+            "wiki"
+          ]
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "summary": {
+          "description": "One or two sentences shown on the listing's card.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "description": {
+          "description": "The longer text on the listing's page. Markdown.",
+          "type": "string",
+          "maxLength": 20000
+        },
+        "avatar": {
+          "$ref": "#/$defs/asset"
+        },
+        "images": {
+          "type": "array",
+          "maxItems": 12,
+          "items": {
+            "allOf": [
+              {
+                "$ref": "#/$defs/asset"
+              },
+              {
+                "required": [
+                  "alt"
+                ]
+              }
+            ]
+          }
+        },
+        "versions": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/version_base"
+          }
+        },
+        "registration": {
+          "$ref": "#/$defs/registration"
+        },
+        "price": {
+          "description": "Null for a free listing. The public target refuses any listing whose price is not null.",
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "minProperties": 1
+            }
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "description": "An app carries a registration.",
+          "if": {
+            "required": [
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "const": "app"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "registration"
+            ]
+          }
+        },
+        {
+          "description": "Only an app carries one.",
+          "if": {
+            "required": [
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "not": {
+                  "const": "app"
+                }
+              }
+            }
+          },
+          "then": {
+            "not": {
+              "required": [
+                "registration"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "path": {
+      "description": "A relative path inside the listing's directory.",
+      "type": "string",
+      "maxLength": 200,
+      "pattern": "^(?!/)(?!.*(^|/)\\.{1,2}(/|$))[A-Za-z0-9._/-]+$"
+    },
+    "asset": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path"
+      ],
+      "properties": {
+        "path": {
+          "$ref": "#/$defs/path"
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "alt": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        }
+      }
+    },
+    "version_base": {
+      "description": "What every version gives, as a source and as published.",
+      "type": "object",
+      "required": [
+        "version"
+      ],
+      "properties": {
+        "version": {
+          "type": "string",
+          "maxLength": 32,
+          "pattern": "^[0-9][0-9a-z.+-]*$"
+        },
+        "min_app_version": {
+          "description": "The oldest Initiative release this version runs on.",
+          "type": "string",
+          "maxLength": 32,
+          "pattern": "^[0-9][0-9a-z.+-]*$"
+        },
+        "release_notes": {
+          "type": "string",
+          "maxLength": 5000
+        }
+      }
+    },
+    "document": {
+      "description": "A JSON object: a path to a JSON file inside the listing's directory, or the object inline.",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/path"
+        },
+        {
+          "type": "object"
+        }
+      ]
+    },
+    "source_version": {
+      "description": "One version as the source gives it. The build publishes it as the target <version>/manifest.json: {uid, public_id, kind, definition, example?}.",
+      "$ref": "#/$defs/version_base",
+      "required": [
+        "definition"
+      ],
+      "properties": {
+        "definition": {
+          "description": "What installs. For an app, its kit manifest, whose service.public_id is the listing's public_id; for a tool's content, that tool's definition.",
+          "$ref": "#/$defs/document"
+        },
+        "example": {
+          "description": "Optional, for a tool's content only: the filled-in example shown beside the listing.",
+          "$ref": "#/$defs/document"
+        }
+      },
+      "unevaluatedProperties": false
+    },
+    "jwks": {
+      "description": "The app's public keys, as a JSON Web Key Set.",
+      "type": "object",
+      "required": [
+        "keys"
+      ],
+      "properties": {
+        "keys": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": [
+              "kty"
+            ]
+          }
+        }
+      }
+    },
+    "https_url": {
+      "type": "string",
+      "maxLength": 300,
+      "pattern": "^https://[^\\s]+$"
+    },
+    "registration": {
+      "description": "For an app (and allowed for an automation): how it runs, its keys, the most it may ever be granted, and the reference sectors it may learn.",
+      "type": "object",
+      "required": [
+        "kind",
+        "scope_ceiling"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "container",
+            "hosted"
+          ]
+        },
+        "image": {
+          "description": "The container image, pinned by digest.",
+          "type": "string",
+          "maxLength": 300,
+          "pattern": "^[a-z0-9][a-z0-9._/:-]*@sha256:[0-9a-f]{64}$"
+        },
+        "base_url": {
+          "$ref": "#/$defs/https_url"
+        },
+        "embed_origin": {
+          "description": "The origin the app's embeds are served from.",
+          "type": "string",
+          "maxLength": 300,
+          "pattern": "^https://[A-Za-z0-9.-]+(:[0-9]+)?$"
+        },
+        "jwks": {
+          "$ref": "#/$defs/jwks"
+        },
+        "jwks_uri": {
+          "$ref": "#/$defs/https_url"
+        },
+        "scope_ceiling": {
+          "description": "The scopes review cleared. A manifest may ask for less, never more.",
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z_]*:[a-z][a-z_]*$"
+          }
+        },
+        "reference_sectors": {
+          "description": "Reference sectors the app may be granted. The public target refuses any listing that names one.",
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_-]{0,63}$"
+          }
+        }
+      },
+      "oneOf": [
+        {
+          "description": "A container: the operator gives the location.",
+          "properties": {
+            "kind": {
+              "const": "container"
+            }
+          },
+          "required": [
+            "image",
+            "jwks"
+          ],
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "base_url"
+                ]
+              },
+              {
+                "required": [
+                  "embed_origin"
+                ]
+              },
+              {
+                "required": [
+                  "jwks_uri"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "description": "Hosted by its publisher at a fixed address.",
+          "properties": {
+            "kind": {
+              "const": "hosted"
+            }
+          },
+          "required": [
+            "base_url",
+            "embed_origin"
+          ],
+          "not": {
+            "required": [
+              "image"
+            ]
+          },
+          "oneOf": [
+            {
+              "required": [
+                "jwks"
+              ]
+            },
+            {
+              "required": [
+                "jwks_uri"
+              ]
+            }
+          ]
+        }
+      ],
+      "unevaluatedProperties": false
+    }
+  }
+}

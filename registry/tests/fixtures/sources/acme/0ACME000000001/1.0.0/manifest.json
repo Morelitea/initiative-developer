@@ -1,0 +1,10 @@
+{
+  "app_kind": "service",
+  "service": {
+    "public_id": "acme.tracker",
+    "protocol": 1,
+    "scopes": ["projects:read", "projects:write", "comments:write"]
+  },
+  "features": [],
+  "default_name": "Acme Tracker"
+}

@@ -1,0 +1,15 @@
+{
+  "schema": 1,
+  "prefix": "morelitea",
+  "name": "Morelitea",
+  "verified": true,
+  "url": "https://github.com/Morelitea",
+  "key": {
+    "keyid": "d93bb9f91a22e29193f2e2c6e68435716b2134ffacc0823abb5a9b2c616899da",
+    "keytype": "ed25519",
+    "scheme": "ed25519",
+    "keyval": {
+      "public": "8586d25fc9768c6ad7e369ce8c33616d1048455c711b2660b2703bf3ae930118"
+    }
+  }
+}

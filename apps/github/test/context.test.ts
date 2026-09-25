@@ -103,6 +103,6 @@ describe("health", () => {
 
   it("lists what it declares", async () => {
     const body = (await (await fetch(`${h.url}/v1/endpoints`)).json()) as { endpoints: unknown[] };
-    expect(body.endpoints).toHaveLength(21);
+    expect(body.endpoints).toHaveLength(27);
   });
 });

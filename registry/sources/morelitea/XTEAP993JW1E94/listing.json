@@ -1,0 +1,48 @@
+{
+  "schema": 1,
+  "uid": "XTEAP993JW1E94",
+  "public_id": "morelitea.github",
+  "publisher": "morelitea",
+  "kind": "app",
+  "name": "GitHub",
+  "summary": "Your organization's issues, reviews and dependency alerts, on a dashboard and in your automations.",
+  "description": "Bring a GitHub organization into your community.\n\nAn admin connects the organization once, on GitHub's own install page, and picks the repositories the app may see. Dashboards then show open issues, pull requests waiting on review, Dependabot alerts and a fortnight of throughput for everyone, with nobody pasting a token.\n\nMembers who connect their own GitHub account get their own review queue, and automations can open, comment on, close, label and move issues as them.",
+  "avatar": {
+    "path": "assets/avatar.png",
+    "sha256": "1822301f8187e240ae4610afd9146be43e2ba8422437b7ddba5637264b97c744"
+  },
+  "versions": [
+    {
+      "version": "1.0.0",
+      "definition": "1.0.0/manifest.json",
+      "min_app_version": "0.73.0",
+      "release_notes": "Rewritten on the installation-token platform. Existing installs are removed and installed again, then the GitHub organization is connected again."
+    }
+  ],
+  "registration": {
+    "kind": "container",
+    "image": "ghcr.io/morelitea/initiative-github@sha256:80304aa552eebb4259f902fafe841e57d113ba2c1000d6e0e2af882e9b621768",
+    "jwks": {
+      "keys": [
+        {
+          "kty": "EC",
+          "kid": "github-1",
+          "alg": "ES256",
+          "use": "sig",
+          "crv": "P-256",
+          "x": "AnzMCoYTwqIVaUH3j-djW2xSDIf3TAH1GyKkxMGqkcs",
+          "y": "4BuzhHAZZ8LS7CZcb_Pz415ae8tD01N7cwGERgJgujk"
+        }
+      ]
+    },
+    "scope_ceiling": [
+      "projects:read",
+      "projects:write",
+      "comments:write",
+      "members:read",
+      "initiatives:read",
+      "tags:read"
+    ],
+    "reference_sectors": []
+  }
+}

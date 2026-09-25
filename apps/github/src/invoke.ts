@@ -2,10 +2,13 @@
  * `POST /v1/endpoints`: Initiative calling one of the app's endpoints.
  *
  * The context token says which community and which endpoint; the body names
- * the endpoint and its parameters. A read runs on the organization's
- * installation. A write runs on the token of the member it is done for, which
- * the context token names by handle and Initiative hands over, and never
- * falls back to the app.
+ * the endpoint and its parameters. Another app's call through Initiative
+ * also names that app (`act`) and whose behalf it is on (`actor`), and reaches
+ * only an endpoint declared public for that actor.
+ *
+ * A read runs on the organization's installation. A write runs on the token
+ * of the member it is done for, which the context token names by handle and
+ * Initiative hands over, and never falls back to the app.
  */
 
 import {
@@ -17,10 +20,10 @@ import {
 } from "initiative-app-kit";
 
 import type { AppContext } from "./context.js";
-import { memberToken } from "./credentials.js";
+import { callerToken } from "./credentials.js";
 import { ENDPOINTS, READ_HANDLERS, WRITE_HANDLERS } from "./endpoints/index.js";
 import type { Call, Write } from "./endpoints/support.js";
-import { ACCOUNT, PUBLIC_ID } from "./vocabulary.js";
+import { PUBLIC_ID } from "./vocabulary.js";
 
 export interface Answer {
   status: number;
@@ -63,6 +66,11 @@ export async function invoke(
   if (!parsed.ok) return refuse(400, "invalid-request", parsed.error);
 
   const { endpoint, params } = parsed.request;
+  if (claims.act) {
+    const declaration = ENDPOINTS.find((one) => one.id === endpoint);
+    if (!declaration?.public) return refuse(403, "endpoint-not-public");
+    if (!claims.actor || !declaration.actors?.includes(claims.actor)) return refuse(403, "actor-not-supported");
+  }
   const call: Call = { context, installation: claims.guild_ref, claims, params };
 
   const read = READ_HANDLERS.get(endpoint);
@@ -78,13 +86,13 @@ export async function invoke(
 
 async function runWrite(call: Call, write: Write): Promise<Answer> {
   const endpoint = write.declaration.id;
+  // Another app calls a write through Initiative, as one of the community's members.
+  if (call.claims.actor !== "member") return refuse(403, "actor-not-supported", "a write acts as a member");
   const snapshot = await call.context.installs.snapshot(call.installation);
   if (!snapshot.workspace) return refuse(409, "not-configured");
 
   // The member this write is done for, by the handle the token carries.
-  const ref = call.claims.connection_refs?.[ACCOUNT];
-  if (!ref) return refuse(409, "not-connected", "the member has no connected GitHub account");
-  const member = await memberToken(call.context, call.installation, ref);
+  const member = await callerToken(call);
   if (!member.ok) {
     return member.reason === "not-connected"
       ? refuse(409, "not-connected", "the member has no connected GitHub account")

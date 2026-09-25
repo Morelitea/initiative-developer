@@ -43,8 +43,6 @@ export interface InstallState {
   events: Array<{ event_type: string; payload: Record<string, unknown> }>;
   /** Every connection handle a token was asked for, in order. */
   tokenAsks: string[];
-  /** `delegate subject` → this app's handle for that member. */
-  delegated: Map<string, string>;
 }
 
 export class FakeInitiative {
@@ -83,7 +81,6 @@ export class FakeInitiative {
       statuses: [],
       events: [],
       tokenAsks: [],
-      delegated: new Map(),
     };
     this.installs.set(installation, state);
     return state;
@@ -190,12 +187,6 @@ export class FakeInitiative {
       });
     }
 
-    if (rest === "connections/resolve" && method === "GET") {
-      const ref = state.delegated.get(`${url.searchParams.get("delegate")} ${url.searchParams.get("subject")}`);
-      if (!ref) return json(404, { detail: "APP_CHANNEL_CONNECTION_NOT_FOUND" });
-      return json(200, connectionOf(ref, state.members.get(ref)));
-    }
-
     const tokenPath = /^connections\/([^/]+)\/token$/.exec(rest);
     if (tokenPath && method === "POST") {
       const ref = decodeURIComponent(tokenPath[1]);
@@ -241,18 +232,6 @@ export class FakeInitiative {
     if (row.status === "expired") return json(409, { detail: "APP_CHANNEL_CONNECTION_EXPIRED" });
     return json(200, { access_token: row.accessToken, expires_at: expiresAt });
   }
-}
-
-function connectionOf(ref: string, row: MemberRow | undefined): Record<string, unknown> {
-  return {
-    connection_id: row?.connectionId ?? "workspace",
-    connection_ref: ref,
-    status: row?.status ?? "connected",
-    blocked: row?.blocked ?? false,
-    account_label: null,
-    created_at: "2026-09-24T00:00:00Z",
-    updated_at: "2026-09-24T00:00:00Z",
-  };
 }
 
 export function json(status: number, body: unknown): Response {

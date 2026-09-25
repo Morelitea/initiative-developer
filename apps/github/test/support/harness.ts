@@ -19,6 +19,36 @@ export const WEBHOOK_SECRET = "webhook-secret-for-tests";
 export const CLIENT_ID = "Iv1.testclient";
 export const CLIENT_SECRET = "client-secret-for-tests";
 
+/** How one endpoint call is made: the handles that travel, extra claims, or a token of the test's own. */
+export interface CallOptions {
+  connectionRefs?: Record<string, string>;
+  claims?: Record<string, unknown>;
+  token?: string;
+}
+
+/** The app whose calls reach this one through Initiative in the tests. */
+export const CALLER = "morelitea.automations";
+
+/**
+ * Another app's call through Initiative, as a member: Initiative names the
+ * member by this app's reference for them and hands on only their own
+ * `account` handle, when they have connected one.
+ */
+export function asMember(accountRef?: string): CallOptions {
+  return {
+    connectionRefs: accountRef ? { account: accountRef } : {},
+    claims: { act: { sub: CALLER }, actor: "member", member: "uref_alice" },
+  };
+}
+
+/** Another app's call through Initiative, as the community: only the community's `workspace` handle travels. */
+export function asCommunity(installation: string): CallOptions {
+  return {
+    connectionRefs: { workspace: `cref_ws_${installation}` },
+    claims: { act: { sub: CALLER }, actor: "installation" },
+  };
+}
+
 export interface Harness {
   initiative: FakeInitiative;
   github: FakeGitHub;
@@ -26,12 +56,15 @@ export interface Harness {
   sync: InstallationSync;
   url: string;
   logs: string[];
-  /** Call one endpoint as Initiative would. */
+  /**
+   * Call one endpoint as Initiative would: for a widget by default, or for
+   * another app when `claims` names it (`act`, `actor`, `member`).
+   */
   invoke(
     installation: string,
     endpoint: string,
     params?: Record<string, unknown>,
-    options?: { connectionRefs?: Record<string, string>; token?: string }
+    options?: CallOptions
   ): Promise<{ status: number; body: Record<string, any> }>;
   /** Call one hook as Initiative would. */
   hook(
@@ -91,7 +124,8 @@ export async function startHarness(): Promise<Harness> {
     logs,
     async invoke(installation, endpoint, params = {}, options = {}) {
       const token =
-        options.token ?? initiative.contextToken(installation, endpoint, { connectionRefs: options.connectionRefs });
+        options.token ??
+        initiative.contextToken(installation, endpoint, { connectionRefs: options.connectionRefs, claims: options.claims });
       const response = await fetch(`${url}${ENDPOINTS_PATH}`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },

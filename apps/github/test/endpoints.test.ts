@@ -1,14 +1,16 @@
 /**
  * Every endpoint, called as Initiative calls it: each read's answer on the
- * installation token Initiative mints, and its answer when GitHub refuses the
- * installation; each write's call to GitHub on the member's token Initiative
- * hands over, and GitHub's refusal passed through.
+ * installation token Initiative mints, for a widget and for another app acting
+ * as the community or as a member, and its answer when GitHub refuses the
+ * installation; each write's call to GitHub, for another app acting as a
+ * member, on that member's token Initiative hands over, and GitHub's refusal
+ * passed through.
  */
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { EMIT_IDS, READ_IDS, WRITE_IDS } from "../src/vocabulary.js";
-import { startHarness, type Harness } from "./support/harness.js";
+import { asCommunity, asMember, startHarness, type Harness } from "./support/harness.js";
 
 const INSTALLATION = "gapp_one";
 const MEMBER = "cref_alice";
@@ -86,6 +88,32 @@ const READS: ReadCase[] = [
     data: { repository: { labels: { totalCount: 2, nodes: [{ name: "bug" }, { name: "docs" }] } } },
     expected: { names: ["bug", "docs"], count: 2, total: 2 },
     refuse: graphqlRefusal("Labels"),
+  },
+  {
+    id: READ_IDS.listAssignees,
+    params: { repo: "widgets" },
+    operation: "Assignees",
+    data: { repository: { assignableUsers: { totalCount: 3, nodes: [{ login: "alice" }, null, { login: "bob" }] } } },
+    expected: { logins: ["alice", "bob"], count: 2, total: 3 },
+    refuse: graphqlRefusal("Assignees"),
+  },
+  {
+    id: READ_IDS.listBranches,
+    params: { repo: "widgets" },
+    operation: "Branches",
+    data: { repository: { refs: { totalCount: 2, nodes: [{ name: "develop" }, { name: "main" }] } } },
+    expected: { names: ["develop", "main"], count: 2, total: 2 },
+    refuse: graphqlRefusal("Branches"),
+  },
+  {
+    id: READ_IDS.listMilestones,
+    params: { repo: "widgets" },
+    operation: "Milestones",
+    data: {
+      repository: { milestones: { totalCount: 2, nodes: [{ number: 3, title: "1.0" }, { number: 5, title: "1.1" }] } },
+    },
+    expected: { numbers: [3, 5], titles: ["1.0", "1.1"], count: 2, total: 2 },
+    refuse: graphqlRefusal("Milestones"),
   },
   {
     id: READ_IDS.getIssue,
@@ -219,7 +247,7 @@ const READS: ReadCase[] = [
 ];
 
 describe("reads", () => {
-  it("covers all eleven", () => {
+  it("covers all fourteen", () => {
     expect(READS.map((one) => one.id).sort()).toEqual(Object.values(READ_IDS).sort());
   });
 
@@ -239,6 +267,19 @@ describe("reads", () => {
       }
     });
 
+    it(`${name} answers another app on the installation's token, as the community or a member`, async () => {
+      if (one.operation) h.github.graphql.set(one.operation, () => ({ body: { data: one.data } }));
+      for (const as of [asCommunity(INSTALLATION), asMember(MEMBER)]) {
+        const { status, body } = await h.invoke(INSTALLATION, one.id, one.params, as);
+        expect(status).toBe(200);
+        expect(body.actor).toBe("installation");
+        expect(body.result).toMatchObject(one.expected);
+      }
+      expect(h.github.calls.length).toBeGreaterThan(0);
+      for (const call of h.github.calls) expect(call.token).toMatch(/^ghs_42_/);
+      expect(h.initiative.installs.get(INSTALLATION)!.tokenAsks).toEqual(["cref_ws_gapp_one"]);
+    });
+
     it(`${name} says so when GitHub refuses the installation`, async () => {
       one.refuse(h);
       const { status, body } = await h.invoke(INSTALLATION, one.id, one.params);
@@ -255,6 +296,23 @@ describe("reads", () => {
   it("refuses a repository the installation does not cover", async () => {
     const { body } = await h.invoke(INSTALLATION, READ_IDS.findIssues, { repo: "elsewhere" });
     expect(body.result).toEqual({ unavailable: "repository-not-listed" });
+  });
+
+  it("asks GitHub about the repository the call names", async () => {
+    for (const [id, operation] of [
+      [READ_IDS.listAssignees, "Assignees"],
+      [READ_IDS.listBranches, "Branches"],
+      [READ_IDS.listMilestones, "Milestones"],
+    ] as const) {
+      let asked: Record<string, unknown> | undefined;
+      h.github.graphql.set(operation, (variables) => {
+        asked = variables;
+        return { body: { data: { repository: null } } };
+      });
+      const { body } = await h.invoke(INSTALLATION, id, { repo: "WIDGETS" });
+      expect(asked).toMatchObject({ owner: "acme", repo: "widgets" });
+      expect(body.result).toEqual({ unavailable: "not-found" });
+    }
   });
 
   it("says a community has no organization connected", async () => {
@@ -276,7 +334,7 @@ describe("reads", () => {
     expect(h.initiative.installs.get(INSTALLATION)!.tokenAsks).toEqual(["cref_ws_gapp_one"]);
   });
 
-  it("answers @me on the member's own token", async () => {
+  it("answers @me on the viewing member's own token", async () => {
     h.github.graphql.set("ReviewRequested", (variables) => ({
       body: { data: { search: { issueCount: 1, nodes: [{ ...row, number: 9 }] } } },
       ...(String(variables.query).includes("review-requested:@me") ? {} : { status: 500 }),
@@ -290,6 +348,30 @@ describe("reads", () => {
     expect(body.actor).toBe("member");
     expect(body.result).toMatchObject({ numbers: [9], total: 1 });
     expect(h.github.calls.find((call) => call.path === "/graphql")?.token).toBe("ghu_alice");
+  });
+
+  it("answers @me for another app on the token of the member it acts as", async () => {
+    h.github.graphql.set("ReviewRequested", () => ({ body: { data: { search: { issueCount: 1, nodes: [row] } } } }));
+    const { body } = await h.invoke(
+      INSTALLATION,
+      READ_IDS.findPullRequests,
+      { repo: "widgets", review_requested: "@me" },
+      asMember(MEMBER)
+    );
+    expect(body.actor).toBe("member");
+    expect(body.result).toMatchObject({ numbers: [7], total: 1 });
+    expect(h.github.calls.find((call) => call.path === "/graphql")?.token).toBe("ghu_alice");
+  });
+
+  it("has no one to answer @me for when another app calls as the community", async () => {
+    const { body } = await h.invoke(
+      INSTALLATION,
+      READ_IDS.findPullRequests,
+      { repo: "widgets", review_requested: "@me" },
+      asCommunity(INSTALLATION)
+    );
+    expect(body.result).toEqual({ unavailable: "member-required" });
+    expect(h.github.calls.filter((call) => call.path === "/graphql")).toHaveLength(0);
   });
 
   it("asks a member who has not connected to connect for @me", async () => {
@@ -370,7 +452,7 @@ describe("writes", () => {
 
     it(`${name} calls GitHub as the member it is done for`, async () => {
       h.github.rest.set(one.route, () => one.answer);
-      const { status, body } = await h.invoke(INSTALLATION, one.id, one.params, { connectionRefs: { account: MEMBER } });
+      const { status, body } = await h.invoke(INSTALLATION, one.id, one.params, asMember(MEMBER));
       expect(status).toBe(200);
       expect(body).toMatchObject({ endpoint: one.id, actor: "member" });
       expect(body.result).toMatchObject(one.expected);
@@ -391,7 +473,7 @@ describe("writes", () => {
       INSTALLATION,
       WRITE_IDS.moveProjectItem,
       { project_id: "PVT_1", item_id: "PVTI_7", field_id: "F_1", option_id: "O_2" },
-      { connectionRefs: { account: MEMBER } }
+      asMember(MEMBER)
     );
     expect(status).toBe(200);
     expect(body).toMatchObject({ actor: "member", result: { item_id: "PVTI_7" } });
@@ -407,7 +489,7 @@ describe("writes", () => {
       INSTALLATION,
       WRITE_IDS.comment,
       { repo: "widgets", number: "7", body: "x" },
-      { connectionRefs: { account: MEMBER } }
+      asMember(MEMBER)
     );
     expect(status).toBe(403);
     expect(body).toMatchObject({ error: "forbidden", detail: "Must have push access" });
@@ -420,7 +502,7 @@ describe("writes", () => {
       INSTALLATION,
       WRITE_IDS.label,
       { repo: "widgets", number: "7", add: ["bug"], remove: ["wontfix"] },
-      { connectionRefs: { account: MEMBER } }
+      asMember(MEMBER)
     );
     expect(status).toBe(200);
     const order = h.github.calls
@@ -431,9 +513,35 @@ describe("writes", () => {
 
   it("never falls back to the app when the member has not connected", async () => {
     h.github.rest.set("POST /repos/acme/widgets/issues", () => ({ status: 201, body: { number: 1 } }));
-    const { status, body } = await h.invoke(INSTALLATION, WRITE_IDS.openIssue, { repo: "widgets", title: "x" });
+    const { status, body } = await h.invoke(INSTALLATION, WRITE_IDS.openIssue, { repo: "widgets", title: "x" }, asMember());
     expect(status).toBe(409);
     expect(body.error).toBe("not-connected");
+    expect(h.github.callsTo("POST", "/repos/acme/widgets/issues")).toHaveLength(0);
+  });
+
+  it("refuses a write made as the community, even with its handle", async () => {
+    h.github.rest.set("POST /repos/acme/widgets/issues", () => ({ status: 201, body: { number: 1 } }));
+    const { status, body } = await h.invoke(
+      INSTALLATION,
+      WRITE_IDS.openIssue,
+      { repo: "widgets", title: "x" },
+      asCommunity(INSTALLATION)
+    );
+    expect(status).toBe(403);
+    expect(body.error).toBe("actor-not-supported");
+    expect(h.github.callsTo("POST", "/repos/acme/widgets/issues")).toHaveLength(0);
+  });
+
+  it("is made only for another app, never for a widget", async () => {
+    h.github.rest.set("POST /repos/acme/widgets/issues", () => ({ status: 201, body: { number: 1 } }));
+    const { status, body } = await h.invoke(
+      INSTALLATION,
+      WRITE_IDS.openIssue,
+      { repo: "widgets", title: "x" },
+      { connectionRefs: { account: MEMBER } }
+    );
+    expect(status).toBe(403);
+    expect(body.error).toBe("actor-not-supported");
     expect(h.github.callsTo("POST", "/repos/acme/widgets/issues")).toHaveLength(0);
   });
 
@@ -443,7 +551,7 @@ describe("writes", () => {
       INSTALLATION,
       WRITE_IDS.openIssue,
       { repo: "widgets", title: "x" },
-      { connectionRefs: { account: MEMBER } }
+      asMember(MEMBER)
     );
     expect(status).toBe(502);
     expect(body.error).toBe("vendor-error");
@@ -454,7 +562,7 @@ describe("writes", () => {
       INSTALLATION,
       WRITE_IDS.openIssue,
       { repo: "widgets", title: "x" },
-      { connectionRefs: { account: "cref_nobody" } }
+      asMember("cref_nobody")
     );
     expect(status).toBe(409);
     expect(body.error).toBe("not-connected");
@@ -465,7 +573,7 @@ describe("writes", () => {
       INSTALLATION,
       WRITE_IDS.openIssue,
       { repo: "widgets" },
-      { connectionRefs: { account: MEMBER } }
+      asMember(MEMBER)
     );
     expect(status).toBe(400);
     expect(body.error).toBe("invalid-params");

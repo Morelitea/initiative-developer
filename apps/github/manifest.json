@@ -163,6 +163,7 @@
         "scopes": [
           "issues:write",
           "pull_requests:write",
+          "contents:read",
           "vulnerability_alerts:read",
           "organization_projects:write",
           "metadata:read"
@@ -187,8 +188,10 @@
         "fr": "Les dépôts couverts par l'installation de l'organisation."
       },
       "group": "repositories",
+      "public": true,
       "actors": [
-        "installation"
+        "installation",
+        "member"
       ],
       "cache_ttl_seconds": 300,
       "returns": [
@@ -235,6 +238,180 @@
       }
     },
     {
+      "id": "app.morelitea.github.list-assignees",
+      "direction": "read",
+      "label": {
+        "en": "Who can be assigned",
+        "de": "Wer zuständig sein kann",
+        "es": "Quién puede ser asignado",
+        "fr": "Qui peut être assigné"
+      },
+      "description": {
+        "en": "The people a repository's issues and pull requests can be given to.",
+        "de": "Die Personen, denen Issues und Pull Requests eines Repositories zugewiesen werden können.",
+        "es": "Las personas a las que se pueden asignar las incidencias y pull requests de un repositorio.",
+        "fr": "Les personnes à qui les tickets et pull requests d'un dépôt peuvent être confiés."
+      },
+      "group": "repositories",
+      "public": true,
+      "actors": [
+        "installation",
+        "member"
+      ],
+      "cache_ttl_seconds": 300,
+      "params": [
+        {
+          "key": "repo",
+          "type": "string",
+          "label": {
+            "en": "Repository",
+            "de": "Repository",
+            "es": "Repositorio",
+            "fr": "Dépôt"
+          },
+          "options_from": {
+            "endpoint": "app.morelitea.github.list-repositories",
+            "key": "names"
+          }
+        }
+      ],
+      "returns": [
+        {
+          "key": "logins",
+          "type": "string",
+          "label": {
+            "en": "People",
+            "de": "Personen",
+            "es": "Personas",
+            "fr": "Personnes"
+          },
+          "list": true
+        },
+        {
+          "key": "count",
+          "type": "int",
+          "label": {
+            "en": "How many",
+            "de": "Wie viele",
+            "es": "Cuántos",
+            "fr": "Combien"
+          }
+        },
+        {
+          "key": "total",
+          "type": "int",
+          "label": {
+            "en": "How many in all",
+            "de": "Wie viele insgesamt",
+            "es": "Cuántos en total",
+            "fr": "Combien en tout"
+          }
+        },
+        {
+          "key": "unavailable",
+          "type": "string",
+          "label": {
+            "en": "Why there is no answer",
+            "de": "Warum es keine Antwort gibt",
+            "es": "Por qué no hay respuesta",
+            "fr": "Pourquoi il n'y a pas de réponse"
+          }
+        }
+      ],
+      "requires": {
+        "all_of": [
+          "workspace"
+        ]
+      }
+    },
+    {
+      "id": "app.morelitea.github.list-branches",
+      "direction": "read",
+      "label": {
+        "en": "Branches",
+        "de": "Branches",
+        "es": "Ramas",
+        "fr": "Branches"
+      },
+      "description": {
+        "en": "The branches a repository has.",
+        "de": "Die Branches, die ein Repository hat.",
+        "es": "Las ramas que tiene un repositorio.",
+        "fr": "Les branches d'un dépôt."
+      },
+      "group": "repositories",
+      "public": true,
+      "actors": [
+        "installation",
+        "member"
+      ],
+      "cache_ttl_seconds": 300,
+      "params": [
+        {
+          "key": "repo",
+          "type": "string",
+          "label": {
+            "en": "Repository",
+            "de": "Repository",
+            "es": "Repositorio",
+            "fr": "Dépôt"
+          },
+          "options_from": {
+            "endpoint": "app.morelitea.github.list-repositories",
+            "key": "names"
+          }
+        }
+      ],
+      "returns": [
+        {
+          "key": "names",
+          "type": "string",
+          "label": {
+            "en": "Branches",
+            "de": "Branches",
+            "es": "Ramas",
+            "fr": "Branches"
+          },
+          "list": true
+        },
+        {
+          "key": "count",
+          "type": "int",
+          "label": {
+            "en": "How many",
+            "de": "Wie viele",
+            "es": "Cuántos",
+            "fr": "Combien"
+          }
+        },
+        {
+          "key": "total",
+          "type": "int",
+          "label": {
+            "en": "How many in all",
+            "de": "Wie viele insgesamt",
+            "es": "Cuántos en total",
+            "fr": "Combien en tout"
+          }
+        },
+        {
+          "key": "unavailable",
+          "type": "string",
+          "label": {
+            "en": "Why there is no answer",
+            "de": "Warum es keine Antwort gibt",
+            "es": "Por qué no hay respuesta",
+            "fr": "Pourquoi il n'y a pas de réponse"
+          }
+        }
+      ],
+      "requires": {
+        "all_of": [
+          "workspace"
+        ]
+      }
+    },
+    {
       "id": "app.morelitea.github.list-labels",
       "direction": "read",
       "label": {
@@ -250,8 +427,10 @@
         "fr": "Toutes les étiquettes qui existent dans le dépôt."
       },
       "group": "issues",
+      "public": true,
       "actors": [
-        "installation"
+        "installation",
+        "member"
       ],
       "cache_ttl_seconds": 300,
       "params": [
@@ -320,6 +499,104 @@
       }
     },
     {
+      "id": "app.morelitea.github.list-milestones",
+      "direction": "read",
+      "label": {
+        "en": "Milestones",
+        "de": "Meilensteine",
+        "es": "Hitos",
+        "fr": "Jalons"
+      },
+      "description": {
+        "en": "The milestones a repository is still working towards.",
+        "de": "Die Meilensteine, auf die ein Repository noch hinarbeitet.",
+        "es": "Los hitos hacia los que un repositorio todavía trabaja.",
+        "fr": "Les jalons vers lesquels un dépôt travaille encore."
+      },
+      "group": "issues",
+      "public": true,
+      "actors": [
+        "installation",
+        "member"
+      ],
+      "cache_ttl_seconds": 300,
+      "params": [
+        {
+          "key": "repo",
+          "type": "string",
+          "label": {
+            "en": "Repository",
+            "de": "Repository",
+            "es": "Repositorio",
+            "fr": "Dépôt"
+          },
+          "options_from": {
+            "endpoint": "app.morelitea.github.list-repositories",
+            "key": "names"
+          }
+        }
+      ],
+      "returns": [
+        {
+          "key": "numbers",
+          "type": "int",
+          "label": {
+            "en": "Milestones",
+            "de": "Meilensteine",
+            "es": "Hitos",
+            "fr": "Jalons"
+          },
+          "list": true
+        },
+        {
+          "key": "titles",
+          "type": "string",
+          "label": {
+            "en": "Names",
+            "de": "Namen",
+            "es": "Nombres",
+            "fr": "Noms"
+          },
+          "list": true
+        },
+        {
+          "key": "count",
+          "type": "int",
+          "label": {
+            "en": "How many",
+            "de": "Wie viele",
+            "es": "Cuántos",
+            "fr": "Combien"
+          }
+        },
+        {
+          "key": "total",
+          "type": "int",
+          "label": {
+            "en": "How many in all",
+            "de": "Wie viele insgesamt",
+            "es": "Cuántos en total",
+            "fr": "Combien en tout"
+          }
+        },
+        {
+          "key": "unavailable",
+          "type": "string",
+          "label": {
+            "en": "Why there is no answer",
+            "de": "Warum es keine Antwort gibt",
+            "es": "Por qué no hay respuesta",
+            "fr": "Pourquoi il n'y a pas de réponse"
+          }
+        }
+      ],
+      "requires": {
+        "all_of": [
+          "workspace"
+        ]
+      }
+    },
+    {
       "id": "app.morelitea.github.get-issue",
       "direction": "read",
       "label": {
@@ -335,8 +612,10 @@
         "fr": "Un ticket par numéro : son état, ses étiquettes et à qui il est assigné."
       },
       "group": "issues",
+      "public": true,
       "actors": [
-        "installation"
+        "installation",
+        "member"
       ],
       "cache_ttl_seconds": 0,
       "params": [
@@ -483,8 +762,10 @@
         "fr": "Les tickets correspondant à une question, sous forme des numéros sur lesquels agir."
       },
       "group": "issues",
+      "public": true,
       "actors": [
-        "installation"
+        "installation",
+        "member"
       ],
       "cache_ttl_seconds": 60,
       "params": [
@@ -543,6 +824,13 @@
             "de": "Zuständige Person",
             "es": "Persona asignada",
             "fr": "Personne assignée"
+          },
+          "options_from": {
+            "endpoint": "app.morelitea.github.list-assignees",
+            "key": "logins",
+            "needs": {
+              "repo": "repo"
+            }
           }
         },
         {
@@ -553,6 +841,14 @@
             "de": "Meilenstein",
             "es": "Hito",
             "fr": "Jalon"
+          },
+          "options_from": {
+            "endpoint": "app.morelitea.github.list-milestones",
+            "key": "numbers",
+            "label_key": "titles",
+            "needs": {
+              "repo": "repo"
+            }
           }
         },
         {
@@ -716,8 +1012,10 @@
         "fr": "Une pull request par numéro : si c'est un brouillon, et si elle a été fusionnée."
       },
       "group": "reviews",
+      "public": true,
       "actors": [
-        "installation"
+        "installation",
+        "member"
       ],
       "cache_ttl_seconds": 0,
       "params": [
@@ -890,6 +1188,7 @@
         "fr": "Les pull requests correspondant à une question, y compris celles en attente de revue."
       },
       "group": "reviews",
+      "public": true,
       "actors": [
         "installation",
         "member"
@@ -972,6 +1271,13 @@
             "de": "Wartet auf",
             "es": "Esperando a",
             "fr": "En attente de"
+          },
+          "options_from": {
+            "endpoint": "app.morelitea.github.list-assignees",
+            "key": "logins",
+            "needs": {
+              "repo": "repo"
+            }
           }
         },
         {
@@ -1116,8 +1422,10 @@
         "fr": "Alertes de dépendances ouvertes, avec la gravité et le paquet de chacune."
       },
       "group": "security",
+      "public": true,
       "actors": [
-        "installation"
+        "installation",
+        "member"
       ],
       "cache_ttl_seconds": 300,
       "params": [
@@ -1220,8 +1528,10 @@
         "fr": "Les tableaux Projects du compte de l'installation."
       },
       "group": "projects",
+      "public": true,
       "actors": [
-        "installation"
+        "installation",
+        "member"
       ],
       "cache_ttl_seconds": 300,
       "returns": [
@@ -1304,8 +1614,10 @@
         "fr": "Les champs à choix unique d'un tableau : ses colonnes, et tout autre du même type."
       },
       "group": "projects",
+      "public": true,
       "actors": [
-        "installation"
+        "installation",
+        "member"
       ],
       "cache_ttl_seconds": 300,
       "params": [
@@ -1391,8 +1703,10 @@
         "fr": "Ce à quoi un champ à choix unique d'un tableau peut être défini."
       },
       "group": "projects",
+      "public": true,
       "actors": [
-        "installation"
+        "installation",
+        "member"
       ],
       "cache_ttl_seconds": 300,
       "params": [
@@ -1494,8 +1808,10 @@
         "fr": "La carte qu'un ticket ou une pull request a sur un tableau."
       },
       "group": "projects",
+      "public": true,
       "actors": [
-        "installation"
+        "installation",
+        "member"
       ],
       "cache_ttl_seconds": 0,
       "params": [
@@ -1595,6 +1911,7 @@
         "fr": "En ouvre un dans un dépôt couvert par l'installation, en tant que le membre."
       },
       "group": "issues",
+      "public": true,
       "actors": [
         "member"
       ],
@@ -1667,7 +1984,14 @@
             "es": "Asignados",
             "fr": "Assignés"
           },
-          "list": true
+          "list": true,
+          "options_from": {
+            "endpoint": "app.morelitea.github.list-assignees",
+            "key": "logins",
+            "needs": {
+              "repo": "repo"
+            }
+          }
         }
       ],
       "returns": [
@@ -1724,6 +2048,7 @@
         "fr": "Ajoute un commentaire à un ticket ou une pull request, en tant que le membre."
       },
       "group": "issues",
+      "public": true,
       "actors": [
         "member"
       ],
@@ -1824,6 +2149,7 @@
         "fr": "Le ferme comme terminé ou comme non planifié, en tant que le membre."
       },
       "group": "issues",
+      "public": true,
       "actors": [
         "member"
       ],
@@ -1921,6 +2247,7 @@
         "fr": "Remet un ticket fermé à l'état ouvert, en tant que le membre."
       },
       "group": "issues",
+      "public": true,
       "actors": [
         "member"
       ],
@@ -2004,6 +2331,7 @@
         "fr": "Ajoute ou retire des étiquettes sur un ticket ou une pull request, en tant que le membre."
       },
       "group": "issues",
+      "public": true,
       "actors": [
         "member"
       ],
@@ -2109,6 +2437,7 @@
         "fr": "Demande à des personnes ou des équipes de relire une pull request, en tant que le membre."
       },
       "group": "reviews",
+      "public": true,
       "actors": [
         "member"
       ],
@@ -2152,7 +2481,14 @@
             "es": "Revisores",
             "fr": "Relecteurs"
           },
-          "list": true
+          "list": true,
+          "options_from": {
+            "endpoint": "app.morelitea.github.list-assignees",
+            "key": "logins",
+            "needs": {
+              "repo": "repo"
+            }
+          }
         },
         {
           "key": "team_reviewers",
@@ -2210,6 +2546,7 @@
         "fr": "Définit un champ à choix unique sur une carte Projects, en tant que le membre."
       },
       "group": "projects",
+      "public": true,
       "actors": [
         "member"
       ],
@@ -2463,6 +2800,184 @@
         "key": [
           "repository",
           "number"
+        ]
+      }
+    },
+    {
+      "id": "app.morelitea.github.release-published",
+      "direction": "emit",
+      "label": {
+        "en": "A release was published",
+        "de": "Ein Release wurde veröffentlicht",
+        "es": "Se publicó una versión",
+        "fr": "Une version a été publiée"
+      },
+      "description": {
+        "en": "When a full release goes out in a repository the installation covers. Pre-releases have their own announcement.",
+        "de": "Wenn ein vollständiges Release in einem Repository der Installation erscheint. Pre-Releases haben eine eigene Ankündigung.",
+        "es": "Cuando sale una versión completa en un repositorio que cubre la instalación. Las versiones preliminares tienen su propio aviso.",
+        "fr": "Quand une version complète sort dans un dépôt couvert par l'installation. Les préversions ont leur propre annonce."
+      },
+      "group": "releases",
+      "returns": [
+        {
+          "key": "repository",
+          "type": "string"
+        },
+        {
+          "key": "owner",
+          "type": "string"
+        },
+        {
+          "key": "tag",
+          "type": "string"
+        },
+        {
+          "key": "name",
+          "type": "string",
+          "label": {
+            "en": "Title",
+            "de": "Titel",
+            "es": "Título",
+            "fr": "Titre"
+          }
+        },
+        {
+          "key": "branch",
+          "type": "string",
+          "label": {
+            "en": "Released from",
+            "de": "Veröffentlicht aus",
+            "es": "Publicado desde",
+            "fr": "Publié depuis"
+          }
+        },
+        {
+          "key": "url",
+          "type": "url"
+        },
+        {
+          "key": "author",
+          "type": "string"
+        }
+      ],
+      "identity": {
+        "kind": "release",
+        "key": [
+          "repository",
+          "tag"
+        ]
+      }
+    },
+    {
+      "id": "app.morelitea.github.prerelease-published",
+      "direction": "emit",
+      "label": {
+        "en": "A pre-release was published",
+        "de": "Ein Pre-Release wurde veröffentlicht",
+        "es": "Se publicó una versión preliminar",
+        "fr": "Une préversion a été publiée"
+      },
+      "description": {
+        "en": "When a release marked as a pre-release goes out in a repository the installation covers.",
+        "de": "Wenn ein als Pre-Release markiertes Release in einem Repository der Installation erscheint.",
+        "es": "Cuando sale una versión marcada como preliminar en un repositorio que cubre la instalación.",
+        "fr": "Quand une version marquée comme préversion sort dans un dépôt couvert par l'installation."
+      },
+      "group": "releases",
+      "returns": [
+        {
+          "key": "repository",
+          "type": "string"
+        },
+        {
+          "key": "owner",
+          "type": "string"
+        },
+        {
+          "key": "tag",
+          "type": "string"
+        },
+        {
+          "key": "name",
+          "type": "string",
+          "label": {
+            "en": "Title",
+            "de": "Titel",
+            "es": "Título",
+            "fr": "Titre"
+          }
+        },
+        {
+          "key": "branch",
+          "type": "string",
+          "label": {
+            "en": "Released from",
+            "de": "Veröffentlicht aus",
+            "es": "Publicado desde",
+            "fr": "Publié depuis"
+          }
+        },
+        {
+          "key": "url",
+          "type": "url"
+        },
+        {
+          "key": "author",
+          "type": "string"
+        }
+      ],
+      "identity": {
+        "kind": "release",
+        "key": [
+          "repository",
+          "tag"
+        ]
+      }
+    },
+    {
+      "id": "app.morelitea.github.tag-created",
+      "direction": "emit",
+      "label": {
+        "en": "A tag was pushed",
+        "de": "Ein Tag wurde gepusht",
+        "es": "Se subió una etiqueta",
+        "fr": "Une étiquette a été poussée"
+      },
+      "description": {
+        "en": "When a tag is created in a repository the installation covers. GitHub does not say which branch a tag is on.",
+        "de": "Wenn in einem Repository der Installation ein Tag erstellt wird. GitHub gibt nicht an, auf welchem Branch ein Tag liegt.",
+        "es": "Cuando se crea una etiqueta en un repositorio que cubre la instalación. GitHub no indica en qué rama está una etiqueta.",
+        "fr": "Quand une étiquette est créée dans un dépôt couvert par l'installation. GitHub n'indique pas sur quelle branche se trouve une étiquette."
+      },
+      "group": "releases",
+      "returns": [
+        {
+          "key": "repository",
+          "type": "string"
+        },
+        {
+          "key": "owner",
+          "type": "string"
+        },
+        {
+          "key": "tag",
+          "type": "string"
+        },
+        {
+          "key": "url",
+          "type": "url"
+        },
+        {
+          "key": "author",
+          "type": "string"
+        }
+      ],
+      "identity": {
+        "kind": "tag",
+        "key": [
+          "repository",
+          "tag"
         ]
       }
     }

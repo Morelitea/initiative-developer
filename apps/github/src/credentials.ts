@@ -3,21 +3,30 @@
  * token names. Initiative holds the authorization and renews it; the token is
  * used for one call and not kept, so a member who disconnects or is blocked
  * stops at the next call.
+ *
+ * Whose token a call runs on is read from the context token. Another app's
+ * call through Initiative names its actor: `member` carries that member's
+ * `account` handle, `installation` carries the community's `workspace` one and
+ * no member's. Initiative's own call for a widget names no actor and carries
+ * the viewing member's `account` handle when they have connected one.
  */
 
 import { InitiativeApiError } from "initiative-app-kit";
 
 import type { AppContext } from "./context.js";
+import type { Call } from "./endpoints/support.js";
 import { ACCOUNT } from "./vocabulary.js";
 
 /**
  * The member's token, or why there is none: `not-connected` when the member
  * has not connected, was blocked, or must connect again; `unavailable` when
- * Initiative could not renew it with GitHub or could not be reached.
+ * Initiative could not renew it with GitHub or could not be reached;
+ * `no-member` when the call is the community's, so there is no member to act
+ * as.
  */
 export type MemberToken =
   | { ok: true; token: string }
-  | { ok: false; reason: "not-connected" | "unavailable" };
+  | { ok: false; reason: "not-connected" | "unavailable" | "no-member" };
 
 /** Initiative's answers that mean the member has no usable connection. */
 const NOT_CONNECTED = new Set([403, 404, 409]);
@@ -40,24 +49,12 @@ export async function memberToken(
 }
 
 /**
- * The GitHub token of a member another app named by its subject: resolved to
- * this app's own handle for them, then asked for as above.
+ * The token of the member a call is for: the `account` handle the context
+ * token carries. A call made as the community has none.
  */
-export async function delegatedMemberToken(
-  context: AppContext,
-  installation: string,
-  delegate: { delegate: string; subject: string }
-): Promise<MemberToken> {
-  let resolved;
-  try {
-    resolved = await context.auth.resolveConnection(installation, {
-      delegate: delegate.delegate,
-      subject: delegate.subject,
-      connection: ACCOUNT,
-    });
-  } catch {
-    return { ok: false, reason: "not-connected" };
-  }
-  if (resolved.blocked || !resolved.connectionRef) return { ok: false, reason: "not-connected" };
-  return memberToken(context, installation, resolved.connectionRef);
+export async function callerToken(call: Call): Promise<MemberToken> {
+  if (call.claims.actor === "installation") return { ok: false, reason: "no-member" };
+  const ref = call.claims.connection_refs?.[ACCOUNT];
+  if (!ref) return { ok: false, reason: "not-connected" };
+  return memberToken(call.context, call.installation, ref);
 }

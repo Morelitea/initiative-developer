@@ -29,13 +29,14 @@ const REPOSITORY_PAGES = 5;
 export const PERMISSIONS: Readonly<Record<string, string>> = {
   issues: "write",
   pull_requests: "write",
+  contents: "read",
   vulnerability_alerts: "read",
   organization_projects: "write",
   metadata: "read",
 };
 
 /** The webhook events the GitHub App registration subscribes to. */
-export const WEBHOOK_EVENTS: readonly string[] = ["issues", "pull_request"];
+export const WEBHOOK_EVENTS: readonly string[] = ["issues", "pull_request", "release", "create"];
 
 /**
  * Whether GitHub still has an installation: present, suspended by its owner,

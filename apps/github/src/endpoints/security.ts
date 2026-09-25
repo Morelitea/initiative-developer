@@ -16,6 +16,7 @@ import {
   lower,
   nodes,
   PAGE,
+  PUBLIC_READ,
   readFailure,
   repoAccess,
   unavailable,
@@ -40,7 +41,7 @@ export const listAlerts: Read = {
       "Alertes de dépendances ouvertes, avec la gravité et le paquet de chacune."
     ),
     group: "security",
-    actors: ["installation"],
+    ...PUBLIC_READ,
     cache_ttl_seconds: 300,
     params: [REPO],
     returns: [

@@ -32,10 +32,10 @@ describe("manifest", () => {
     expect(validateManifest(manifest)).toEqual([]);
   });
 
-  it("declares eleven reads, seven writes and three announcements", () => {
+  it("declares fourteen reads, seven writes and six announcements", () => {
     const counts: Record<string, number> = {};
     for (const endpoint of manifest.endpoints ?? []) counts[endpoint.direction] = (counts[endpoint.direction] ?? 0) + 1;
-    expect(counts).toEqual({ read: 11, write: 7, emit: 3 });
+    expect(counts).toEqual({ read: 14, write: 7, emit: 6 });
   });
 
   it("asks for exactly the scopes it was cleared for", () => {
@@ -67,6 +67,18 @@ describe("manifest", () => {
     for (const endpoint of (manifest.endpoints ?? []).filter((one) => one.direction === "write")) {
       expect(endpoint.actors).toEqual(["member"]);
       expect(endpoint.requires).toEqual({ all_of: ["workspace", "account"] });
+    }
+  });
+
+  it("offers every read and write to other apps, and no announcement", () => {
+    for (const endpoint of manifest.endpoints ?? []) {
+      if (endpoint.direction === "emit") {
+        expect(endpoint.public).toBeUndefined();
+        continue;
+      }
+      expect(endpoint.public).toBe(true);
+      expect(endpoint.admin_only).toBeUndefined();
+      if (endpoint.direction === "read") expect(endpoint.actors).toEqual(["installation", "member"]);
     }
   });
 

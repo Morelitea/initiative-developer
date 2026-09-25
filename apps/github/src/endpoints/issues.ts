@@ -1,6 +1,5 @@
 import { graphql, rest } from "../github/http.js";
 import {
-  ACCOUNT,
   ASSIGNEES_OUT,
   AUTHOR_OUT,
   CLOSED_OUT,
@@ -15,11 +14,13 @@ import {
   LINK_OUT,
   many,
   MILESTONE_OUT,
+  MILESTONES_OF,
   NUMBER,
   NUMBER_OUT,
   out,
   OWNER_OUT,
   param,
+  PEOPLE_OF,
   READ_IDS,
   REPO,
   REPO_OUT,
@@ -49,6 +50,8 @@ import {
   ordering,
   PAGE,
   pick,
+  PUBLIC_READ,
+  PUBLIC_WRITE,
   readFailure,
   repoAccess,
   repository,
@@ -71,8 +74,6 @@ import {
   type WriteOutcome,
 } from "./support.js";
 
-const MEMBER_WRITE = { actors: ["member" as const], requires: { all_of: [WORKSPACE, ACCOUNT] } };
-
 export const listLabels: Read = {
   declaration: {
     id: READ_IDS.listLabels,
@@ -85,7 +86,7 @@ export const listLabels: Read = {
       "Toutes les étiquettes qui existent dans le dépôt."
     ),
     group: "issues",
-    actors: ["installation"],
+    ...PUBLIC_READ,
     cache_ttl_seconds: 300,
     params: [REPO],
     returns: [
@@ -119,6 +120,68 @@ export const listLabels: Read = {
   },
 };
 
+export const listMilestones: Read = {
+  declaration: {
+    id: READ_IDS.listMilestones,
+    direction: "read",
+    label: text("Milestones", "Meilensteine", "Hitos", "Jalons"),
+    description: text(
+      "The milestones a repository is still working towards.",
+      "Die Meilensteine, auf die ein Repository noch hinarbeitet.",
+      "Los hitos hacia los que un repositorio todavía trabaja.",
+      "Les jalons vers lesquels un dépôt travaille encore."
+    ),
+    group: "issues",
+    ...PUBLIC_READ,
+    cache_ttl_seconds: 300,
+    params: [REPO],
+    returns: [
+      many(out("numbers", "int", { label: text("Milestones", "Meilensteine", "Hitos", "Jalons") })),
+      many(out("titles", "string", { label: text("Names", "Namen", "Nombres", "Noms") })),
+      COUNT_OUT,
+      TOTAL_OUT,
+      UNAVAILABLE,
+    ],
+    requires: { all_of: [WORKSPACE] },
+  },
+
+  async run(call) {
+    const access = await repoAccess(call);
+    if (isResult(access)) return { actor: "installation", result: access };
+    // Open ones, soonest due first: what somebody is planning against.
+    const answer = await graphql<{
+      repository: { milestones: Connection<{ number?: number; title?: string }> } | null;
+    }>(
+      call.context.github.http,
+      access.token,
+      `query Milestones($owner: String!, $repo: String!, $first: Int!) {
+         repository(owner: $owner, name: $repo) {
+           milestones(first: $first, states: [OPEN], orderBy: { field: DUE_DATE, direction: ASC }) {
+             totalCount
+             nodes { number title }
+           }
+         }
+       }`,
+      { owner: access.owner, repo: access.repo, first: PAGE }
+    );
+    if (!answer.ok) return { actor: "installation", result: readFailure(answer.failure) };
+    const milestones = answer.body.repository?.milestones;
+    if (!milestones) return { actor: "installation", result: unavailable("not-found") };
+    const found = nodes(milestones).filter(
+      (milestone): milestone is { number: number; title?: string } => typeof milestone.number === "number"
+    );
+    return {
+      actor: "installation",
+      result: {
+        numbers: found.map((milestone) => milestone.number),
+        titles: found.map((milestone) => milestone.title ?? ""),
+        count: found.length,
+        total: milestones.totalCount ?? found.length,
+      },
+    };
+  },
+};
+
 export const getIssue: Read = {
   declaration: {
     id: READ_IDS.getIssue,
@@ -131,7 +194,7 @@ export const getIssue: Read = {
       "Un ticket par numéro : son état, ses étiquettes et à qui il est assigné."
     ),
     group: "issues",
-    actors: ["installation"],
+    ...PUBLIC_READ,
     cache_ttl_seconds: 0,
     params: [REPO, NUMBER],
     returns: [
@@ -206,14 +269,16 @@ export const findIssues: Read = {
       "Les tickets correspondant à une question, sous forme des numéros sur lesquels agir."
     ),
     group: "issues",
-    actors: ["installation"],
+    ...PUBLIC_READ,
     cache_ttl_seconds: 60,
     params: [
       REPO,
       param("state", "select", text("State", "Status", "Estado", "État"), { options: [...ISSUE_STATES] }),
       LABELS_IN,
-      param("assignee", "string", text("Assignee", "Zuständige Person", "Persona asignada", "Personne assignée")),
-      param("milestone", "int", text("Milestone", "Meilenstein", "Hito", "Jalon")),
+      param("assignee", "string", text("Assignee", "Zuständige Person", "Persona asignada", "Personne assignée"), {
+        options_from: PEOPLE_OF,
+      }),
+      param("milestone", "int", text("Milestone", "Meilenstein", "Hito", "Jalon"), { options_from: MILESTONES_OF }),
       SINCE_IN,
       SINCE_DAYS_IN,
       SORT_IN,
@@ -298,13 +363,16 @@ export const openIssue: Write = {
       "En ouvre un dans un dépôt couvert par l'installation, en tant que le membre."
     ),
     group: "issues",
-    ...MEMBER_WRITE,
+    ...PUBLIC_WRITE,
     params: [
       REPO,
       param("title", "string", text("Title", "Titel", "Título", "Titre"), { required: true }),
       param("body", "string", text("Body", "Text", "Cuerpo", "Corps")),
       LABELS_IN,
-      param("assignees", "string", text("Assignees", "Zuständige", "Asignados", "Assignés"), { list: true }),
+      param("assignees", "string", text("Assignees", "Zuständige", "Asignados", "Assignés"), {
+        list: true,
+        options_from: PEOPLE_OF,
+      }),
     ],
     returns: [
       REPO_OUT,
@@ -347,7 +415,7 @@ export const comment: Write = {
       "Ajoute un commentaire à un ticket ou une pull request, en tant que le membre."
     ),
     group: "issues",
-    ...MEMBER_WRITE,
+    ...PUBLIC_WRITE,
     params: [REPO, NUMBER, param("body", "string", text("Body", "Text", "Cuerpo", "Corps"), { required: true })],
     returns: [
       REPO_OUT,
@@ -394,7 +462,7 @@ export const closeIssue: Write = {
       "Le ferme comme terminé ou comme non planifié, en tant que le membre."
     ),
     group: "issues",
-    ...MEMBER_WRITE,
+    ...PUBLIC_WRITE,
     params: [
       REPO,
       NUMBER,
@@ -419,7 +487,7 @@ export const reopenIssue: Write = {
       "Remet un ticket fermé à l'état ouvert, en tant que le membre."
     ),
     group: "issues",
-    ...MEMBER_WRITE,
+    ...PUBLIC_WRITE,
     params: [REPO, NUMBER],
     returns: STATE_RETURNS,
     identity: ISSUE_IDENTITY,
@@ -440,7 +508,7 @@ export const label: Write = {
       "Ajoute ou retire des étiquettes sur un ticket ou une pull request, en tant que le membre."
     ),
     group: "issues",
-    ...MEMBER_WRITE,
+    ...PUBLIC_WRITE,
     params: [
       REPO,
       NUMBER,

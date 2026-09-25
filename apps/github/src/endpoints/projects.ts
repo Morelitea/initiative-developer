@@ -1,6 +1,5 @@
 import { graphql } from "../github/http.js";
 import {
-  ACCOUNT,
   BOARD,
   COUNT_OUT,
   FIELDS_OF,
@@ -26,6 +25,8 @@ import {
   isResult,
   nodes,
   PAGE,
+  PUBLIC_READ,
+  PUBLIC_WRITE,
   readFailure,
   repoAccess,
   text as textParam,
@@ -59,7 +60,7 @@ export const listProjects: Read = {
       "Les tableaux Projects du compte de l'installation."
     ),
     group: "projects",
-    actors: ["installation"],
+    ...PUBLIC_READ,
     cache_ttl_seconds: 300,
     returns: [
       many(out("ids", "string", { label: text("Boards", "Boards", "Tableros", "Tableaux") })),
@@ -158,7 +159,7 @@ export const listProjectFields: Read = {
       "Les champs à choix unique d'un tableau : ses colonnes, et tout autre du même type."
     ),
     group: "projects",
-    actors: ["installation"],
+    ...PUBLIC_READ,
     cache_ttl_seconds: 300,
     params: [BOARD],
     returns: [
@@ -201,7 +202,7 @@ export const listProjectOptions: Read = {
       "Ce à quoi un champ à choix unique d'un tableau peut être défini."
     ),
     group: "projects",
-    actors: ["installation"],
+    ...PUBLIC_READ,
     cache_ttl_seconds: 300,
     params: [BOARD, param("field", "string", text("Field", "Feld", "Campo", "Champ"), { options_from: FIELDS_OF })],
     returns: [
@@ -251,7 +252,7 @@ export const findProjectItem: Read = {
       "La carte qu'un ticket ou une pull request a sur un tableau."
     ),
     group: "projects",
-    actors: ["installation"],
+    ...PUBLIC_READ,
     cache_ttl_seconds: 0,
     params: [BOARD, REPO, NUMBER],
     returns: [out("item_id", "string", { label: CARD }), REPO_OUT, OWNER_OUT, NUMBER_OUT, UNAVAILABLE],
@@ -310,8 +311,7 @@ export const moveProjectItem: Write = {
       "Définit un champ à choix unique sur une carte Projects, en tant que le membre."
     ),
     group: "projects",
-    actors: ["member"],
-    requires: { all_of: [WORKSPACE, ACCOUNT] },
+    ...PUBLIC_WRITE,
     params: [
       BOARD,
       param("item_id", "string", CARD),

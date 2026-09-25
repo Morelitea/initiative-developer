@@ -15,6 +15,8 @@ Rewritten on the installation-token platform.
 - Announcements are handed to Initiative, which delivers them to subscribers.
 - Reads answer on the organization's installation. Writes run on the member's
   own GitHub account and never fall back to the app.
+- Turning the app off in Initiative pauses it and keeps every member's GitHub
+  authorization; only removing it ends them.
 
 ### Upgrading
 

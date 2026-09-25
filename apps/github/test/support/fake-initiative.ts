@@ -43,6 +43,8 @@ export class FakeInitiative {
   listed: string[] | null = null;
   /** When set, the installations list answers with this status. */
   listFails: number | null = null;
+  /** Installations the listing reports as paused: switched off, or their community on hold. */
+  readonly inactive = new Set<string>();
   readonly tokenRequests: URLSearchParams[] = [];
   private nextInstallId = 1;
 
@@ -140,7 +142,15 @@ export class FakeInitiative {
       if (bearer !== "app-token") return json(401, { detail: "unauthorized" });
       if (this.listFails !== null) return json(this.listFails, { detail: "unavailable" });
       const names = this.listed ?? [...this.installs.keys()];
-      return json(200, names.map((installation) => ({ installation, scopes: ["projects:read"], initiatives: [1] })));
+      return json(
+        200,
+        names.map((installation) => ({
+          installation,
+          scopes: ["projects:read"],
+          initiatives: [1],
+          active: !this.inactive.has(installation),
+        }))
+      );
     }
 
     const prefix = "/api/v1/app-platform/installation/";

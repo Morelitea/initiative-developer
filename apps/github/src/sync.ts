@@ -7,6 +7,10 @@
  * replaced). It checks that each community's GitHub installation still exists
  * and reports the verdict to its admins.
  *
+ * An installation listed as inactive is paused (the app switched off, or its
+ * community on hold): it is left exactly as it is, credentials and all, and
+ * not read until it is active again.
+ *
  * An installation Initiative stops listing, on two passes in a row, is gone:
  * every member's GitHub authorization under it is ended (the grant, so the
  * refresh token goes too) and everything cached for it is dropped. Only what
@@ -46,8 +50,9 @@ export class InstallationSync {
     }
 
     const live = new Set(listed.map((entry) => entry.installation));
-    for (const installation of live) {
+    for (const { installation, active } of listed) {
       this.missing.delete(installation);
+      if (!active) continue;
       try {
         const snapshot = await context.installs.refresh(installation);
         await this.check(snapshot);

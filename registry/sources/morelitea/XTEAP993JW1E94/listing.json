@@ -13,15 +13,15 @@
   },
   "versions": [
     {
-      "version": "2.1.0",
-      "definition": "2.1.0/manifest.json",
+      "version": "2.2.0",
+      "definition": "2.2.0/manifest.json",
       "min_app_version": "0.72.0",
-      "release_notes": "Other apps can use GitHub through Initiative, where a community allows it: reads for the community or a member, and changes as the member. Release and tag announcements return; each organization's owner approves the app's new Contents and release permissions on GitHub."
+      "release_notes": "GitHub's webhooks now arrive through Initiative, which checks and routes them, so the app needs no public address. Set the GitHub App's webhook URL to Initiative's app-hooks address and enter its webhook secret as a vendor value."
     }
   ],
   "registration": {
     "kind": "container",
-    "image": "ghcr.io/morelitea/initiative-github@sha256:ac2e362f85ba299988ffc86d92f4a96a994c38e61a62d13186c1ac36d3b2e625",
+    "image": "ghcr.io/morelitea/initiative-github@sha256:5b3c787f4a26314be7332832cc74732bf9a2c60349269ee0e76146fd002c0f27",
     "jwks": {
       "keys": [
         {

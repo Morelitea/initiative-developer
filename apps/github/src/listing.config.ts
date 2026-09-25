@@ -16,7 +16,7 @@ import { createHash } from "node:crypto";
 
 import { LISTING_UID, PUBLIC_ID, SCOPES } from "./vocabulary.js";
 
-export const VERSION = "2.1.0";
+export const VERSION = "2.2.0";
 
 /**
  * The oldest Initiative that runs this app's connections. Development builds
@@ -28,7 +28,7 @@ export const MIN_APP_VERSION = "0.72.0";
 
 /** The image this version runs, pinned by digest. */
 export const IMAGE =
-  "ghcr.io/morelitea/initiative-github@sha256:ac2e362f85ba299988ffc86d92f4a96a994c38e61a62d13186c1ac36d3b2e625";
+  "ghcr.io/morelitea/initiative-github@sha256:5b3c787f4a26314be7332832cc74732bf9a2c60349269ee0e76146fd002c0f27";
 
 /** The public key the app's token requests are verified with. */
 export const JWKS = {
@@ -63,7 +63,7 @@ export function listingEntry(avatar: Buffer): Record<string, unknown> {
         definition: DEFINITION_PATH,
         min_app_version: MIN_APP_VERSION,
         release_notes:
-          "Other apps can use GitHub through Initiative, where a community allows it: reads for the community or a member, and changes as the member. Release and tag announcements return; each organization's owner approves the app's new Contents and release permissions on GitHub.",
+          "GitHub's webhooks now arrive through Initiative, which checks and routes them, so the app needs no public address. Set the GitHub App's webhook URL to Initiative's app-hooks address and enter its webhook secret as a vendor value.",
       },
     ],
     registration: {

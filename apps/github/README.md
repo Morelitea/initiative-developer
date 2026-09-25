@@ -58,8 +58,7 @@ nobody has to authorize again when it is turned back on.
 ### 1. Register a GitHub App
 
 Once per deployment, on GitHub under *Settings → Developer settings → GitHub
-Apps → New GitHub App*. `{APP_URL}` stands for Initiative's own public address,
-and `https://github-app.example.com` for this app's:
+Apps → New GitHub App*. `{APP_URL}` stands for Initiative's own public address:
 
 | Setting | Value |
 |---|---|
@@ -67,8 +66,8 @@ and `https://github-app.example.com` for this app's:
 | Expire user authorization tokens | on |
 | Request user authorization (OAuth) during installation | off |
 | Setup URL | `{APP_URL}/api/v1/app-connections/setup` |
-| Webhook URL | `https://github-app.example.com/github/webhook` |
-| Webhook secret | a long random value, also given to the app as `GITHUB_WEBHOOK_SECRET` |
+| Webhook URL | `{APP_URL}/api/v1/app-hooks/morelitea.github` |
+| Webhook secret | a long random value |
 | Repository permissions | Issues: read and write · Pull requests: read and write · Contents: read · Dependabot alerts: read · Metadata: read |
 | Organization permissions | Projects: read and write |
 | Events | Issues · Pull request · Release · Create |
@@ -76,15 +75,15 @@ and `https://github-app.example.com` for this app's:
 Then generate a private key and a client secret on the app's page.
 
 - **Initiative** gets the GitHub App's values: its client ID, client secret,
-  slug (the name in its address, `github.com/apps/<slug>`), app ID and private
-  key. An operator enters them in **Settings → Platform → Integrations → App
-  services**, on the GitHub app's registration. The app is not live until all
-  five are set.
+  slug (the name in its address, `github.com/apps/<slug>`), app ID, private
+  key and webhook secret. An operator enters them in **Settings → Platform →
+  Integrations → App services**, on the GitHub app's registration. The app is
+  not live until all six are set.
 - **The app** gets the client ID and client secret too, as `GITHUB_CLIENT_ID`
   and `GITHUB_CLIENT_SECRET`: ending a member's authorization at GitHub is
   authenticated as the GitHub App's client, and Initiative's revoke hook call
-  carries the tokens but not those. It also gets the webhook secret. It never
-  needs the private key.
+  carries the tokens but not those. It never needs the private key or the
+  webhook secret.
 
 ### 2. Give the app a key for Initiative
 
@@ -132,7 +131,6 @@ missing.
 | `INITIATIVE_APP_KEY_ID` | The `kid` that key is registered under. |
 | `GITHUB_CLIENT_ID` | The GitHub App's client ID, for ending a member's authorization. |
 | `GITHUB_CLIENT_SECRET` | The GitHub App's client secret, for the same. |
-| `GITHUB_WEBHOOK_SECRET` | The GitHub App's webhook secret. |
 
 Optional:
 
@@ -152,16 +150,30 @@ docker run -d --name initiative-github -p 8080:8080 --env-file github-app.env \
 
 Register the container's address (for example `http://initiative-github:8080`)
 as the app's location in Initiative. Initiative calls the app there, for its
-endpoints and its two hooks (`/v1/hooks/after_connect`, `/v1/hooks/revoke`).
+endpoints and its three hooks (`/v1/hooks/after_connect`, `/v1/hooks/revoke`,
+`/v1/hooks/webhook`).
 
-The app's public address is for GitHub's webhook deliveries only
-(`/github/webhook`), and for a deployment that registers the app's key by
-address (`/.well-known/jwks.json`). No browser is ever sent to the app. If
-GitHub cannot reach it, announcements stop, and an installation removed at
-GitHub is noticed by the next sync rather than at once.
+The app needs no public address. GitHub's webhook deliveries go to Initiative,
+which checks each one and forwards it to the app's webhook hook for every
+community connected to the installation it came from. No browser is ever sent
+to the app, and only Initiative calls it. A deployment that registers the
+app's key by address reads it at `/.well-known/jwks.json`.
 
 `GET /healthz` answers once the process is up; `GET /readyz` once the first
 installations sync has reached Initiative.
+
+## Upgrading from 2.1
+
+GitHub's webhooks now go to Initiative, so this needs an Initiative that
+receives app webhooks.
+
+1. On the GitHub App's settings, set the webhook URL to
+   `{APP_URL}/api/v1/app-hooks/morelitea.github`. The webhook secret, the
+   events and every other setting stay as they are.
+2. Enter the GitHub App's webhook secret as the *Webhook secret* vendor value
+   on the app's registration in Initiative.
+3. Remove `GITHUB_WEBHOOK_SECRET` from the app's settings; it no longer reads
+   it. The app's public address, if it had one only for GitHub, can go.
 
 ## Upgrading from 2.0
 

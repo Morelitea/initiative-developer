@@ -5,8 +5,7 @@
  * lives in the installation's configuration in Initiative (the `workspace`
  * connection), and Initiative holds every token. This is a short-lived copy
  * of the last configuration answer, so a widget does not cost a
- * configuration read, and so a webhook can be matched to the communities
- * bound to its GitHub installation.
+ * configuration read.
  */
 
 import type { InitiativeAuth, InstallationConfig } from "initiative-app-kit";
@@ -74,13 +73,6 @@ export class InstallRegistry {
 
   peek(installation: string): InstallSnapshot | undefined {
     return this.snapshots.get(installation);
-  }
-
-  /** The installations bound to one GitHub installation, as last read. */
-  boundTo(githubInstallationId: number): string[] {
-    return [...this.snapshots.values()]
-      .filter((snapshot) => snapshot.workspace?.installationId === githubInstallationId)
-      .map((snapshot) => snapshot.installation);
   }
 
   /** Forget an installation entirely, handing back what was last known of it. */

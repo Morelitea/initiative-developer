@@ -1,27 +1,19 @@
 /**
- * GitHub's deliveries: taken only with a valid `X-Hub-Signature-256`, and
- * turned into the six announcements for each community bound to the
- * installation they came from.
+ * GitHub's deliveries, as Initiative forwards them to the `webhook` hook for
+ * the community they were routed to, turned into the six announcements.
  */
-
-import { createHmac } from "node:crypto";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { verifySignature } from "../src/github/webhooks.js";
 import { EMIT_IDS } from "../src/vocabulary.js";
-import { startHarness, WEBHOOK_SECRET, type Harness } from "./support/harness.js";
+import { startHarness, type Harness } from "./support/harness.js";
 
 let h: Harness;
 
 beforeEach(async () => {
   h = await startHarness();
   h.initiative.install("gapp_one");
-  h.initiative.install("gapp_two");
   h.initiative.install("gapp_other", { workspace: { owner: "other", installation_id: 77 } });
-  h.github.install(42);
-  h.github.install(77, { owner: "other" });
-  await h.sync.run();
 });
 
 afterEach(async () => {
@@ -29,26 +21,15 @@ afterEach(async () => {
   await h.close();
 });
 
-function sign(body: string, secret = WEBHOOK_SECRET): string {
-  return `sha256=${createHmac("sha256", secret).update(body).digest("hex")}`;
-}
-
-let delivery = 0;
-
-async function deliver(event: string, payload: unknown, options: { signature?: string; id?: string } = {}) {
-  const body = JSON.stringify(payload);
-  const response = await fetch(`${h.url}/github/webhook`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-GitHub-Event": event,
-      "X-GitHub-Delivery": options.id ?? `delivery-${++delivery}`,
-      "X-Hub-Signature-256": options.signature ?? sign(body),
-    },
-    body,
+async function deliver(event: string, payload: unknown, installation = "gapp_one") {
+  return h.hook(installation, "webhook", {
+    connection: "workspace",
+    headers: { "x-github-event": event, "x-github-delivery": "delivery-1" },
+    body: JSON.stringify(payload),
   });
-  return { status: response.status, body: (await response.json()) as Record<string, unknown> };
 }
+
+const events = (installation = "gapp_one") => h.initiative.installs.get(installation)!.events;
 
 const repository = { name: "widgets", owner: { login: "acme" } };
 const issue = {
@@ -59,65 +40,32 @@ const issue = {
   labels: [{ name: "bug" }],
 };
 
-describe("signature", () => {
-  it("verifies GitHub's HMAC over the raw body", () => {
-    const body = Buffer.from('{"a":1}');
-    expect(verifySignature(WEBHOOK_SECRET, body, sign('{"a":1}'))).toBe(true);
-    expect(verifySignature(WEBHOOK_SECRET, body, sign('{"a": 1}'))).toBe(false);
-    expect(verifySignature(WEBHOOK_SECRET, body, sign('{"a":1}', "another-secret"))).toBe(false);
-    expect(verifySignature(WEBHOOK_SECRET, body, "sha1=abc")).toBe(false);
-    expect(verifySignature(WEBHOOK_SECRET, body, undefined)).toBe(false);
-  });
-
-  it("refuses a delivery with a bad signature, and announces nothing", async () => {
-    const { status } = await deliver(
-      "issues",
-      { action: "opened", installation: { id: 42 }, repository, issue },
-      { signature: sign("something else") }
-    );
-    expect(status).toBe(401);
-    expect(h.initiative.installs.get("gapp_one")!.events).toHaveLength(0);
-  });
-
-  it("refuses a delivery with no signature", async () => {
-    const response = await fetch(`${h.url}/github/webhook`, {
-      method: "POST",
-      headers: { "X-GitHub-Event": "issues" },
-      body: "{}",
-    });
-    expect(response.status).toBe(401);
-  });
-});
-
 describe("announcements", () => {
-  it("emits issue-opened to every community bound to the installation", async () => {
-    const { status, body } = await deliver("issues", { action: "opened", installation: { id: 42 }, repository, issue });
-    expect(status).toBe(200);
-    expect(body.emitted).toBe(2);
-    for (const installation of ["gapp_one", "gapp_two"]) {
-      expect(h.initiative.installs.get(installation)!.events).toEqual([
-        {
-          event_type: EMIT_IDS.issueOpened,
-          payload: {
-            repository: "widgets",
-            owner: "acme",
-            number: 7,
-            title: "Broken build",
-            url: "https://github.test/acme/widgets/issues/7",
-            author: "bob",
-            labels: ["bug"],
-          },
+  it("emits issue-opened in the community the delivery was routed to", async () => {
+    const { status } = await deliver("issues", { action: "opened", installation: { id: 42 }, repository, issue });
+    expect(status).toBe(204);
+    expect(events()).toEqual([
+      {
+        event_type: EMIT_IDS.issueOpened,
+        payload: {
+          repository: "widgets",
+          owner: "acme",
+          number: 7,
+          title: "Broken build",
+          url: "https://github.test/acme/widgets/issues/7",
+          author: "bob",
+          labels: ["bug"],
         },
-      ]);
-    }
-    expect(h.initiative.installs.get("gapp_other")!.events).toHaveLength(0);
+      },
+    ]);
+    expect(events("gapp_other")).toHaveLength(0);
   });
 
   it("emits issue-closed", async () => {
-    await deliver("issues", { action: "closed", installation: { id: 77 }, repository: { name: "site", owner: { login: "other" } }, issue });
-    const events = h.initiative.installs.get("gapp_other")!.events;
-    expect(events).toHaveLength(1);
-    expect(events[0]).toMatchObject({ event_type: EMIT_IDS.issueClosed, payload: { repository: "site", number: 7 } });
+    const site = { name: "site", owner: { login: "other" } };
+    await deliver("issues", { action: "closed", installation: { id: 77 }, repository: site, issue }, "gapp_other");
+    expect(events("gapp_other")).toHaveLength(1);
+    expect(events("gapp_other")[0]).toMatchObject({ event_type: EMIT_IDS.issueClosed, payload: { repository: "site", number: 7 } });
   });
 
   it("emits review-requested, naming the reviewer or the team", async () => {
@@ -136,12 +84,11 @@ describe("announcements", () => {
       pull_request: pull,
       requested_team: { slug: "core" },
     });
-    const events = h.initiative.installs.get("gapp_one")!.events;
-    expect(events.map((event) => [event.event_type, event.payload.reviewer])).toEqual([
+    expect(events().map((event) => [event.event_type, event.payload.reviewer])).toEqual([
       [EMIT_IDS.reviewRequested, "dave"],
       [EMIT_IDS.reviewRequested, "core"],
     ]);
-    expect(events[0].payload).toMatchObject({ number: 9, author: "carol", repository: "widgets" });
+    expect(events()[0].payload).toMatchObject({ number: 9, author: "carol", repository: "widgets" });
   });
 
   const release = {
@@ -155,7 +102,7 @@ describe("announcements", () => {
 
   it("emits release-published for a full release", async () => {
     await deliver("release", { action: "released", installation: { id: 42 }, repository, release });
-    expect(h.initiative.installs.get("gapp_one")!.events).toEqual([
+    expect(events()).toEqual([
       {
         event_type: EMIT_IDS.releasePublished,
         payload: {
@@ -178,9 +125,8 @@ describe("announcements", () => {
       repository,
       release: { ...release, tag_name: "v1.3.0-rc.1", name: null, prerelease: true },
     });
-    const events = h.initiative.installs.get("gapp_one")!.events;
-    expect(events).toHaveLength(1);
-    expect(events[0]).toEqual({
+    expect(events()).toHaveLength(1);
+    expect(events()[0]).toEqual({
       event_type: EMIT_IDS.prereleasePublished,
       payload: {
         repository: "widgets",
@@ -203,8 +149,7 @@ describe("announcements", () => {
       release: { ...candidate, prerelease: true },
     });
     await deliver("release", { action: "released", installation: { id: 42 }, repository, release: candidate });
-    const events = h.initiative.installs.get("gapp_one")!.events;
-    expect(events.map((event) => [event.event_type, event.payload.tag])).toEqual([
+    expect(events().map((event) => [event.event_type, event.payload.tag])).toEqual([
       [EMIT_IDS.prereleasePublished, "v1.3.0"],
       [EMIT_IDS.releasePublished, "v1.3.0"],
     ]);
@@ -212,16 +157,15 @@ describe("announcements", () => {
 
   it("says nothing of other release actions, or a release with no tag", async () => {
     for (const action of ["published", "created", "edited", "deleted"]) {
-      const { body } = await deliver("release", { action, installation: { id: 42 }, repository, release });
-      expect(body.reason).toBe("nothing-to-say");
+      await deliver("release", { action, installation: { id: 42 }, repository, release });
     }
-    const untagged = await deliver("release", {
+    await deliver("release", {
       action: "released",
       installation: { id: 42 },
       repository,
       release: { ...release, tag_name: "" },
     });
-    expect(untagged.body.reason).toBe("nothing-to-say");
+    expect(events()).toHaveLength(0);
   });
 
   it("emits tag-created for a tag, with its page and who pushed it", async () => {
@@ -233,7 +177,7 @@ describe("announcements", () => {
       repository: { ...repository, html_url: "https://github.test/acme/widgets" },
       sender: { login: "frank" },
     });
-    expect(h.initiative.installs.get("gapp_one")!.events).toEqual([
+    expect(events()).toEqual([
       {
         event_type: EMIT_IDS.tagCreated,
         payload: {
@@ -248,50 +192,41 @@ describe("announcements", () => {
   });
 
   it("says nothing of a new branch", async () => {
-    const { body } = await deliver("create", {
+    await deliver("create", {
       ref: "feature",
       ref_type: "branch",
       installation: { id: 42 },
       repository,
       sender: { login: "frank" },
     });
-    expect(body.reason).toBe("nothing-to-say");
+    expect(events()).toHaveLength(0);
   });
 
-  it("announces a redelivery once", async () => {
-    const payload = { action: "opened", installation: { id: 42 }, repository, issue };
-    await deliver("issues", payload, { id: "same" });
-    const { body } = await deliver("issues", payload, { id: "same" });
-    expect(body.reason).toBe("repeat");
-    expect(h.initiative.installs.get("gapp_one")!.events).toHaveLength(1);
-  });
-
-  it("says nothing about events it does not announce", async () => {
-    const { body } = await deliver("issues", { action: "edited", installation: { id: 42 }, repository, issue });
-    expect(body).toEqual({ emitted: 0, reason: "nothing-to-say" });
-    const push = await deliver("push", { installation: { id: 42 }, repository });
-    expect(push.body.reason).toBe("nothing-to-say");
+  it("accepts events it does not announce, and emits nothing", async () => {
+    expect((await deliver("issues", { action: "edited", installation: { id: 42 }, repository, issue })).status).toBe(204);
+    expect((await deliver("push", { installation: { id: 42 }, repository })).status).toBe(204);
+    expect(events()).toHaveLength(0);
   });
 
   it("does not announce a pull request as an issue", async () => {
-    const { body } = await deliver("issues", {
+    await deliver("issues", {
       action: "opened",
       installation: { id: 42 },
       repository,
       issue: { ...issue, pull_request: { url: "x" } },
     });
-    expect(body.reason).toBe("nothing-to-say");
+    expect(events()).toHaveLength(0);
   });
 
-  it("drops a delivery from an installation no community is bound to", async () => {
-    const { body } = await deliver("issues", { action: "opened", installation: { id: 999 }, repository, issue });
-    expect(body.reason).toBe("unbound");
+  it("fails, so GitHub delivers it again, when Initiative will not take the announcement", async () => {
+    h.initiative.listed = [];
+    const { status } = await deliver("issues", { action: "opened", installation: { id: 42 }, repository, issue });
+    expect(status).toBe(500);
   });
 
-  it("tells a community's admins when GitHub removes its installation", async () => {
-    const { body } = await deliver("installation", { action: "deleted", installation: { id: 42 } });
-    expect(body.reason).toBe("lifecycle");
-    await h.settle();
+  it("tells the community's admins when GitHub removes its installation", async () => {
+    const { status } = await deliver("installation", { action: "deleted", installation: { id: 42 } });
+    expect(status).toBe(204);
     expect(h.initiative.installs.get("gapp_one")!.statuses.at(-1)).toEqual({
       state: "invalid",
       detail: "github_installation_removed",

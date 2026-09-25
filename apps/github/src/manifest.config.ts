@@ -77,6 +77,12 @@ export const manifest: Manifest = {
         required: true,
         label: text("Private key", "Privater Schlüssel", "Clave privada", "Clé privée"),
       },
+      {
+        key: "webhook_secret",
+        type: "secret",
+        required: true,
+        label: text("Webhook secret", "Webhook-Secret", "Secreto del webhook", "Secret du webhook"),
+      },
     ],
   },
 
@@ -139,6 +145,21 @@ export const manifest: Manifest = {
       },
     },
   ],
+
+  // Initiative receives the GitHub App's webhook deliveries, checks them, and
+  // forwards each to the webhook hook of every community whose organization
+  // connection holds the installation it came from.
+  webhooks: {
+    verify: {
+      scheme: "hmac_sha256",
+      header: "X-Hub-Signature-256",
+      prefix: "sha256=",
+      encoding: "hex",
+      secret: "{vendor.webhook_secret}",
+    },
+    dedup: "X-GitHub-Delivery",
+    route: { path: "installation.id", connection: WORKSPACE, field: "installation_id" },
+  },
 
   endpoints: [...ENDPOINTS],
   widgets: [...WIDGETS],

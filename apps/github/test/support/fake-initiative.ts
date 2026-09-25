@@ -1,7 +1,8 @@
 /**
  * A fake Initiative deployment, answering the calls `InitiativeAuth` makes in
- * the shapes Initiative sends: the token endpoint, the installations list, and
- * the installation's own configuration, connection tokens, config status and
+ * the shapes Initiative sends: the token endpoint, the installations list (a
+ * page of one at a time, so every listing follows its `Link`), and the
+ * installation's own configuration, connection tokens, config status and
  * events. It also signs what Initiative signs for the app: context tokens for
  * endpoint calls and lifecycle tokens for hook calls.
  *
@@ -146,15 +147,13 @@ export class FakeInitiative {
       if (bearer !== "app-token") return json(401, { detail: "unauthorized" });
       if (this.listFails !== null) return json(this.listFails, { detail: "unavailable" });
       const names = this.listed ?? [...this.installs.keys()];
-      return json(
+      const at = Number(url.searchParams.get("cursor") ?? 0);
+      const page = json(
         200,
-        names.map((installation) => ({
-          installation,
-          scopes: ["projects:read"],
-          initiatives: [1],
-          active: !this.inactive.has(installation),
-        }))
+        names.slice(at, at + 1).map((installation) => ({ installation, active: !this.inactive.has(installation) }))
       );
+      if (at + 1 < names.length) page.headers.set("Link", `<?cursor=${at + 1}>; rel="next"`);
+      return page;
     }
 
     const prefix = "/api/v1/app-platform/installation/";

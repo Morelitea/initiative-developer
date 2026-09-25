@@ -35,7 +35,6 @@ export const WORKSPACE = "workspace";
 export const ACCOUNT = "account";
 
 export const PATHS = {
-  webhook: "/github/webhook",
   jwks: "/.well-known/jwks.json",
 } as const;
 

@@ -15,7 +15,6 @@ import { FakeGitHub, GITHUB_API, GITHUB_WEB } from "./fake-github.js";
 import { FakeInitiative, INITIATIVE_BASE, INITIATIVE_ORIGIN } from "./fake-initiative.js";
 import { appKey } from "./keys.js";
 
-export const WEBHOOK_SECRET = "webhook-secret-for-tests";
 export const CLIENT_ID = "Iv1.testclient";
 export const CLIENT_SECRET = "client-secret-for-tests";
 
@@ -84,7 +83,6 @@ export function testConfig(): Config {
     github: {
       clientId: CLIENT_ID,
       clientSecret: CLIENT_SECRET,
-      webhookSecret: WEBHOOK_SECRET,
       apiBase: GITHUB_API,
       webBase: GITHUB_WEB,
     },

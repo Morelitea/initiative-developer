@@ -1,10 +1,11 @@
 /**
  * The deployment's settings, read once from the environment.
  *
- * Every secret this app holds arrives here: the GitHub App's client secret
- * and webhook secret, and the app's own key for Initiative. None of them is
- * ever written anywhere else. The GitHub App's private key is not among them:
- * Initiative holds it, and mints the organization's installation tokens.
+ * Every secret this app holds arrives here: the GitHub App's client secret,
+ * and the app's own key for Initiative. None of them is ever written anywhere
+ * else. The GitHub App's private key and webhook secret are not among them:
+ * Initiative holds both, mints the organization's installation tokens, and
+ * checks GitHub's webhook deliveries.
  */
 
 export interface Config {
@@ -21,7 +22,6 @@ export interface Config {
     /** The GitHub App's client ID and secret, for ending a member's authorization. */
     clientId: string;
     clientSecret: string;
-    webhookSecret: string;
     apiBase: string;
     webBase: string;
   };
@@ -36,7 +36,6 @@ export const ENVIRONMENT = {
     "INITIATIVE_APP_KEY_ID",
     "GITHUB_CLIENT_ID",
     "GITHUB_CLIENT_SECRET",
-    "GITHUB_WEBHOOK_SECRET",
   ],
   optional: [
     "PORT",
@@ -67,7 +66,6 @@ export function loadConfig(env: Env = process.env): Config {
     github: {
       clientId: value("GITHUB_CLIENT_ID"),
       clientSecret: value("GITHUB_CLIENT_SECRET"),
-      webhookSecret: value("GITHUB_WEBHOOK_SECRET"),
       apiBase: trimSlashes(url(env.GITHUB_API_BASE?.trim() || "https://api.github.com", "GITHUB_API_BASE")),
       webBase: trimSlashes(url(env.GITHUB_WEB_BASE?.trim() || "https://github.com", "GITHUB_WEB_BASE")),
     },

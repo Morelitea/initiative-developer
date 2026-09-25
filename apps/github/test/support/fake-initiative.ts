@@ -1,9 +1,14 @@
 /**
  * A fake Initiative deployment, answering the calls `InitiativeAuth` makes in
  * the shapes Initiative sends: the token endpoint, the installations list, and
- * the installation's own configuration, connections, config status and
- * events. It also signs what Initiative signs for the app: context tokens and
- * connect returns.
+ * the installation's own configuration, connection tokens, config status and
+ * events. It also signs what Initiative signs for the app: context tokens for
+ * endpoint calls and lifecycle tokens for hook calls.
+ *
+ * Connection tokens are answered as Initiative answers them: a member's from
+ * the connection it holds, and the community's minted from the fake GitHub's
+ * installation and reused, as Initiative reuses a minted token until shortly
+ * before it expires.
  */
 
 import { randomUUID } from "node:crypto";
@@ -11,6 +16,7 @@ import { randomUUID } from "node:crypto";
 import { audienceFor } from "initiative-app-kit";
 
 import { PUBLIC_ID } from "../../src/vocabulary.js";
+import type { FakeGitHub } from "./fake-github.js";
 import { platform, platformJwks, signRs256 } from "./keys.js";
 
 export const INITIATIVE_ORIGIN = "https://initiative.test";
@@ -18,8 +24,9 @@ export const INITIATIVE_BASE = `${INITIATIVE_ORIGIN}/api/v1`;
 
 export interface MemberRow {
   connectionId: string;
-  status: string;
-  values: Record<string, unknown>;
+  status: "connected" | "expired";
+  blocked: boolean;
+  accessToken: string;
 }
 
 export interface InstallState {
@@ -27,12 +34,15 @@ export interface InstallState {
   /** The handle Initiative minted for the community's `workspace` connection. */
   workspaceRef: string;
   workspace: Record<string, unknown> | null;
+  /** The installation token Initiative last minted, reused until it is cleared. */
+  minted: string | null;
   members: Map<string, MemberRow>;
   configState: string;
   configStateDetail: string | null;
   statuses: Array<{ state: string; detail?: string }>;
   events: Array<{ event_type: string; payload: Record<string, unknown> }>;
-  writes: Array<{ ref: string; body: Record<string, unknown> }>;
+  /** Every connection handle a token was asked for, in order. */
+  tokenAsks: string[];
   /** `delegate subject` → this app's handle for that member. */
   delegated: Map<string, string>;
 }
@@ -46,31 +56,51 @@ export class FakeInitiative {
   /** Installations the listing reports as paused: switched off, or their community on hold. */
   readonly inactive = new Set<string>();
   readonly tokenRequests: URLSearchParams[] = [];
+  /** When set, every connection token answers with this status. */
+  connectionTokenFails: number | null = null;
   private nextInstallId = 1;
 
+  constructor(private readonly github: FakeGitHub) {}
+
+  /** An installation; `members` maps each connection handle to the GitHub token Initiative holds for it. */
   install(
     installation: string,
-    setup: { workspace?: Record<string, unknown> | null; members?: Record<string, Record<string, unknown>> } = {}
+    setup: { workspace?: Record<string, unknown> | null; members?: Record<string, string> } = {}
   ): InstallState {
     const state: InstallState = {
       installId: this.nextInstallId++,
       workspaceRef: `cref_ws_${installation}`,
       workspace: setup.workspace === undefined ? { owner: "acme", installation_id: 42 } : setup.workspace,
+      minted: null,
       members: new Map(
-        Object.entries(setup.members ?? {}).map(([ref, values]) => [
+        Object.entries(setup.members ?? {}).map(([ref, accessToken]) => [
           ref,
-          { connectionId: "account", status: "connected", values },
+          { connectionId: "account", status: "connected", blocked: false, accessToken },
         ])
       ),
       configState: "unverified",
       configStateDetail: null,
       statuses: [],
       events: [],
-      writes: [],
+      tokenAsks: [],
       delegated: new Map(),
     };
     this.installs.set(installation, state);
     return state;
+  }
+
+  private sign(installation: string, claims: Record<string, unknown>, key?: string): string {
+    const now = Math.floor(Date.now() / 1000);
+    return signRs256(key ?? platform.privateKeyPem, platform.kid, {
+      jti: randomUUID(),
+      iss: "initiative",
+      aud: audienceFor(PUBLIC_ID),
+      iat: now,
+      exp: now + 60,
+      guild_ref: installation,
+      app_install_id: this.installs.get(installation)?.installId ?? 0,
+      ...claims,
+    });
   }
 
   /** A context token for one endpoint call. */
@@ -79,44 +109,21 @@ export class FakeInitiative {
     endpointId: string,
     options: { connectionRefs?: Record<string, string>; claims?: Record<string, unknown>; key?: string } = {}
   ): string {
-    const now = Math.floor(Date.now() / 1000);
-    return signRs256(options.key ?? platform.privateKeyPem, platform.kid, {
-      jti: randomUUID(),
-      iss: "initiative",
-      aud: audienceFor(PUBLIC_ID),
-      iat: now,
-      exp: now + 60,
-      guild_ref: installation,
-      app_install_id: this.installs.get(installation)?.installId ?? 0,
-      scope: "endpoint",
-      endpoint_id: endpointId,
-      ...(options.connectionRefs ? { connection_refs: options.connectionRefs } : {}),
-      ...options.claims,
-    });
+    return this.sign(
+      installation,
+      {
+        scope: "endpoint",
+        endpoint_id: endpointId,
+        ...(options.connectionRefs ? { connection_refs: options.connectionRefs } : {}),
+        ...options.claims,
+      },
+      options.key
+    );
   }
 
-  /** A connect return, as Initiative hands one to the app's connect page. */
-  connectReturn(
-    installation: string,
-    connectionId: string,
-    connectionRef: string,
-    claims: Record<string, unknown> = {}
-  ): string {
-    const now = Math.floor(Date.now() / 1000);
-    return signRs256(platform.privateKeyPem, platform.kid, {
-      jti: randomUUID(),
-      iss: "initiative",
-      aud: audienceFor(PUBLIC_ID),
-      iat: now,
-      exp: now + 300,
-      scope: "connect_return",
-      guild_ref: installation,
-      app_install_id: this.installs.get(installation)?.installId ?? 0,
-      connection_id: connectionId,
-      connection_ref: connectionRef,
-      return_url: `${INITIATIVE_ORIGIN}/g/1/apps/connected?app=${PUBLIC_ID}`,
-      ...claims,
-    });
+  /** A lifecycle token for one hook call. */
+  hookToken(installation: string, hook: string, options: { claims?: Record<string, unknown>; key?: string } = {}): string {
+    return this.sign(installation, { scope: "lifecycle", hook, ...options.claims }, options.key);
   }
 
   async handle(url: URL, init: RequestInit): Promise<Response> {
@@ -165,45 +172,36 @@ export class FakeInitiative {
       return json(200, {
         guild_ref: installation,
         install_id: state.installId,
-        listing_uid: "TYG4VVZKAWRMBZ",
-        listing_version: "1.0.0",
+        listing_uid: "XTEAP993JW1E94",
+        listing_version: "2.0.0",
         enabled: true,
         config_state: state.configState,
         config_state_detail: state.configStateDetail,
         needs_config: state.workspace === null,
         connections: state.workspace ? { workspace: state.workspace } : {},
+        connection_refs: state.workspace ? { workspace: state.workspaceRef } : {},
+        // A flow connection's tokens are never in the configuration.
         member_connections: [...state.members].map(([ref, row]) => ({
           connection_id: row.connectionId,
           connection_ref: ref,
           status: row.status,
-          values: row.values,
+          values: {},
         })),
       });
     }
 
     if (rest === "connections/resolve" && method === "GET") {
       const ref = state.delegated.get(`${url.searchParams.get("delegate")} ${url.searchParams.get("subject")}`);
-      if (!ref) return json(404, { detail: "CONNECTION_NOT_FOUND" });
+      if (!ref) return json(404, { detail: "APP_CHANNEL_CONNECTION_NOT_FOUND" });
       return json(200, connectionOf(ref, state.members.get(ref)));
     }
 
-    if (rest.startsWith("connections/") && method === "PUT") {
-      const ref = decodeURIComponent(rest.slice("connections/".length));
-      const body = JSON.parse(String(init.body)) as Record<string, unknown>;
-      state.writes.push({ ref, body });
-      const values = body.values as Record<string, unknown>;
-      if (ref === state.workspaceRef) {
-        state.workspace = { ...(state.workspace ?? {}), ...values };
-        return json(200, connectionOf(ref, undefined));
-      }
-      const row = state.members.get(ref) ?? { connectionId: "account", status: "pending", values: {} };
-      for (const [key, value] of Object.entries(values)) {
-        if (value === null) delete row.values[key];
-        else row.values[key] = value;
-      }
-      row.status = typeof body.status === "string" ? body.status : row.status;
-      state.members.set(ref, row);
-      return json(200, connectionOf(ref, row));
+    const tokenPath = /^connections\/([^/]+)\/token$/.exec(rest);
+    if (tokenPath && method === "POST") {
+      const ref = decodeURIComponent(tokenPath[1]);
+      state.tokenAsks.push(ref);
+      if (this.connectionTokenFails !== null) return json(this.connectionTokenFails, { detail: "APP_CHANNEL_TOKEN_UNAVAILABLE" });
+      return this.connectionToken(state, ref);
     }
 
     if (rest === "config-status" && method === "POST") {
@@ -226,6 +224,23 @@ export class FakeInitiative {
 
     return json(404, { detail: "not_found" });
   }
+
+  private connectionToken(state: InstallState, ref: string): Response {
+    const expiresAt = Math.floor(Date.now() / 1000) + 3600;
+    if (ref === state.workspaceRef) {
+      if (!state.workspace) return json(409, { detail: "APP_CHANNEL_CONNECTION_NO_TOKEN" });
+      if (!state.minted) {
+        state.minted = this.github.mint(Number(state.workspace.installation_id));
+        if (!state.minted) return json(502, { detail: "APP_CHANNEL_TOKEN_UNAVAILABLE" });
+      }
+      return json(200, { access_token: state.minted, expires_at: expiresAt });
+    }
+    const row = state.members.get(ref);
+    if (!row) return json(404, { detail: "APP_CHANNEL_CONNECTION_NOT_FOUND" });
+    if (row.blocked) return json(403, { detail: "APP_CHANNEL_CONNECTION_BLOCKED" });
+    if (row.status === "expired") return json(409, { detail: "APP_CHANNEL_CONNECTION_EXPIRED" });
+    return json(200, { access_token: row.accessToken, expires_at: expiresAt });
+  }
 }
 
 function connectionOf(ref: string, row: MemberRow | undefined): Record<string, unknown> {
@@ -233,7 +248,7 @@ function connectionOf(ref: string, row: MemberRow | undefined): Record<string, u
     connection_id: row?.connectionId ?? "workspace",
     connection_ref: ref,
     status: row?.status ?? "connected",
-    blocked: false,
+    blocked: row?.blocked ?? false,
     account_label: null,
     created_at: "2026-09-24T00:00:00Z",
     updated_at: "2026-09-24T00:00:00Z",

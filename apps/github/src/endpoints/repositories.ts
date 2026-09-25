@@ -36,7 +36,7 @@ export const listRepositories: Read = {
   async run(call) {
     const access = await installationAccess(call);
     if (isResult(access)) return { actor: "installation", result: access };
-    const covered = await call.context.github.installationRepositories(access.installationId);
+    const covered = await call.context.github.installationRepositories(call.installation, access);
     if ("failure" in covered) return { actor: "installation", result: readFailure(covered.failure) };
     return {
       actor: "installation",

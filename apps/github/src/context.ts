@@ -12,8 +12,6 @@ import type { Config } from "./config.js";
 import { GitHubApp } from "./github/app.js";
 import type { GitHubHttp } from "./github/http.js";
 import type { OAuthClient } from "./github/oauth.js";
-import { revokeMember } from "./credentials.js";
-import { FlowStore } from "./flows.js";
 import { InstallRegistry } from "./installs.js";
 import { PUBLIC_ID } from "./vocabulary.js";
 
@@ -37,11 +35,12 @@ export interface AppContext {
   jwks: JwksCache;
   /** The app's own public key, served for a deployment that registers it by address. */
   publicJwks: Jwks;
+  http: GitHubHttp;
   github: GitHubApp;
+  /** The GitHub App's client, for ending a member's authorization. */
   oauth: OAuthClient;
   installs: InstallRegistry;
-  flows: FlowStore;
-  /** Revocations started in the background, so a test or a shutdown can wait for them. */
+  /** Work started in the background, so a test or a shutdown can wait for it. */
   pending: Set<Promise<unknown>>;
 }
 
@@ -66,40 +65,24 @@ export function createContext(config: Config, options: ContextOptions = {}): App
     clock: now,
   });
 
-  const context = {
+  return {
     config,
     now,
     log,
     auth,
     jwks: new JwksCache({ fetchImpl: doFetch, now }),
     publicJwks: publicJwks(loadPrivateKey(config.initiative.privateKey, config.initiative.keyId)),
-    github: new GitHubApp({
-      http,
-      webBase: config.github.webBase,
-      clientId: config.github.clientId,
-      privateKey: config.github.privateKey,
-      slug: config.github.appSlug,
-    }),
+    http,
+    github: new GitHubApp({ http, auth, log }),
     oauth: {
       http,
       webBase: config.github.webBase,
       clientId: config.github.clientId,
       clientSecret: config.github.clientSecret,
     },
-    flows: new FlowStore(now),
+    installs: new InstallRegistry({ auth, now }),
     pending: new Set<Promise<unknown>>(),
-  } as Omit<AppContext, "installs"> as AppContext;
-
-  context.installs = new InstallRegistry({
-    auth,
-    now,
-    // Initiative deleted its copy: the member disconnected, was blocked, or
-    // left. Their authorization at GitHub ends too.
-    onMemberGone: (installation, credential) => {
-      track(context, revokeMember(context, credential), `revoke a member of ${installation}`);
-    },
-  });
-  return context;
+  };
 }
 
 /** Run something in the background, logging a failure rather than losing it. */

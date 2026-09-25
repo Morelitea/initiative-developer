@@ -3,14 +3,13 @@
  * kit has validated it.
  */
 
-import type { Manifest } from "initiative-app-kit";
+import type { ConnectionFlow, Manifest } from "initiative-app-kit";
 
 import { ENDPOINTS } from "./endpoints/index.js";
 import { PERMISSIONS } from "./github/app.js";
 import {
   ACCOUNT,
   DASHBOARD_UID,
-  PATHS,
   PUBLIC_ID,
   READ_IDS,
   SCOPES,
@@ -19,19 +18,77 @@ import {
 } from "./vocabulary.js";
 import { WIDGETS } from "./widgets.js";
 
+const GITHUB_WEB = "https://github.com";
+const GITHUB_API = "https://api.github.com";
+
+/** GitHub's user authorization for the GitHub App, which both connections run. */
+const GITHUB_OAUTH: ConnectionFlow = {
+  type: "oauth2",
+  authorize_url: `${GITHUB_WEB}/login/oauth/authorize`,
+  token_url: `${GITHUB_WEB}/login/oauth/access_token`,
+  client_id: "{vendor.client_id}",
+  client_secret: "{vendor.client_secret}",
+  pkce: true,
+};
+
 export const manifest: Manifest = {
   app_kind: "service",
   service: { public_id: PUBLIC_ID, protocol: 1, scopes: [...SCOPES] },
   features: ["dashboards", "endpoints", "widgets"],
   default_name: "GitHub",
 
+  // What the operator supplies once per deployment for the GitHub App: the
+  // flows and the installation token below name them as {vendor.<key>}.
+  vendor: {
+    label: text("GitHub App", "GitHub-App", "GitHub App", "GitHub App"),
+    fields: [
+      {
+        key: "client_id",
+        type: "string",
+        required: true,
+        label: text("Client ID", "Client-ID", "ID de cliente", "ID client"),
+      },
+      {
+        key: "client_secret",
+        type: "secret",
+        required: true,
+        label: text("Client secret", "Client-Secret", "Secreto de cliente", "Secret client"),
+      },
+      {
+        key: "app_slug",
+        type: "string",
+        required: true,
+        label: text(
+          "App name in its GitHub address",
+          "App-Name in der GitHub-Adresse",
+          "Nombre de la app en su dirección de GitHub",
+          "Nom de l'app dans son adresse GitHub"
+        ),
+      },
+      {
+        key: "app_id",
+        type: "string",
+        required: true,
+        label: text("App ID", "App-ID", "ID de la app", "ID de l'app"),
+      },
+      {
+        key: "private_key",
+        type: "secret",
+        required: true,
+        label: text("Private key", "Privater Schlüssel", "Clave privada", "Clé privée"),
+      },
+    ],
+  },
+
   connections: [
     {
-      // The community's GitHub installation. An admin connects it once, on
-      // GitHub's own install page; both values are written back by the app.
+      // The community's GitHub installation. An admin connects it once:
+      // Initiative sends them to GitHub's install page, then through one
+      // authorization so the app's after_connect hook can check the
+      // installation is theirs. Initiative mints its tokens from the GitHub
+      // App's key.
       id: WORKSPACE,
       scope: "static",
-      connect_path: PATHS.install,
       label: text("GitHub organization", "GitHub-Organisation", "Organización de GitHub", "Organisation GitHub"),
       fields: [
         {
@@ -49,40 +106,33 @@ export const manifest: Manifest = {
           label: text("Installation", "Installation", "Instalación", "Installation"),
         },
       ],
+      flow: {
+        ...GITHUB_OAUTH,
+        install_url: `${GITHUB_WEB}/apps/{vendor.app_slug}/installations/new`,
+        after_connect: true,
+      },
+      token: {
+        type: "jwt_bearer",
+        exchange_url: `${GITHUB_API}/app/installations/{installation_id}/access_tokens`,
+        iss: "{vendor.app_id}",
+        key: "{vendor.private_key}",
+        alg: "RS256",
+        lifetime: 540,
+      },
     },
     {
-      // Each member's own GitHub authorization, for what the app does as them.
+      // Each member's own GitHub authorization, for what the app does as
+      // them. Initiative holds it and renews it; the after_connect hook names
+      // the account, and the revoke hook ends it at GitHub.
       id: ACCOUNT,
       scope: "interactive",
-      connect_path: PATHS.connect,
       label: text("Your GitHub account", "Dein GitHub-Konto", "Tu cuenta de GitHub", "Votre compte GitHub"),
-      fields: [
-        {
-          key: "access_token",
-          type: "secret",
-          required: true,
-          managed: true,
-          label: text("Access token", "Zugriffstoken", "Token de acceso", "Jeton d'accès"),
-        },
-        {
-          key: "refresh_token",
-          type: "secret",
-          managed: true,
-          label: text("Refresh token", "Aktualisierungstoken", "Token de actualización", "Jeton de renouvellement"),
-        },
-        {
-          key: "expires_at",
-          type: "int",
-          managed: true,
-          label: text("Expires", "Läuft ab", "Caduca", "Expire"),
-        },
-        {
-          key: "refresh_expires_at",
-          type: "int",
-          managed: true,
-          label: text("Renewable until", "Erneuerbar bis", "Renovable hasta", "Renouvelable jusqu'au"),
-        },
-      ],
+      fields: [],
+      flow: {
+        ...GITHUB_OAUTH,
+        after_connect: true,
+        revoke: "hook",
+      },
       access_hint: {
         api: "GitHub",
         scopes: Object.entries(PERMISSIONS).map(([permission, level]) => `${permission}:${level}`),

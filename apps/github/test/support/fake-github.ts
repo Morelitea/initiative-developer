@@ -1,8 +1,8 @@
 /**
- * A fake GitHub: the app endpoints (installation tokens, installations), the
- * REST and GraphQL calls the endpoints make, the user authorization pages and
- * token exchange, and grant revocation. Every call is recorded with the token
- * it carried.
+ * A fake GitHub: the installations Initiative mints tokens for, the REST and
+ * GraphQL calls the endpoints make, what the hooks ask about a user token,
+ * the token refresh, and grant revocation. Every API call is recorded with
+ * the token it carried.
  */
 
 import { json } from "./fake-initiative.js";
@@ -21,19 +21,10 @@ export interface GitHubInstallation {
   owner: string;
   suspended?: boolean;
   repos: string[];
-  permissions: Record<string, string>;
 }
 
 type GraphQLHandler = (variables: Record<string, unknown>, token: string) => { status?: number; body: unknown };
 type RestHandler = (body: unknown, token: string) => { status: number; body?: unknown };
-
-export const FULL_PERMISSIONS = {
-  issues: "write",
-  pull_requests: "write",
-  vulnerability_alerts: "read",
-  organization_projects: "write",
-  metadata: "read",
-};
 
 export class FakeGitHub {
   readonly installations = new Map<number, GitHubInstallation>();
@@ -42,22 +33,39 @@ export class FakeGitHub {
   readonly graphql = new Map<string, GraphQLHandler>();
   /** REST answers by `METHOD /path`. */
   readonly rest = new Map<string, RestHandler>();
-  /** Authorization codes a person comes back with → the grant they exchange for. */
-  readonly codes = new Map<string, { access_token: string; refresh_token?: string; expires_in?: number; refresh_token_expires_in?: number }>();
   /** Refresh tokens → the grant a refresh returns; absent means refused. */
   readonly refreshes = new Map<string, { access_token: string; refresh_token?: string; expires_in?: number }>();
-  /** Access tokens → the installations that person can reach. */
+  /** User access tokens → the login they belong to. */
+  readonly users = new Map<string, string>();
+  /** User access tokens → the installations that person can reach. */
   readonly userInstallations = new Map<string, Array<{ id: number; login: string }>>();
+  /** User access tokens GitHub no longer recognizes. */
+  readonly lapsed = new Set<string>();
+  /** The access tokens whose grant was ended. */
   readonly revoked: string[] = [];
   readonly exchanges: URLSearchParams[] = [];
+  /** When set, grant revocation answers with this status. */
+  revokeStatus: number | null = null;
   private minted = 0;
 
   install(id: number, setup: Partial<GitHubInstallation> = {}): void {
     this.installations.set(id, {
       owner: setup.owner ?? "acme",
+      suspended: setup.suspended,
       repos: setup.repos ?? ["widgets", "gadgets"],
-      permissions: setup.permissions ?? { ...FULL_PERMISSIONS },
     });
+  }
+
+  /**
+   * What GitHub answers the GitHub App's token exchange for one installation,
+   * as Initiative makes it: a token, or null for one that is gone or
+   * suspended.
+   */
+  mint(installationId: number): string | null {
+    const installation = this.installations.get(installationId);
+    if (!installation || installation.suspended) return null;
+    this.minted += 1;
+    return `ghs_${installationId}_${this.minted}`;
   }
 
   /** The calls made to one path, in order. */
@@ -81,12 +89,8 @@ export class FakeGitHub {
       if (url.pathname === "/login/oauth/access_token" && method === "POST") {
         const form = new URLSearchParams(raw);
         this.exchanges.push(form);
-        if (form.get("grant_type") === "refresh_token") {
-          const grant = this.refreshes.get(form.get("refresh_token") ?? "");
-          return grant ? json(200, grant) : json(200, { error: "bad_refresh_token" });
-        }
-        const grant = this.codes.get(form.get("code") ?? "");
-        return grant ? json(200, grant) : json(200, { error: "bad_verification_code" });
+        const grant = form.get("grant_type") === "refresh_token" ? this.refreshes.get(form.get("refresh_token") ?? "") : undefined;
+        return grant ? json(200, grant) : json(200, { error: "bad_refresh_token" });
       }
       return json(404, { message: "Not Found" });
     }
@@ -94,41 +98,21 @@ export class FakeGitHub {
     const path = `${url.pathname}${url.search}`;
     this.calls.push({ method, path, token, body });
 
-    if (method === "GET" && url.pathname === "/app") return json(200, { slug: "initiative-test" });
-
-    const tokenPath = url.pathname.match(/^\/app\/installations\/(\d+)\/access_tokens$/);
-    if (tokenPath && method === "POST") {
-      const installation = this.installations.get(Number(tokenPath[1]));
-      if (!installation) return json(404, { message: "Not Found" });
-      this.minted += 1;
-      return json(201, {
-        token: `ghs_${tokenPath[1]}_${this.minted}`,
-        expires_at: new Date(Date.now() + 3600_000).toISOString(),
-        permissions: installation.permissions,
-      });
-    }
-
-    const installationPath = url.pathname.match(/^\/app\/installations\/(\d+)$/);
-    if (installationPath && method === "GET") {
-      const installation = this.installations.get(Number(installationPath[1]));
-      return installation
-        ? json(200, {
-            id: Number(installationPath[1]),
-            account: { login: installation.owner },
-            suspended_at: installation.suspended ? "2026-09-20T00:00:00Z" : null,
-          })
-        : json(404, { message: "Not Found" });
-    }
-
     if (url.pathname === "/installation/repositories" && method === "GET") {
       const installation = this.installationOf(token);
       if (!installation) return json(401, { message: "Bad credentials" });
+      if (installation.suspended) return json(403, { message: "This installation has been suspended" });
       const handler = this.rest.get("GET /installation/repositories");
       if (handler) {
         const answer = handler(undefined, token);
         return json(answer.status, answer.body ?? {});
       }
       return json(200, { total_count: installation.repos.length, repositories: installation.repos.map((name) => ({ name })) });
+    }
+
+    if (url.pathname === "/user" && method === "GET") {
+      const login = this.users.get(token);
+      return login ? json(200, { login, id: 1 }) : json(401, { message: "Bad credentials" });
     }
 
     if (url.pathname === "/user/installations" && method === "GET") {
@@ -139,7 +123,10 @@ export class FakeGitHub {
 
     const grantPath = url.pathname.match(/^\/applications\/([^/]+)\/grant$/);
     if (grantPath && method === "DELETE") {
-      this.revoked.push(String((body as { access_token?: unknown })?.access_token));
+      if (this.revokeStatus !== null) return json(this.revokeStatus, { message: "Server Error" });
+      const accessToken = String((body as { access_token?: unknown })?.access_token);
+      if (this.lapsed.has(accessToken)) return json(404, { message: "Not Found" });
+      this.revoked.push(accessToken);
       return new Response(null, { status: 204 });
     }
 

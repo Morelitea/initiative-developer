@@ -100,9 +100,10 @@ async function waitingOn(call: Call, reviewer: string): Promise<ReadOutcome> {
   let token = access.token;
   if (reviewer === "@me") {
     const ref = call.claims.connection_refs?.[ACCOUNT];
-    const own = ref ? await memberToken(call.context, call.installation, ref) : null;
-    if (!own) return { actor, result: unavailable("not-connected") };
-    token = own;
+    if (!ref) return { actor, result: unavailable("not-connected") };
+    const own = await memberToken(call.context, call.installation, ref);
+    if (!own.ok) return { actor, result: unavailable(own.reason === "not-connected" ? "not-connected" : "vendor-error") };
+    token = own.token;
   }
 
   const qualifiers = [`repo:${access.owner}/${access.repo}`, "is:pr", `review-requested:${reviewer}`];
@@ -286,7 +287,6 @@ export const getPullRequest: Read = {
 };
 
 export const requestReview: Write = {
-  needs: ["pull_requests"],
   declaration: {
     id: WRITE_IDS.requestReview,
     direction: "write",

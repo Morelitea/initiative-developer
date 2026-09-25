@@ -5,24 +5,18 @@
  * |---|---|
  * | `GET /healthz`, `GET /readyz` | the container runtime |
  * | `GET, POST /v1/endpoints` | Initiative, with a context token |
+ * | `POST /v1/hooks/after_connect`, `/v1/hooks/revoke` | Initiative, with a lifecycle token |
  * | `POST /github/webhook` | GitHub, signed with the webhook secret |
- * | `GET /connect/github`, `/connect/github/callback` | a member's browser |
- * | `GET /install/github`, `/install/github/setup`, `/install/github/verify` | an admin's browser |
  * | `GET /.well-known/jwks.json` | a deployment that registers the app's key by address |
+ *
+ * Nobody's browser comes here: Initiative runs the GitHub connections at its
+ * own addresses.
  */
 
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 
-import { ENDPOINTS_PATH } from "initiative-app-kit";
+import { ENDPOINTS_PATH, handleHook, HOOKS_PATH } from "initiative-app-kit";
 
-import {
-  beginConnect,
-  beginInstall,
-  completeConnect,
-  completeInstall,
-  completeVerify,
-  type BrowserAnswer,
-} from "./connect.js";
 import type { AppContext } from "./context.js";
 import {
   DELIVERY_HEADER,
@@ -31,8 +25,9 @@ import {
   SIGNATURE_HEADER,
   verifySignature,
 } from "./github/webhooks.js";
+import { hookHandlers } from "./hooks.js";
 import { invoke, listEndpoints } from "./invoke.js";
-import { PATHS } from "./vocabulary.js";
+import { PATHS, PUBLIC_ID } from "./vocabulary.js";
 
 /** The most a request body may carry. GitHub's deliveries are capped at 25 MB; ours are far smaller. */
 const MAX_BODY_BYTES = 5 * 1024 * 1024;
@@ -65,18 +60,9 @@ function json(res: ServerResponse, status: number, body: unknown): void {
   res.end(text);
 }
 
-function browser(res: ServerResponse, answer: BrowserAnswer): void {
-  if (answer.status === 302) {
-    res.writeHead(302, { Location: answer.location, "Cache-Control": "no-store", "Referrer-Policy": "no-referrer" });
-    res.end();
-    return;
-  }
-  res.writeHead(answer.status, {
-    "Content-Type": "text/plain; charset=utf-8",
-    "Cache-Control": "no-store",
-    "X-Content-Type-Options": "nosniff",
-  });
-  res.end(`${answer.message}\n`);
+function empty(res: ServerResponse, status: number): void {
+  res.writeHead(status, { "Cache-Control": "no-store" });
+  res.end();
 }
 
 function parseJson(raw: Buffer): unknown {
@@ -130,6 +116,17 @@ async function handle(
     }
   }
 
+  if (method === "POST" && path.startsWith(`${HOOKS_PATH}/`)) {
+    const body = parseJson(await readBody(req));
+    const answer = await handleHook({ path, headers: req.headers, body }, hookHandlers(context), {
+      publicId: PUBLIC_ID,
+      baseUrl: context.config.initiative.baseUrl,
+      jwks: context.jwks,
+      now: context.now,
+    });
+    return answer.body === undefined ? empty(res, answer.status) : json(res, answer.status, answer.body);
+  }
+
   if (method === "POST" && path === PATHS.webhook) {
     const raw = await readBody(req);
     const signature = req.headers[SIGNATURE_HEADER];
@@ -145,18 +142,6 @@ async function handle(
       String(req.headers[DELIVERY_HEADER] ?? "")
     );
     return json(res, 200, result);
-  }
-
-  if (method === "GET") {
-    const flows: Record<string, (context: AppContext, query: URLSearchParams) => Promise<BrowserAnswer>> = {
-      [PATHS.connect]: beginConnect,
-      [PATHS.connectCallback]: completeConnect,
-      [PATHS.install]: beginInstall,
-      [PATHS.installSetup]: completeInstall,
-      [PATHS.installVerify]: completeVerify,
-    };
-    const flow = flows[path];
-    if (flow) return browser(res, await flow(context, url.searchParams));
   }
 
   json(res, 404, { error: "not-found" });

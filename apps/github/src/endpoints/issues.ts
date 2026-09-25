@@ -287,7 +287,6 @@ async function setState(call: Call, token: string, place: Place, closing: boolea
 }
 
 export const openIssue: Write = {
-  needs: ["issues"],
   declaration: {
     id: WRITE_IDS.openIssue,
     direction: "write",
@@ -337,7 +336,6 @@ export const openIssue: Write = {
 };
 
 export const comment: Write = {
-  needs: ["issues", "pull_requests"],
   declaration: {
     id: WRITE_IDS.comment,
     direction: "write",
@@ -385,7 +383,6 @@ export const comment: Write = {
 const STATE_RETURNS = [REPO_OUT, NUMBER_OUT, out("state", "string"), LINK_OUT];
 
 export const closeIssue: Write = {
-  needs: ["issues", "pull_requests"],
   declaration: {
     id: WRITE_IDS.closeIssue,
     direction: "write",
@@ -411,7 +408,6 @@ export const closeIssue: Write = {
 };
 
 export const reopenIssue: Write = {
-  needs: ["issues", "pull_requests"],
   declaration: {
     id: WRITE_IDS.reopenIssue,
     direction: "write",
@@ -433,7 +429,6 @@ export const reopenIssue: Write = {
 };
 
 export const label: Write = {
-  needs: ["issues", "pull_requests"],
   declaration: {
     id: WRITE_IDS.label,
     direction: "write",

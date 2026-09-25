@@ -1,26 +1,21 @@
 /**
- * The installations sync: the configuration verdict it reports, and ending
- * members' GitHub authorizations when Initiative no longer holds them or the
- * installation is gone.
+ * The installations sync: the configuration verdict it reports from whether
+ * GitHub still has each community's installation, and what it forgets when
+ * Initiative stops listing an installation. Ending members' authorizations is
+ * not the sync's: Initiative calls the revoke hook for that.
  */
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { MISSING_PASSES } from "../src/sync.js";
+import { DETAILS, UNAVAILABLE_PASSES } from "../src/sync.js";
 import { startHarness, type Harness } from "./support/harness.js";
 
-const FAR = Math.floor(Date.now() / 1000) + 8 * 3600;
 let h: Harness;
 
 beforeEach(async () => {
   h = await startHarness();
-  h.initiative.install("gapp_one", {
-    members: {
-      cref_alice: { access_token: "ghu_alice", refresh_token: "ghr_alice", expires_at: FAR },
-      cref_bob: { access_token: "ghu_bob", expires_at: FAR },
-    },
-  });
-  h.initiative.install("gapp_two", { members: { cref_carol: { access_token: "ghu_carol" } } });
+  h.initiative.install("gapp_one", { members: { cref_alice: "ghu_alice" } });
+  h.initiative.install("gapp_two");
   h.github.install(42);
 });
 
@@ -29,119 +24,103 @@ afterEach(async () => {
   await h.close();
 });
 
-describe("an installation that is gone", () => {
-  it("ends every member's GitHub grant once it is missing from consecutive listings", async () => {
-    expect(await h.sync.run()).toMatchObject({ listed: 2, removed: [] });
-    expect(MISSING_PASSES).toBe(2);
+async function pass(): Promise<void> {
+  await h.sync.run();
+  await h.settle();
+}
 
-    h.initiative.listed = ["gapp_two"];
-    expect(await h.sync.run()).toMatchObject({ removed: [] });
-    expect(h.github.revoked).toEqual([]);
-
-    const report = await h.sync.run();
-    expect(report).toMatchObject({ removed: ["gapp_one"], revoked: 2 });
-    expect(h.github.revoked.sort()).toEqual(["ghu_alice", "ghu_bob"]);
-    // The grant is ended, authenticated as the app.
-    const revocation = h.github.calls.find((call) => call.path === "/applications/Iv1.testclient/grant");
-    expect(revocation?.method).toBe("DELETE");
-    expect(revocation?.token).toBe(`Basic ${Buffer.from("Iv1.testclient:client-secret-for-tests").toString("base64")}`);
-    // And what was cached for it is gone.
-    expect(h.context.installs.known()).toEqual(["gapp_two"]);
-  });
-
-  it("keeps a paused installation's authorizations, and reads it again once it is active", async () => {
-    await h.sync.run();
-    h.initiative.inactive.add("gapp_one");
-    for (let pass = 0; pass < MISSING_PASSES + 1; pass += 1) {
-      expect(await h.sync.run()).toMatchObject({ listed: 2, removed: [] });
-    }
-    expect(h.github.revoked).toEqual([]);
-    expect(h.context.installs.known().sort()).toEqual(["gapp_one", "gapp_two"]);
-
-    h.initiative.inactive.delete("gapp_one");
-    expect(await h.sync.run()).toMatchObject({ listed: 2, removed: [] });
-    expect(h.github.revoked).toEqual([]);
-  });
-
-  it("comes back as a new installation without revoking anything", async () => {
-    await h.sync.run();
-    h.initiative.listed = ["gapp_two"];
-    await h.sync.run();
-    h.initiative.listed = null;
-    await h.sync.run();
-    h.initiative.listed = ["gapp_two"];
-    await h.sync.run();
-    expect(h.github.revoked).toEqual([]);
-  });
-
-  it("renews a lapsed token before ending the grant, since GitHub names a grant by a live token", async () => {
-    const past = Math.floor(Date.now() / 1000) - 60;
-    h.initiative.install("gapp_three", {
-      members: { cref_dan: { access_token: "ghu_dan_old", refresh_token: "ghr_dan", expires_at: past } },
-    });
-    h.github.refreshes.set("ghr_dan", { access_token: "ghu_dan_new", refresh_token: "ghr_dan_2", expires_in: 28800 });
-    await h.sync.run();
-    h.initiative.listed = ["gapp_one", "gapp_two"];
-    await h.sync.run();
-    await h.sync.run();
-    expect(h.github.revoked).toEqual(["ghu_dan_new"]);
-  });
-
-  it("treats nothing as gone when the listing itself fails", async () => {
-    await h.sync.run();
-    h.initiative.listFails = 503;
-    expect(await h.sync.run()).toBeNull();
-    expect(await h.sync.run()).toBeNull();
-    expect(h.github.revoked).toEqual([]);
-    expect(h.context.installs.known().sort()).toEqual(["gapp_one", "gapp_two"]);
-  });
-});
-
-describe("a member Initiative no longer holds", () => {
-  it("has their grant ended at the next read of the configuration", async () => {
-    await h.sync.run();
-    h.initiative.installs.get("gapp_one")!.members.delete("cref_bob");
-    await h.sync.run();
-    await h.settle();
-    expect(h.github.revoked).toEqual(["ghu_bob"]);
-  });
-});
+const statuses = (installation: string) => h.initiative.installs.get(installation)!.statuses;
 
 describe("the configuration verdict", () => {
   it("reports ok while the organization's installation exists, once", async () => {
-    await h.sync.run();
-    await h.settle();
-    await h.sync.run();
-    await h.settle();
-    expect(h.initiative.installs.get("gapp_one")!.statuses).toEqual([{ state: "ok" }]);
+    await pass();
+    await pass();
+    expect(statuses("gapp_one")).toEqual([{ state: "ok" }]);
+    // The installation token was asked of Initiative by the community connection's handle.
+    expect(h.initiative.installs.get("gapp_one")!.tokenAsks).toContain("cref_ws_gapp_one");
   });
 
-  it("reports invalid when GitHub no longer has the installation", async () => {
+  it("reports the installation removed once GitHub stops honouring its token", async () => {
+    await pass();
+    // Initiative still hands out the token it minted; GitHub no longer takes it.
     h.github.installations.delete(42);
-    await h.sync.run();
-    await h.settle();
-    expect(h.initiative.installs.get("gapp_one")!.statuses).toEqual([
-      { state: "invalid", detail: "github_installation_removed" },
-    ]);
+    await pass();
+    expect(statuses("gapp_one")).toEqual([{ state: "ok" }, { state: "invalid", detail: DETAILS.removed }]);
   });
 
   it("reports invalid while the organization has suspended the installation, and ok once it is back", async () => {
+    await pass();
     h.github.installations.get(42)!.suspended = true;
-    await h.sync.run();
-    await h.settle();
+    await pass();
     h.github.installations.get(42)!.suspended = false;
-    await h.sync.run();
-    await h.settle();
-    expect(h.initiative.installs.get("gapp_one")!.statuses).toEqual([
-      { state: "invalid", detail: "github_installation_suspended" },
+    await pass();
+    expect(statuses("gapp_one")).toEqual([
+      { state: "ok" },
+      { state: "invalid", detail: DETAILS.suspended },
       { state: "ok" },
     ]);
   });
 
+  it("reports unavailable only after several passes on which Initiative could get no token", async () => {
+    h.github.installations.delete(42);
+    for (let count = 1; count < UNAVAILABLE_PASSES; count += 1) await pass();
+    expect(statuses("gapp_one")).toEqual([]);
+    await pass();
+    await pass();
+    expect(statuses("gapp_one")).toEqual([{ state: "invalid", detail: DETAILS.unavailable }]);
+  });
+
+  it("keeps a removal it reported rather than calling it unavailable later", async () => {
+    await pass();
+    h.github.installations.delete(42);
+    await pass();
+    // Initiative's minted token has lapsed, and GitHub mints no other.
+    for (const install of h.initiative.installs.values()) install.minted = null;
+    for (let count = 0; count < UNAVAILABLE_PASSES + 1; count += 1) await pass();
+    expect(statuses("gapp_one").at(-1)).toEqual({ state: "invalid", detail: DETAILS.removed });
+  });
+
+  it("reports nothing when Initiative itself could not be asked", async () => {
+    h.initiative.connectionTokenFails = 503;
+    for (let count = 0; count < UNAVAILABLE_PASSES + 1; count += 1) await pass();
+    expect(statuses("gapp_one")).toEqual([]);
+  });
+
   it("reports nothing for a community that has not connected an organization", async () => {
     h.initiative.install("gapp_empty", { workspace: null });
-    await h.sync.run();
-    await h.settle();
-    expect(h.initiative.installs.get("gapp_empty")!.statuses).toEqual([]);
+    await pass();
+    expect(statuses("gapp_empty")).toEqual([]);
+    expect(h.initiative.installs.get("gapp_empty")!.tokenAsks).toEqual([]);
+  });
+});
+
+describe("the installations list", () => {
+  it("forgets an installation Initiative stops listing, and asks nothing of it", async () => {
+    expect(await h.sync.run()).toMatchObject({ listed: 2, removed: [] });
+    h.initiative.listed = ["gapp_two"];
+    expect(await h.sync.run()).toMatchObject({ listed: 1, removed: ["gapp_one"] });
+    expect(h.context.installs.known()).toEqual(["gapp_two"]);
+    // Nothing is revoked by the app: the member's authorization is Initiative's to end.
+    expect(h.github.revoked).toEqual([]);
+  });
+
+  it("leaves a paused installation as it is, and reads it again once it is active", async () => {
+    await pass();
+    h.initiative.inactive.add("gapp_one");
+    const asked = h.initiative.installs.get("gapp_one")!.tokenAsks.length;
+    await pass();
+    expect(h.initiative.installs.get("gapp_one")!.tokenAsks).toHaveLength(asked);
+    expect(h.context.installs.known().sort()).toEqual(["gapp_one", "gapp_two"]);
+
+    h.initiative.inactive.delete("gapp_one");
+    await pass();
+    expect(h.initiative.installs.get("gapp_one")!.tokenAsks.length).toBeGreaterThan(asked);
+  });
+
+  it("forgets nothing when the listing itself fails", async () => {
+    await pass();
+    h.initiative.listFails = 503;
+    expect(await h.sync.run()).toBeNull();
+    expect(h.context.installs.known().sort()).toEqual(["gapp_one", "gapp_two"]);
   });
 });

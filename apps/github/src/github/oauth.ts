@@ -1,10 +1,12 @@
 /**
- * GitHub's user authorization for this GitHub App: sending a person to
- * authorize, exchanging the code they come back with, refreshing the token it
- * produced, and ending the authorization when the app is done with them.
+ * What the hooks ask GitHub about a person's authorization of this GitHub
+ * App: whose account a user token is, which installations it reaches, and
+ * ending the authorization when Initiative is done with it.
+ *
+ * Initiative runs the authorization itself (the redirect, the code exchange
+ * and renewing tokens); the app sees a user token only when a hook hands it
+ * one.
  */
-
-import { createHash, randomBytes } from "node:crypto";
 
 import { GITHUB_TIMEOUT_MS, headers, type GitHubHttp } from "./http.js";
 
@@ -15,140 +17,18 @@ export interface OAuthClient {
   clientSecret: string;
 }
 
-/** A user token and what it takes to renew it. Times are milliseconds since the epoch. */
-export interface UserGrant {
-  accessToken: string;
-  refreshToken: string | null;
-  expiresAt: number | null;
-  refreshExpiresAt: number | null;
-}
-
-export type GrantAnswer =
-  | { ok: true; grant: UserGrant }
-  | { ok: false; reason: "refused" | "unreachable"; detail: string };
-
-export interface Pkce {
-  verifier: string;
-  challenge: string;
-}
-
-export function pkce(): Pkce {
-  const verifier = randomBytes(32).toString("base64url");
-  return { verifier, challenge: createHash("sha256").update(verifier).digest("base64url") };
-}
-
-export function randomState(): string {
-  return randomBytes(24).toString("base64url");
-}
-
-/** Where to send a person to authorize this app. */
-export function authorizeUrl(
-  client: OAuthClient,
-  options: { state: string; redirectUri: string; challenge: string }
-): string {
-  const query = new URLSearchParams({
-    client_id: client.clientId,
-    redirect_uri: options.redirectUri,
-    state: options.state,
-    code_challenge: options.challenge,
-    code_challenge_method: "S256",
-  });
-  return `${client.webBase}/login/oauth/authorize?${query.toString()}`;
-}
-
-/** Exchange the code a person came back with. */
-export function exchangeCode(
-  client: OAuthClient,
-  options: { code: string; redirectUri: string; verifier: string }
-): Promise<GrantAnswer> {
-  return tokenRequest(client, {
-    grant_type: "authorization_code",
-    code: options.code,
-    redirect_uri: options.redirectUri,
-    code_verifier: options.verifier,
-  });
-}
-
-/** Renew a user token. A refresh token is spent by using it. */
-export function refreshGrant(client: OAuthClient, refreshToken: string): Promise<GrantAnswer> {
-  return tokenRequest(client, { grant_type: "refresh_token", refresh_token: refreshToken });
-}
-
-async function tokenRequest(
-  client: OAuthClient,
-  form: Record<string, string>
-): Promise<GrantAnswer> {
-  let response: Response;
+/** The login a user token belongs to, or null when GitHub would not say. */
+export async function userLogin(http: GitHubHttp, accessToken: string): Promise<string | null> {
   try {
-    response = await client.http.fetch(`${client.webBase}/login/oauth/access_token`, {
-      method: "POST",
-      headers: {
-        Accept: "application/json",
-        "Content-Type": "application/x-www-form-urlencoded",
-        "User-Agent": "initiative-github",
-      },
-      body: new URLSearchParams({
-        client_id: client.clientId,
-        client_secret: client.clientSecret,
-        ...form,
-      }).toString(),
+    const response = await http.fetch(`${http.apiBase}/user`, {
+      headers: headers(accessToken),
       signal: AbortSignal.timeout(GITHUB_TIMEOUT_MS),
     });
-  } catch (error) {
-    return { ok: false, reason: "unreachable", detail: (error as Error).message };
-  }
-  if (response.status >= 500) {
-    return { ok: false, reason: "unreachable", detail: `GitHub answered ${response.status}` };
-  }
-
-  let body: Record<string, unknown>;
-  try {
-    body = (await response.json()) as Record<string, unknown>;
+    if (!response.ok) return null;
+    const body = (await response.json()) as { login?: unknown };
+    return typeof body.login === "string" && body.login ? body.login : null;
   } catch {
-    return { ok: false, reason: "unreachable", detail: "GitHub answered without JSON" };
-  }
-  // GitHub answers a refused exchange with 200 and an `error` field.
-  if (typeof body.error === "string" || typeof body.access_token !== "string" || !body.access_token) {
-    return { ok: false, reason: "refused", detail: String(body.error ?? `status ${response.status}`) };
-  }
-
-  const now = client.http.now();
-  const after = (seconds: unknown) =>
-    typeof seconds === "number" && Number.isFinite(seconds) && seconds > 0 ? now + seconds * 1000 : null;
-  return {
-    ok: true,
-    grant: {
-      accessToken: body.access_token,
-      refreshToken: typeof body.refresh_token === "string" && body.refresh_token ? body.refresh_token : null,
-      expiresAt: after(body.expires_in),
-      refreshExpiresAt: after(body.refresh_token_expires_in),
-    },
-  };
-}
-
-/**
- * End a person's authorization of this app: every token issued under it,
- * refresh tokens included, and its entry in their GitHub settings. `true` when
- * GitHub confirmed it or it was already gone.
- */
-export async function revokeGrant(client: OAuthClient, accessToken: string): Promise<boolean> {
-  const basic = Buffer.from(`${client.clientId}:${client.clientSecret}`).toString("base64");
-  try {
-    const response = await client.http.fetch(
-      `${client.http.apiBase}/applications/${encodeURIComponent(client.clientId)}/grant`,
-      {
-        method: "DELETE",
-        headers: {
-          ...headers("", { "Content-Type": "application/json" }),
-          Authorization: `Basic ${basic}`,
-        },
-        body: JSON.stringify({ access_token: accessToken }),
-        signal: AbortSignal.timeout(GITHUB_TIMEOUT_MS),
-      }
-    );
-    return response.status === 204 || response.status === 404;
-  } catch {
-    return false;
+    return null;
   }
 }
 
@@ -179,4 +59,87 @@ export async function userInstallations(
   } catch {
     return null;
   }
+}
+
+/** GitHub could not be asked, or answered with an error; worth trying again. */
+export class GitHubUnreachable extends Error {}
+
+/**
+ * End a person's authorization of this app: every token issued under it,
+ * refresh tokens included, and its entry in their GitHub settings.
+ *
+ * GitHub names the authorization by an access token that still works. When
+ * the one given has lapsed and a refresh token came with it, the refresh
+ * token is exchanged for a fresh access token, and that one ends it.
+ *
+ * Resolves once GitHub has ended it or recognizes neither token; throws
+ * {@link GitHubUnreachable} when GitHub could not be asked.
+ */
+export async function endAuthorization(
+  client: OAuthClient,
+  tokens: { accessToken: string | null; refreshToken: string | null }
+): Promise<"ended" | "nothing-to-end"> {
+  if (tokens.accessToken && (await deleteGrant(client, tokens.accessToken)) === "ended") return "ended";
+  const fresh = tokens.refreshToken ? await refreshAccessToken(client, tokens.refreshToken) : null;
+  if (fresh && (await deleteGrant(client, fresh)) === "ended") return "ended";
+  return "nothing-to-end";
+}
+
+/** `DELETE /applications/{client_id}/grant`, authenticated as the GitHub App's client. */
+async function deleteGrant(client: OAuthClient, accessToken: string): Promise<"ended" | "unknown-token"> {
+  const basic = Buffer.from(`${client.clientId}:${client.clientSecret}`).toString("base64");
+  let response: Response;
+  try {
+    response = await client.http.fetch(
+      `${client.http.apiBase}/applications/${encodeURIComponent(client.clientId)}/grant`,
+      {
+        method: "DELETE",
+        headers: {
+          ...headers("", { "Content-Type": "application/json" }),
+          Authorization: `Basic ${basic}`,
+        },
+        body: JSON.stringify({ access_token: accessToken }),
+        signal: AbortSignal.timeout(GITHUB_TIMEOUT_MS),
+      }
+    );
+  } catch (error) {
+    throw new GitHubUnreachable(`could not reach GitHub: ${(error as Error).message}`);
+  }
+  if (response.status === 204) return "ended";
+  // GitHub does not recognize the token: it lapsed, or its authorization already ended.
+  if (response.status === 404 || response.status === 422) return "unknown-token";
+  throw new GitHubUnreachable(`GitHub answered ${response.status}`);
+}
+
+/** A fresh access token for a refresh token, or null when GitHub refuses it. */
+async function refreshAccessToken(client: OAuthClient, refreshToken: string): Promise<string | null> {
+  let response: Response;
+  try {
+    response = await client.http.fetch(`${client.webBase}/login/oauth/access_token`, {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/x-www-form-urlencoded",
+        "User-Agent": "initiative-github",
+      },
+      body: new URLSearchParams({
+        client_id: client.clientId,
+        client_secret: client.clientSecret,
+        grant_type: "refresh_token",
+        refresh_token: refreshToken,
+      }).toString(),
+      signal: AbortSignal.timeout(GITHUB_TIMEOUT_MS),
+    });
+  } catch (error) {
+    throw new GitHubUnreachable(`could not reach GitHub: ${(error as Error).message}`);
+  }
+  if (response.status >= 500) throw new GitHubUnreachable(`GitHub answered ${response.status}`);
+  let body: Record<string, unknown>;
+  try {
+    body = (await response.json()) as Record<string, unknown>;
+  } catch {
+    throw new GitHubUnreachable("GitHub answered without JSON");
+  }
+  // GitHub answers a refused exchange with 200 and an `error` field.
+  return typeof body.access_token === "string" && body.access_token ? body.access_token : null;
 }

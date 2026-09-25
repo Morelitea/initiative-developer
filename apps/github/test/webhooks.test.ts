@@ -154,7 +154,7 @@ describe("announcements", () => {
   };
 
   it("emits release-published for a full release", async () => {
-    await deliver("release", { action: "published", installation: { id: 42 }, repository, release });
+    await deliver("release", { action: "released", installation: { id: 42 }, repository, release });
     expect(h.initiative.installs.get("gapp_one")!.events).toEqual([
       {
         event_type: EMIT_IDS.releasePublished,
@@ -173,7 +173,7 @@ describe("announcements", () => {
 
   it("emits prerelease-published for a pre-release, and not release-published", async () => {
     await deliver("release", {
-      action: "published",
+      action: "prereleased",
       installation: { id: 42 },
       repository,
       release: { ...release, tag_name: "v1.3.0-rc.1", name: null, prerelease: true },
@@ -194,13 +194,29 @@ describe("announcements", () => {
     });
   });
 
-  it("says nothing of a release that is not published, or has no tag", async () => {
-    for (const action of ["created", "released", "prereleased", "edited"]) {
+  it("emits release-published when a pre-release is promoted to a full release", async () => {
+    const candidate = { ...release, tag_name: "v1.3.0", name: "Summer" };
+    await deliver("release", {
+      action: "prereleased",
+      installation: { id: 42 },
+      repository,
+      release: { ...candidate, prerelease: true },
+    });
+    await deliver("release", { action: "released", installation: { id: 42 }, repository, release: candidate });
+    const events = h.initiative.installs.get("gapp_one")!.events;
+    expect(events.map((event) => [event.event_type, event.payload.tag])).toEqual([
+      [EMIT_IDS.prereleasePublished, "v1.3.0"],
+      [EMIT_IDS.releasePublished, "v1.3.0"],
+    ]);
+  });
+
+  it("says nothing of other release actions, or a release with no tag", async () => {
+    for (const action of ["published", "created", "edited", "deleted"]) {
       const { body } = await deliver("release", { action, installation: { id: 42 }, repository, release });
       expect(body.reason).toBe("nothing-to-say");
     }
     const untagged = await deliver("release", {
-      action: "published",
+      action: "released",
       installation: { id: 42 },
       repository,
       release: { ...release, tag_name: "" },

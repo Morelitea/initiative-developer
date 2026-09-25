@@ -81,10 +81,6 @@ function subjectOf(payload: Record<string, unknown>, holder: "issue" | "pull_req
 /** A delivery whose `action` is `name`. */
 const action = (name: string) => (payload: Record<string, unknown>) => textOf(payload, "action") === name;
 
-/** A published release, full or pre-release as `prerelease` says. */
-const published = (prerelease: boolean) => (payload: Record<string, unknown>) =>
-  textOf(payload, "action") === "published" && field(field(payload, "release"), "prerelease") === prerelease;
-
 function ownerOf(payload: Record<string, unknown>): string | null {
   return textOf(field(field(payload, "repository"), "owner"), "login");
 }
@@ -202,11 +198,12 @@ export const ANNOUNCEMENTS: readonly Announcement[] = [
       identity: ISSUE_IDENTITY,
     },
   },
-  // GitHub's `published` covers full releases and pre-releases alike; they are
-  // announced apart so a subscriber wanting only one is never sent the other.
+  // GitHub's own `released` and `prereleased`, rather than `published`: a
+  // subscriber wanting only one is never sent the other, and a pre-release
+  // promoted to a full release is announced as a release.
   {
     event: "release",
-    when: published(false),
+    when: action("released"),
     build: releaseEvent,
     declaration: {
       id: EMIT_IDS.releasePublished,
@@ -230,7 +227,7 @@ export const ANNOUNCEMENTS: readonly Announcement[] = [
   },
   {
     event: "release",
-    when: published(true),
+    when: action("prereleased"),
     build: releaseEvent,
     declaration: {
       id: EMIT_IDS.prereleasePublished,

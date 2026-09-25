@@ -1,5 +1,26 @@
 # Changelog
 
+## [2.2.0]
+
+Initiative receives GitHub's webhooks.
+
+### Changed
+
+- GitHub's webhook deliveries go to Initiative, which checks them and hands
+  each to the app for every community connected to the installation it came
+  from. Initiative keeps each announcement and delivers it until it is taken,
+  so none is lost while a subscriber is away.
+- The app needs no public address: only Initiative calls it.
+
+### Upgrading
+
+- Needs an Initiative that receives app webhooks.
+- On the GitHub App, set the webhook URL to
+  `{APP_URL}/api/v1/app-hooks/morelitea.github`. Nothing else changes there.
+- Enter the GitHub App's webhook secret as the *Webhook secret* vendor value
+  on the app's registration, and remove `GITHUB_WEBHOOK_SECRET` from the app's
+  settings.
+
 ## [2.1.0]
 
 Other apps can use GitHub through Initiative.

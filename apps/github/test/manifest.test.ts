@@ -89,7 +89,19 @@ describe("manifest", () => {
       ["app_slug", "string", true],
       ["app_id", "string", true],
       ["private_key", "secret", true],
+      ["webhook_secret", "secret", true],
     ]);
+    expect(manifest.webhooks).toEqual({
+      verify: {
+        scheme: "hmac_sha256",
+        header: "X-Hub-Signature-256",
+        prefix: "sha256=",
+        encoding: "hex",
+        secret: "{vendor.webhook_secret}",
+      },
+      dedup: "X-GitHub-Delivery",
+      route: { path: "installation.id", connection: WORKSPACE, field: "installation_id" },
+    });
 
     const workspace = connection(WORKSPACE);
     expect(workspace.scope).toBe("static");
@@ -146,7 +158,6 @@ describe("settings", () => {
     INITIATIVE_APP_KEY_ID: "app-1",
     GITHUB_CLIENT_ID: "Iv1.x",
     GITHUB_CLIENT_SECRET: "s",
-    GITHUB_WEBHOOK_SECRET: "w",
   };
 
   it("reads every required setting, and keys as PEM, escaped PEM or base64", () => {

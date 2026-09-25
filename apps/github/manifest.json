@@ -80,6 +80,17 @@
           "es": "Clave privada",
           "fr": "Clé privée"
         }
+      },
+      {
+        "key": "webhook_secret",
+        "type": "secret",
+        "required": true,
+        "label": {
+          "en": "Webhook secret",
+          "de": "Webhook-Secret",
+          "es": "Secreto del webhook",
+          "fr": "Secret du webhook"
+        }
       }
     ]
   },
@@ -171,6 +182,21 @@
       }
     }
   ],
+  "webhooks": {
+    "verify": {
+      "scheme": "hmac_sha256",
+      "header": "X-Hub-Signature-256",
+      "prefix": "sha256=",
+      "encoding": "hex",
+      "secret": "{vendor.webhook_secret}"
+    },
+    "dedup": "X-GitHub-Delivery",
+    "route": {
+      "path": "installation.id",
+      "connection": "workspace",
+      "field": "installation_id"
+    }
+  },
   "endpoints": [
     {
       "id": "app.morelitea.github.list-repositories",

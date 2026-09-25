@@ -5,12 +5,11 @@
  * |---|---|
  * | `GET /healthz`, `GET /readyz` | the container runtime |
  * | `GET, POST /v1/endpoints` | Initiative, with a context token |
- * | `POST /v1/hooks/after_connect`, `/v1/hooks/revoke` | Initiative, with a lifecycle token |
- * | `POST /github/webhook` | GitHub, signed with the webhook secret |
+ * | `POST /v1/hooks/after_connect`, `/v1/hooks/revoke`, `/v1/hooks/webhook` | Initiative, with a lifecycle token |
  * | `GET /.well-known/jwks.json` | a deployment that registers the app's key by address |
  *
- * Nobody's browser comes here: Initiative runs the GitHub connections at its
- * own addresses.
+ * Nobody's browser comes here, and nor does GitHub: Initiative runs the GitHub
+ * connections at its own addresses, and receives GitHub's webhook deliveries.
  */
 
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
@@ -18,18 +17,11 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { ENDPOINTS_PATH, handleHook, HOOKS_PATH } from "initiative-app-kit";
 
 import type { AppContext } from "./context.js";
-import {
-  DELIVERY_HEADER,
-  EVENT_HEADER,
-  handleDelivery,
-  SIGNATURE_HEADER,
-  verifySignature,
-} from "./github/webhooks.js";
 import { hookHandlers } from "./hooks.js";
 import { invoke, listEndpoints } from "./invoke.js";
 import { PATHS, PUBLIC_ID } from "./vocabulary.js";
 
-/** The most a request body may carry. GitHub's deliveries are capped at 25 MB; ours are far smaller. */
+/** The most a request body may carry. */
 const MAX_BODY_BYTES = 5 * 1024 * 1024;
 
 export interface ServerOptions {
@@ -125,23 +117,6 @@ async function handle(
       now: context.now,
     });
     return answer.body === undefined ? empty(res, answer.status) : json(res, answer.status, answer.body);
-  }
-
-  if (method === "POST" && path === PATHS.webhook) {
-    const raw = await readBody(req);
-    const signature = req.headers[SIGNATURE_HEADER];
-    if (!verifySignature(context.config.github.webhookSecret, raw, Array.isArray(signature) ? signature[0] : signature)) {
-      return json(res, 401, { error: "bad-signature" });
-    }
-    const payload = parseJson(raw);
-    if (typeof payload !== "object" || payload === null) return json(res, 400, { error: "invalid-request" });
-    const result = await handleDelivery(
-      context,
-      String(req.headers[EVENT_HEADER] ?? ""),
-      payload as Record<string, unknown>,
-      String(req.headers[DELIVERY_HEADER] ?? "")
-    );
-    return json(res, 200, result);
   }
 
   json(res, 404, { error: "not-found" });

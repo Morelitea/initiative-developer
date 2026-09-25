@@ -9,6 +9,9 @@
  *   what Initiative shows for the connection.
  * - **`revoke`** for `account`: a member's connection ended. Their
  *   authorization of the GitHub App is ended at GitHub.
+ * - **`webhook`**: a GitHub delivery for the community's installation, which
+ *   Initiative has checked and routed. It becomes one of the six
+ *   announcements, emitted in that community.
  *
  * The kit verifies the lifecycle token and the body; these handlers do only
  * the GitHub work. A handler that throws answers 500, which Initiative reads
@@ -16,10 +19,12 @@
  * tried again.
  */
 
-import type { AfterConnectAnswer, AfterConnectCall, HookHandlers, RevokeCall } from "initiative-app-kit";
+import type { AfterConnectAnswer, AfterConnectCall, HookHandlers, RevokeCall, WebhookCall } from "initiative-app-kit";
 
 import type { AppContext } from "./context.js";
+import { translate } from "./endpoints/emissions.js";
 import { endAuthorization, userInstallations, userLogin } from "./github/oauth.js";
+import { DETAILS } from "./sync.js";
 import { ACCOUNT, WORKSPACE } from "./vocabulary.js";
 
 const REFUSE: AfterConnectAnswer = { refuse: true };
@@ -28,6 +33,8 @@ export function hookHandlers(context: AppContext): HookHandlers {
   return {
     after_connect: (call) => logged(context, `after_connect for ${call.connection}`, afterConnect(context, call)),
     revoke: (call) => logged(context, `revoke for ${call.connection}`, revoke(context, call)),
+    webhook: (call, claims) =>
+      logged(context, `webhook ${call.headers["x-github-event"]}`, delivered(context, call, claims.guild_ref)),
   };
 }
 
@@ -81,4 +88,35 @@ async function revoke(context: AppContext, call: RevokeCall): Promise<void> {
   if (outcome === "nothing-to-end") {
     context.log.info("a member's GitHub authorization had already ended");
   }
+}
+
+/** A GitHub delivery, announced in the community it was routed to. */
+async function delivered(context: AppContext, call: WebhookCall, installation: string): Promise<void> {
+  const event = call.headers["x-github-event"] ?? "";
+  const payload = JSON.parse(call.body) as Record<string, unknown>;
+  if (event === "installation" || event === "installation_repositories") {
+    return changed(context, installation, payload);
+  }
+  const announcement = translate(event, payload);
+  if (announcement) await context.auth.emitEvent(installation, announcement);
+}
+
+/**
+ * The installation changed at GitHub: what is cached for it is stale. One
+ * that was removed or suspended is reported, so the community's admins see
+ * the configuration no longer works.
+ */
+async function changed(context: AppContext, installation: string, payload: Record<string, unknown>): Promise<void> {
+  const installationId = Number((payload.installation as { id?: unknown } | undefined)?.id);
+  const action = String(payload.action ?? "");
+  if (action === "added" || action === "removed") {
+    context.github.forgetRepositories(installationId);
+    return;
+  }
+  context.github.forget(installationId);
+  if (action !== "deleted" && action !== "suspend") return;
+  await context.auth.reportConfigStatus(installation, {
+    state: "invalid",
+    detail: action === "deleted" ? DETAILS.removed : DETAILS.suspended,
+  });
 }

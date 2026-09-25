@@ -9,6 +9,7 @@ on:
   pull_request:
     paths:
       - "apps/github/**"
+      - "registry/sources/morelitea/XTEAP993JW1E94/**"
       - ".github/workflows/github-app.yml"
   push:
     branches: [main]
@@ -38,8 +39,8 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
-      # The manifest validates with the kit, and manifest.json and listing.json
-      # are what their sources produce.
+      # The manifest validates with the kit, and manifest.json and the app's
+      # registry source are what their sources produce.
       - run: npm run manifest:check
 
   image:

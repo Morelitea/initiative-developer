@@ -1,20 +1,18 @@
 /**
  * The app's registry source listing: what the catalogue shows, the versions it
- * offers with their manifests inline, and the registration a deployment reads
- * the app's keys and ceiling from. Its avatar sits beside it, under `assets/`.
+ * offers, and the registration a deployment reads the app's keys and ceiling
+ * from. `npm run manifest` writes it under `registry/sources/morelitea/<uid>/`,
+ * beside each version's definition (`<version>/manifest.json`) and the avatar
+ * (`assets/avatar.png`).
  *
- * Two values are placeholders until a release is cut, both in a shape the
- * registry accepts: the image digest (all zeros) comes from the image build,
- * and the key set is replaced by the public half of the key the app signs
- * with (`initiative-app keygen` writes it as `jwks.json`).
+ * `IMAGE` is the digest the image workflow printed for this version, and
+ * `JWKS` the public half of the key the app signs its token requests with.
  *
  * The "GitHub overview" dashboard is not a listing of its own here: it is
  * bundled in the manifest, and a deployment publishes it from there.
  */
 
 import { createHash } from "node:crypto";
-
-import type { Manifest } from "initiative-app-kit";
 
 import { LISTING_UID, PUBLIC_ID, SCOPES } from "./vocabulary.js";
 
@@ -23,17 +21,21 @@ export const VERSION = "1.0.0";
 /** The oldest Initiative that serves this app's installation calls. */
 export const MIN_APP_VERSION = "0.73.0";
 
-export const IMAGE_PLACEHOLDER = `ghcr.io/morelitea/initiative-github@sha256:${"0".repeat(64)}`;
+/** The image this version runs, pinned by digest. */
+export const IMAGE =
+  "ghcr.io/morelitea/initiative-github@sha256:80304aa552eebb4259f902fafe841e57d113ba2c1000d6e0e2af882e9b621768";
 
-export const KEY_PLACEHOLDER = {
-  kty: "EC",
-  crv: "P-256",
-  alg: "ES256",
-  use: "sig",
-  kid: "filled-at-release",
+/** The public key the app's token requests are verified with. */
+export const JWKS = {
+  keys: [
+    {"kty": "EC", "kid": "github-1", "alg": "ES256", "use": "sig", "crv": "P-256", "x": "AnzMCoYTwqIVaUH3j-djW2xSDIf3TAH1GyKkxMGqkcs", "y": "4BuzhHAZZ8LS7CZcb_Pz415ae8tD01N7cwGERgJgujk"},
+  ],
 };
 
-export function listingEntry(manifest: Manifest, avatar: Buffer): Record<string, unknown> {
+/** Where each version's definition sits, beside the listing. */
+export const DEFINITION_PATH = `${VERSION}/manifest.json`;
+
+export function listingEntry(avatar: Buffer): Record<string, unknown> {
   return {
     schema: 1,
     uid: LISTING_UID,
@@ -53,7 +55,7 @@ export function listingEntry(manifest: Manifest, avatar: Buffer): Record<string,
     versions: [
       {
         version: VERSION,
-        manifest,
+        definition: DEFINITION_PATH,
         min_app_version: MIN_APP_VERSION,
         release_notes:
           "Rewritten on the installation-token platform. Existing installs are removed and installed again, then the GitHub organization is connected again.",
@@ -61,8 +63,8 @@ export function listingEntry(manifest: Manifest, avatar: Buffer): Record<string,
     ],
     registration: {
       kind: "container",
-      image: IMAGE_PLACEHOLDER,
-      jwks: { keys: [KEY_PLACEHOLDER] },
+      image: IMAGE,
+      jwks: JWKS,
       scope_ceiling: [...SCOPES],
       reference_sectors: [],
     },

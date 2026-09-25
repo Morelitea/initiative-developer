@@ -10,7 +10,7 @@ import { describe, expect, it } from "vitest";
 import { ConfigError, ENVIRONMENT, loadConfig } from "../src/config.js";
 import { listingEntry } from "../src/listing.config.js";
 import { manifest } from "../src/manifest.config.js";
-import { SCOPES } from "../src/vocabulary.js";
+import { LISTING_UID, SCOPES } from "../src/vocabulary.js";
 import { githubAppKey, appKey } from "./support/keys.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -60,12 +60,15 @@ describe("manifest", () => {
     expect(readFileSync(join(root, "manifest.json"), "utf-8")).toBe(`${JSON.stringify(manifest, null, 2)}\n`);
   });
 
-  it("is what listing.json carries, with the ceiling and a registration by container", () => {
+  it("is what the registry source carries, with the ceiling and a registration by container", () => {
+    const source = join(root, "..", "..", "registry", "sources", "morelitea", LISTING_UID);
     const avatar = readFileSync(join(root, "assets", "avatar.png"));
-    const listing = JSON.parse(readFileSync(join(root, "listing.json"), "utf-8"));
-    expect(listing).toEqual(listingEntry(manifest, avatar));
-    expect(listing.versions[0].manifest).toEqual(manifest);
+    const listing = JSON.parse(readFileSync(join(source, "listing.json"), "utf-8"));
+    expect(listing).toEqual(listingEntry(avatar));
+    const definition = JSON.parse(readFileSync(join(source, listing.versions[0].definition), "utf-8"));
+    expect(definition).toEqual(manifest);
     expect(listing.registration).toMatchObject({ kind: "container", scope_ceiling: [...SCOPES], reference_sectors: [] });
+    expect(listing.registration.jwks.keys[0]).toMatchObject({ kty: "EC", kid: "github-1", alg: "ES256" });
   });
 });
 

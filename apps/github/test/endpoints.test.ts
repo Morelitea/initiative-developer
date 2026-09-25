@@ -90,6 +90,32 @@ const READS: ReadCase[] = [
     refuse: graphqlRefusal("Labels"),
   },
   {
+    id: READ_IDS.listAssignees,
+    params: { repo: "widgets" },
+    operation: "Assignees",
+    data: { repository: { assignableUsers: { totalCount: 3, nodes: [{ login: "alice" }, null, { login: "bob" }] } } },
+    expected: { logins: ["alice", "bob"], count: 2, total: 3 },
+    refuse: graphqlRefusal("Assignees"),
+  },
+  {
+    id: READ_IDS.listBranches,
+    params: { repo: "widgets" },
+    operation: "Branches",
+    data: { repository: { refs: { totalCount: 2, nodes: [{ name: "develop" }, { name: "main" }] } } },
+    expected: { names: ["develop", "main"], count: 2, total: 2 },
+    refuse: graphqlRefusal("Branches"),
+  },
+  {
+    id: READ_IDS.listMilestones,
+    params: { repo: "widgets" },
+    operation: "Milestones",
+    data: {
+      repository: { milestones: { totalCount: 2, nodes: [{ number: 3, title: "1.0" }, { number: 5, title: "1.1" }] } },
+    },
+    expected: { numbers: [3, 5], titles: ["1.0", "1.1"], count: 2, total: 2 },
+    refuse: graphqlRefusal("Milestones"),
+  },
+  {
     id: READ_IDS.getIssue,
     params: { repo: "Widgets", number: "7" },
     operation: "Subject",
@@ -221,7 +247,7 @@ const READS: ReadCase[] = [
 ];
 
 describe("reads", () => {
-  it("covers all eleven", () => {
+  it("covers all fourteen", () => {
     expect(READS.map((one) => one.id).sort()).toEqual(Object.values(READ_IDS).sort());
   });
 
@@ -270,6 +296,23 @@ describe("reads", () => {
   it("refuses a repository the installation does not cover", async () => {
     const { body } = await h.invoke(INSTALLATION, READ_IDS.findIssues, { repo: "elsewhere" });
     expect(body.result).toEqual({ unavailable: "repository-not-listed" });
+  });
+
+  it("asks GitHub about the repository the call names", async () => {
+    for (const [id, operation] of [
+      [READ_IDS.listAssignees, "Assignees"],
+      [READ_IDS.listBranches, "Branches"],
+      [READ_IDS.listMilestones, "Milestones"],
+    ] as const) {
+      let asked: Record<string, unknown> | undefined;
+      h.github.graphql.set(operation, (variables) => {
+        asked = variables;
+        return { body: { data: { repository: null } } };
+      });
+      const { body } = await h.invoke(INSTALLATION, id, { repo: "WIDGETS" });
+      expect(asked).toMatchObject({ owner: "acme", repo: "widgets" });
+      expect(body.result).toEqual({ unavailable: "not-found" });
+    }
   });
 
   it("says a community has no organization connected", async () => {

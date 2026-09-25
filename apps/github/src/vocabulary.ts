@@ -45,7 +45,10 @@ export function declare(name: string): string {
 
 export const READ_IDS = {
   listRepositories: declare("list-repositories"),
+  listAssignees: declare("list-assignees"),
+  listBranches: declare("list-branches"),
   listLabels: declare("list-labels"),
+  listMilestones: declare("list-milestones"),
   getIssue: declare("get-issue"),
   findIssues: declare("find-issues"),
   getPullRequest: declare("get-pull-request"),
@@ -71,6 +74,9 @@ export const EMIT_IDS = {
   issueOpened: declare("issue-opened"),
   issueClosed: declare("issue-closed"),
   reviewRequested: declare("review-requested"),
+  releasePublished: declare("release-published"),
+  prereleasePublished: declare("prerelease-published"),
+  tagCreated: declare("tag-created"),
 } as const;
 
 export function text(en: string, de: string, es: string, fr: string): LocalizedText {
@@ -101,9 +107,32 @@ export function many(value: EndpointReturn): EndpointReturn {
 /** An issue or pull request is named by its repository and number, on a write and on an event alike. */
 export const ISSUE_IDENTITY: EndpointIdentity = { kind: "issue", key: ["repository", "number"] };
 
+/** A release is named by its repository and tag. */
+export const RELEASE_IDENTITY: EndpointIdentity = { kind: "release", key: ["repository", "tag"] };
+
+/**
+ * A tag is named the same way but is its own kind: a tag and a release cut at
+ * it are two objects at GitHub, and either exists without the other.
+ */
+export const TAG_IDENTITY: EndpointIdentity = { kind: "tag", key: ["repository", "tag"] };
+
 export const REPO = param("repo", "string", text("Repository", "Repository", "Repositorio", "Dépôt"), {
   options_from: { endpoint: READ_IDS.listRepositories, key: "names" },
 });
+
+/**
+ * Who can be assigned in that repository. GitHub answers who may be asked for
+ * a review with the same list, so one read fills both.
+ */
+export const PEOPLE_OF = { endpoint: READ_IDS.listAssignees, key: "logins", needs: { repo: "repo" } };
+
+/** That repository's open milestones, by number, read by title. */
+export const MILESTONES_OF = {
+  endpoint: READ_IDS.listMilestones,
+  key: "numbers",
+  label_key: "titles",
+  needs: { repo: "repo" },
+};
 
 export const NUMBER = param("number", "int", text("Number", "Nummer", "Número", "Numéro"));
 

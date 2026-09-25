@@ -12,9 +12,9 @@ ghcr.io/morelitea/initiative-github
 
 | | |
 |---|---|
-| **Eleven reads** | Repositories · labels · one issue · find issues · one pull request · find pull requests · Dependabot alerts · project boards · a board's fields · a field's values · an issue's card |
+| **Fourteen reads** | Repositories · who can be assigned · branches · labels · milestones · one issue · find issues · one pull request · find pull requests · Dependabot alerts · project boards · a board's fields · a field's values · an issue's card |
 | **Seven writes** | Open an issue · comment · close · reopen · change labels · request a review · move a Projects card |
-| **Three announcements** | An issue was opened · an issue was closed · a review was requested |
+| **Six announcements** | An issue was opened · an issue was closed · a review was requested · a release was published · a pre-release was published · a tag was pushed |
 | **Four widgets** | Open issues · pull requests waiting on your review · Dependabot alerts by severity · a fortnight of opened against closed |
 | **A dashboard** | *GitHub overview*, arranging the four widgets. Point each tile at a repository where you place it. |
 
@@ -69,9 +69,9 @@ and `https://github-app.example.com` for this app's:
 | Setup URL | `{APP_URL}/api/v1/app-connections/setup` |
 | Webhook URL | `https://github-app.example.com/github/webhook` |
 | Webhook secret | a long random value, also given to the app as `GITHUB_WEBHOOK_SECRET` |
-| Repository permissions | Issues: read and write · Pull requests: read and write · Dependabot alerts: read · Metadata: read |
+| Repository permissions | Issues: read and write · Pull requests: read and write · Contents: read · Dependabot alerts: read · Metadata: read |
 | Organization permissions | Projects: read and write |
-| Events | Issues · Pull request |
+| Events | Issues · Pull request · Release · Create |
 
 Then generate a private key and a client secret on the app's page.
 
@@ -162,6 +162,13 @@ GitHub is noticed by the next sync rather than at once.
 
 `GET /healthz` answers once the process is up; `GET /readyz` once the first
 installations sync has reached Initiative.
+
+## Upgrading from 2.0
+
+On the GitHub App's settings, add the Contents: read repository permission and
+the Release and Create events. GitHub asks each organization's owner to approve
+the new permission; until they do, that organization's releases and tags are
+not announced. Everything else carries on as it was.
 
 ## Upgrading from 1.0
 

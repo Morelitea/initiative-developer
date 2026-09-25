@@ -32,10 +32,10 @@ describe("manifest", () => {
     expect(validateManifest(manifest)).toEqual([]);
   });
 
-  it("declares eleven reads, seven writes and three announcements", () => {
+  it("declares fourteen reads, seven writes and six announcements", () => {
     const counts: Record<string, number> = {};
     for (const endpoint of manifest.endpoints ?? []) counts[endpoint.direction] = (counts[endpoint.direction] ?? 0) + 1;
-    expect(counts).toEqual({ read: 11, write: 7, emit: 3 });
+    expect(counts).toEqual({ read: 14, write: 7, emit: 6 });
   });
 
   it("asks for exactly the scopes it was cleared for", () => {

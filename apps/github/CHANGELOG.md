@@ -10,10 +10,17 @@ Other apps can use GitHub through Initiative.
   GitHub. A read answers on the organization's installation, whether the app
   calls as the community or as a member. A write runs only as a member, on
   their own GitHub account; a member who has not connected is told to.
+- The reads *who can be assigned*, *branches* and *milestones*, which fill
+  the assignee, reviewer, *waiting on* and milestone choices.
+- The announcements *a release was published*, *a pre-release was published*
+  and *a tag was pushed*.
 
 ### Upgrading
 
 - Needs an Initiative that lets apps call one another.
+- On the GitHub App, add the Contents: read permission and the Release and
+  Create events. Each organization's owner approves the new permission on
+  GitHub; until then its releases and tags are not announced.
 
 ## [2.0.0]
 

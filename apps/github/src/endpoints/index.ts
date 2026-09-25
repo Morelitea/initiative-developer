@@ -13,6 +13,7 @@ import {
   getIssue,
   label,
   listLabels,
+  listMilestones,
   openIssue,
   reopenIssue,
 } from "./issues.js";
@@ -24,13 +25,16 @@ import {
   moveProjectItem,
 } from "./projects.js";
 import { findPullRequests, getPullRequest, requestReview } from "./pulls.js";
-import { listRepositories } from "./repositories.js";
+import { listAssignees, listBranches, listRepositories } from "./repositories.js";
 import { listAlerts } from "./security.js";
 import type { Read, Write } from "./support.js";
 
 export const READS: readonly Read[] = [
   listRepositories,
+  listAssignees,
+  listBranches,
   listLabels,
+  listMilestones,
   getIssue,
   findIssues,
   getPullRequest,

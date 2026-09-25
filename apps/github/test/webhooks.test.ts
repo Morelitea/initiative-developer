@@ -1,6 +1,6 @@
 /**
  * GitHub's deliveries: taken only with a valid `X-Hub-Signature-256`, and
- * turned into the three announcements for each community bound to the
+ * turned into the six announcements for each community bound to the
  * installation they came from.
  */
 
@@ -142,6 +142,104 @@ describe("announcements", () => {
       [EMIT_IDS.reviewRequested, "core"],
     ]);
     expect(events[0].payload).toMatchObject({ number: 9, author: "carol", repository: "widgets" });
+  });
+
+  const release = {
+    tag_name: "v1.2.0",
+    name: "Spring",
+    target_commitish: "main",
+    html_url: "https://github.test/acme/widgets/releases/tag/v1.2.0",
+    author: { login: "erin" },
+    prerelease: false,
+  };
+
+  it("emits release-published for a full release", async () => {
+    await deliver("release", { action: "published", installation: { id: 42 }, repository, release });
+    expect(h.initiative.installs.get("gapp_one")!.events).toEqual([
+      {
+        event_type: EMIT_IDS.releasePublished,
+        payload: {
+          repository: "widgets",
+          owner: "acme",
+          tag: "v1.2.0",
+          name: "Spring",
+          branch: "main",
+          url: "https://github.test/acme/widgets/releases/tag/v1.2.0",
+          author: "erin",
+        },
+      },
+    ]);
+  });
+
+  it("emits prerelease-published for a pre-release, and not release-published", async () => {
+    await deliver("release", {
+      action: "published",
+      installation: { id: 42 },
+      repository,
+      release: { ...release, tag_name: "v1.3.0-rc.1", name: null, prerelease: true },
+    });
+    const events = h.initiative.installs.get("gapp_one")!.events;
+    expect(events).toHaveLength(1);
+    expect(events[0]).toEqual({
+      event_type: EMIT_IDS.prereleasePublished,
+      payload: {
+        repository: "widgets",
+        owner: "acme",
+        tag: "v1.3.0-rc.1",
+        name: null,
+        branch: "main",
+        url: "https://github.test/acme/widgets/releases/tag/v1.2.0",
+        author: "erin",
+      },
+    });
+  });
+
+  it("says nothing of a release that is not published, or has no tag", async () => {
+    for (const action of ["created", "released", "prereleased", "edited"]) {
+      const { body } = await deliver("release", { action, installation: { id: 42 }, repository, release });
+      expect(body.reason).toBe("nothing-to-say");
+    }
+    const untagged = await deliver("release", {
+      action: "published",
+      installation: { id: 42 },
+      repository,
+      release: { ...release, tag_name: "" },
+    });
+    expect(untagged.body.reason).toBe("nothing-to-say");
+  });
+
+  it("emits tag-created for a tag, with its page and who pushed it", async () => {
+    await deliver("create", {
+      ref: "release/1.0",
+      ref_type: "tag",
+      master_branch: "main",
+      installation: { id: 42 },
+      repository: { ...repository, html_url: "https://github.test/acme/widgets" },
+      sender: { login: "frank" },
+    });
+    expect(h.initiative.installs.get("gapp_one")!.events).toEqual([
+      {
+        event_type: EMIT_IDS.tagCreated,
+        payload: {
+          repository: "widgets",
+          owner: "acme",
+          tag: "release/1.0",
+          url: "https://github.test/acme/widgets/tree/release/1.0",
+          author: "frank",
+        },
+      },
+    ]);
+  });
+
+  it("says nothing of a new branch", async () => {
+    const { body } = await deliver("create", {
+      ref: "feature",
+      ref_type: "branch",
+      installation: { id: 42 },
+      repository,
+      sender: { login: "frank" },
+    });
+    expect(body.reason).toBe("nothing-to-say");
   });
 
   it("announces a redelivery once", async () => {

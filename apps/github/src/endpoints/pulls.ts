@@ -19,6 +19,7 @@ import {
   out,
   OWNER_OUT,
   param,
+  PEOPLE_OF,
   READ_IDS,
   REPO,
   REPO_OUT,
@@ -150,7 +151,9 @@ export const findPullRequests: Read = {
       LABELS_IN,
       param("base_ref", "string", text("Into branch", "Nach Branch", "Hacia la rama", "Vers la branche")),
       param("head_ref", "string", text("From branch", "Von Branch", "Desde la rama", "Depuis la branche")),
-      param("review_requested", "string", text("Waiting on", "Wartet auf", "Esperando a", "En attente de")),
+      param("review_requested", "string", text("Waiting on", "Wartet auf", "Esperando a", "En attente de"), {
+        options_from: PEOPLE_OF,
+      }),
       SORT_IN,
       DIRECTION_IN,
       LIMIT_IN,
@@ -306,7 +309,10 @@ export const requestReview: Write = {
     params: [
       REPO,
       NUMBER,
-      param("reviewers", "string", text("Reviewers", "Reviewer", "Revisores", "Relecteurs"), { list: true }),
+      param("reviewers", "string", text("Reviewers", "Reviewer", "Revisores", "Relecteurs"), {
+        list: true,
+        options_from: PEOPLE_OF,
+      }),
       param("team_reviewers", "string", text("Team reviewers", "Team-Reviewer", "Equipos revisores", "Équipes relectrices"), {
         list: true,
       }),

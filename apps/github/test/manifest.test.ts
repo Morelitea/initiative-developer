@@ -1,20 +1,23 @@
-/** The manifest, the committed artifacts built from it, and the settings the app starts with. */
+/**
+ * The manifest `initiative-app build` wrote from the app's definition, the
+ * registry listing, and the settings the app starts with.
+ */
 
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { validateManifest } from "initiative-app-kit";
+import { validateManifest, type Manifest } from "initiative-app-sdk/manifest";
 import { describe, expect, it } from "vitest";
 
+import app from "../src/app.js";
 import { ConfigError, ENVIRONMENT, loadConfig } from "../src/config.js";
-import { listingEntry, VERSION } from "../src/listing.config.js";
-import { manifest } from "../src/manifest.config.js";
 import { ACCOUNT, LISTING_UID, SCOPES, WORKSPACE } from "../src/vocabulary.js";
 import { appKey } from "./support/keys.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const packageVersion = (JSON.parse(readFileSync(join(root, "package.json"), "utf-8")) as { version: string }).version;
+const manifest = JSON.parse(readFileSync(join(root, "manifest.json"), "utf-8")) as Manifest;
 
 /** Whether one dotted version is later than another. */
 function later(a: string, b: string): boolean {
@@ -28,7 +31,7 @@ function later(a: string, b: string): boolean {
 const connection = (id: string) => manifest.connections!.find((one) => one.id === id)!;
 
 describe("manifest", () => {
-  it("passes the kit's validation", () => {
+  it("passes the SDK's validation", () => {
     expect(validateManifest(manifest)).toEqual([]);
   });
 
@@ -130,24 +133,14 @@ describe("manifest", () => {
     expect(account.fields).toEqual([]);
   });
 
-  it("is what manifest.json holds", () => {
-    expect(readFileSync(join(root, "manifest.json"), "utf-8")).toBe(`${JSON.stringify(manifest, null, 2)}\n`);
-  });
-
-  it("is what the registry source carries once listed, with the ceiling and a registration by container", () => {
+  it("is listed in the registry, with the ceiling and a registration by container", () => {
     const source = join(root, "..", "..", "registry", "sources", "morelitea", LISTING_UID);
-    const avatar = readFileSync(join(root, "assets", "avatar.png"));
     const listing = JSON.parse(readFileSync(join(source, "listing.json"), "utf-8"));
-    expect(listing).toEqual(listingEntry(avatar));
+    expect(listing).toMatchObject({ uid: LISTING_UID, public_id: "morelitea.github", publisher: app.listing!.publisher });
     expect(listing.registration).toMatchObject({ kind: "container", scope_ceiling: [...SCOPES], reference_sectors: [] });
     expect(listing.registration.jwks.keys[0]).toMatchObject({ kty: "EC", kid: "github-1", alg: "ES256" });
-    if (packageVersion === VERSION) {
-      const definition = JSON.parse(readFileSync(join(source, listing.versions[0].definition), "utf-8"));
-      expect(definition).toEqual(manifest);
-    } else {
-      // Between releases the app runs ahead of what the listing publishes, never behind it.
-      expect(later(packageVersion, VERSION)).toBe(true);
-    }
+    // Between releases the app runs ahead of what the listing publishes, never behind it.
+    expect(packageVersion === listing.versions[0].version || later(packageVersion, listing.versions[0].version)).toBe(true);
   });
 });
 

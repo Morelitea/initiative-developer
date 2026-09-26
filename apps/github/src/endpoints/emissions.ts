@@ -4,49 +4,49 @@
  * carries exactly the returns it declares.
  */
 
-import type { Endpoint, EndpointReturn } from "initiative-app-kit";
+import { defineEndpoint, type EmittedEndpoint } from "initiative-app-sdk/manifest";
 
-import { EMIT_IDS, ISSUE_IDENTITY, many, out, RELEASE_IDENTITY, TAG_IDENTITY, text } from "../vocabulary.js";
+import { declare, EMIT, ISSUE_IDENTITY, many, out, RELEASE_IDENTITY, TAG_IDENTITY, text } from "../vocabulary.js";
 
-const SUBJECT: readonly EndpointReturn[] = [
-  out("repository", "string"),
-  out("owner", "string"),
-  out("number", "int"),
-  out("title", "string"),
-  out("url", "url"),
-  out("author", "string"),
-];
+const SUBJECT = {
+  repository: out("string"),
+  owner: out("string"),
+  number: out("int"),
+  title: out("string"),
+  url: out("url"),
+  author: out("string"),
+};
 
 /**
  * What a release announcement carries. `name` is the release's title, which
  * is often not its tag; `branch` is the ref it was cut from.
  */
-const RELEASE_SUBJECT: readonly EndpointReturn[] = [
-  out("repository", "string"),
-  out("owner", "string"),
-  out("tag", "string"),
-  out("name", "string", { label: text("Title", "Titel", "Título", "Titre") }),
-  out("branch", "string", {
+const RELEASE_SUBJECT = {
+  repository: out("string"),
+  owner: out("string"),
+  tag: out("string"),
+  name: out("string", { label: text("Title", "Titel", "Título", "Titre") }),
+  branch: out("string", {
     label: text("Released from", "Veröffentlicht aus", "Publicado desde", "Publié depuis"),
   }),
-  out("url", "url"),
-  out("author", "string"),
-];
+  url: out("url"),
+  author: out("string"),
+};
 
 /**
  * What a tag announcement carries. A tag points at a commit, not a branch, so
  * GitHub names none and neither does this.
  */
-const TAG_SUBJECT: readonly EndpointReturn[] = [
-  out("repository", "string"),
-  out("owner", "string"),
-  out("tag", "string"),
-  out("url", "url"),
-  out("author", "string"),
-];
+const TAG_SUBJECT = {
+  repository: out("string"),
+  owner: out("string"),
+  tag: out("string"),
+  url: out("url"),
+  author: out("string"),
+};
 
 interface Announcement {
-  declaration: Endpoint;
+  declaration: EmittedEndpoint<object>;
   /** The GitHub event it answers, and which deliveries of it. */
   event: string;
   when(payload: Record<string, unknown>): boolean;
@@ -131,13 +131,12 @@ function issueEvent(payload: Record<string, unknown>) {
   return { ...base, labels: labelsOf(payload) };
 }
 
-export const ANNOUNCEMENTS: readonly Announcement[] = [
-  {
+export const ANNOUNCEMENTS = {
+  [EMIT.issueOpened]: {
     event: "issues",
     when: action("opened"),
     build: issueEvent,
-    declaration: {
-      id: EMIT_IDS.issueOpened,
+    declaration: defineEndpoint({
       direction: "emit",
       label: text("An issue was opened", "Ein Issue wurde geöffnet", "Se abrió una incidencia", "Un ticket a été ouvert"),
       description: text(
@@ -147,16 +146,15 @@ export const ANNOUNCEMENTS: readonly Announcement[] = [
         "Quand quelqu'un ouvre un ticket dans un dépôt couvert par l'installation."
       ),
       group: "issues",
-      returns: [...SUBJECT, many(out("labels", "string"))],
+      returns: { ...SUBJECT, labels: many(out("string")) },
       identity: ISSUE_IDENTITY,
-    },
+    }),
   },
-  {
+  [EMIT.issueClosed]: {
     event: "issues",
     when: action("closed"),
     build: issueEvent,
-    declaration: {
-      id: EMIT_IDS.issueClosed,
+    declaration: defineEndpoint({
       direction: "emit",
       label: text("An issue was closed", "Ein Issue wurde geschlossen", "Se cerró una incidencia", "Un ticket a été fermé"),
       description: text(
@@ -166,11 +164,11 @@ export const ANNOUNCEMENTS: readonly Announcement[] = [
         "Quand quelqu'un ferme un ticket dans un dépôt couvert par l'installation."
       ),
       group: "issues",
-      returns: [...SUBJECT, many(out("labels", "string"))],
+      returns: { ...SUBJECT, labels: many(out("string")) },
       identity: ISSUE_IDENTITY,
-    },
+    }),
   },
-  {
+  [EMIT.reviewRequested]: {
     event: "pull_request",
     when: action("review_requested"),
     build: (payload) => {
@@ -183,8 +181,7 @@ export const ANNOUNCEMENTS: readonly Announcement[] = [
           textOf(field(payload, "requested_team"), "slug"),
       };
     },
-    declaration: {
-      id: EMIT_IDS.reviewRequested,
+    declaration: defineEndpoint({
       direction: "emit",
       label: text("A review was requested", "Eine Review wurde angefragt", "Se solicitó una revisión", "Une revue a été demandée"),
       description: text(
@@ -194,19 +191,18 @@ export const ANNOUNCEMENTS: readonly Announcement[] = [
         "Quand une pull request demande à une personne ou une équipe de la relire."
       ),
       group: "reviews",
-      returns: [...SUBJECT, out("reviewer", "string")],
+      returns: { ...SUBJECT, reviewer: out("string") },
       identity: ISSUE_IDENTITY,
-    },
+    }),
   },
   // GitHub's own `released` and `prereleased`, rather than `published`: a
   // subscriber wanting only one is never sent the other, and a pre-release
   // promoted to a full release is announced as a release.
-  {
+  [EMIT.releasePublished]: {
     event: "release",
     when: action("released"),
     build: releaseEvent,
-    declaration: {
-      id: EMIT_IDS.releasePublished,
+    declaration: defineEndpoint({
       direction: "emit",
       label: text(
         "A release was published",
@@ -221,16 +217,15 @@ export const ANNOUNCEMENTS: readonly Announcement[] = [
         "Quand une version complète sort dans un dépôt couvert par l'installation. Les préversions ont leur propre annonce."
       ),
       group: "releases",
-      returns: [...RELEASE_SUBJECT],
+      returns: RELEASE_SUBJECT,
       identity: RELEASE_IDENTITY,
-    },
+    }),
   },
-  {
+  [EMIT.prereleasePublished]: {
     event: "release",
     when: action("prereleased"),
     build: releaseEvent,
-    declaration: {
-      id: EMIT_IDS.prereleasePublished,
+    declaration: defineEndpoint({
       direction: "emit",
       label: text(
         "A pre-release was published",
@@ -245,17 +240,16 @@ export const ANNOUNCEMENTS: readonly Announcement[] = [
         "Quand une version marquée comme préversion sort dans un dépôt couvert par l'installation."
       ),
       group: "releases",
-      returns: [...RELEASE_SUBJECT],
+      returns: RELEASE_SUBJECT,
       identity: RELEASE_IDENTITY,
-    },
+    }),
   },
   // GitHub sends `create` for a branch and a tag alike, told apart by `ref_type`.
-  {
+  [EMIT.tagCreated]: {
     event: "create",
     when: (payload) => textOf(payload, "ref_type") === "tag",
     build: tagEvent,
-    declaration: {
-      id: EMIT_IDS.tagCreated,
+    declaration: defineEndpoint({
       direction: "emit",
       label: text("A tag was pushed", "Ein Tag wurde gepusht", "Se subió una etiqueta", "Une étiquette a été poussée"),
       description: text(
@@ -265,21 +259,24 @@ export const ANNOUNCEMENTS: readonly Announcement[] = [
         "Quand une étiquette est créée dans un dépôt couvert par l'installation. GitHub n'indique pas sur quelle branche se trouve une étiquette."
       ),
       group: "releases",
-      returns: [...TAG_SUBJECT],
+      returns: TAG_SUBJECT,
       identity: TAG_IDENTITY,
-    },
+    }),
   },
-];
+} satisfies Record<string, Announcement>;
 
-export const EMIT_ENDPOINTS: readonly Endpoint[] = ANNOUNCEMENTS.map((one) => one.declaration);
+/** The announcements' declarations, by name. */
+export const EMIT_ENDPOINTS = Object.fromEntries(
+  Object.entries(ANNOUNCEMENTS).map(([name, announcement]) => [name, announcement.declaration])
+) as { [K in keyof typeof ANNOUNCEMENTS]: (typeof ANNOUNCEMENTS)[K]["declaration"] };
 
 /** What one GitHub delivery announces, or null when it announces nothing. */
 export function translate(
   event: string,
   payload: Record<string, unknown>
 ): { eventType: string; payload: Record<string, unknown> } | null {
-  const announcement = ANNOUNCEMENTS.find((one) => one.event === event && one.when(payload));
-  if (!announcement) return null;
-  const built = announcement.build(payload);
-  return built ? { eventType: announcement.declaration.id, payload: built } : null;
+  const found = Object.entries(ANNOUNCEMENTS).find(([, one]) => one.event === event && one.when(payload));
+  if (!found) return null;
+  const built = found[1].build(payload);
+  return built ? { eventType: declare(found[0]), payload: built } : null;
 }

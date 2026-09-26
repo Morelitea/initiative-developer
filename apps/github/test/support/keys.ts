@@ -2,7 +2,7 @@
 
 import { createSign } from "node:crypto";
 
-import { generateAppKeys, loadPrivateKey, publicJwks } from "initiative-app-kit";
+import { generateAppKeys, loadPrivateKey, publicJwks } from "initiative-app-sdk/client";
 
 /** The deployment's platform key: signs context and lifecycle tokens. */
 export const platform = generateAppKeys({ alg: "RS256", kid: "platform-1" });

@@ -1,3 +1,5 @@
+import { defineEndpoint } from "initiative-app-sdk/manifest";
+
 import { graphql, rest } from "../github/http.js";
 import {
   ASSIGNEES_OUT,
@@ -21,7 +23,6 @@ import {
   OWNER_OUT,
   param,
   PEOPLE_OF,
-  READ_IDS,
   REPO,
   REPO_OUT,
   ROWS_OUT,
@@ -36,7 +37,6 @@ import {
   UPDATED_OUT,
   URL_OUT,
   WORKSPACE,
-  WRITE_IDS,
 } from "../vocabulary.js";
 import {
   bad,
@@ -46,6 +46,7 @@ import {
   limit,
   list,
   lower,
+  memberWrite,
   nodes,
   ordering,
   PAGE,
@@ -67,38 +68,33 @@ import {
   type Call,
   type Connection,
   type Place,
-  type Read,
   type Row,
   type SubjectNode,
-  type Write,
   type WriteOutcome,
 } from "./support.js";
 
-export const listLabels: Read = {
-  declaration: {
-    id: READ_IDS.listLabels,
-    direction: "read",
-    label: text("Labels", "Labels", "Etiquetas", "Étiquettes"),
-    description: text(
-      "Every label that exists on the repository.",
-      "Alle Labels, die es im Repository gibt.",
-      "Todas las etiquetas que existen en el repositorio.",
-      "Toutes les étiquettes qui existent dans le dépôt."
-    ),
-    group: "issues",
-    ...PUBLIC_READ,
-    cache_ttl_seconds: 300,
-    params: [REPO],
-    returns: [
-      many(out("names", "string", { label: text("Labels", "Labels", "Etiquetas", "Étiquettes") })),
-      COUNT_OUT,
-      TOTAL_OUT,
-      UNAVAILABLE,
-    ],
-    requires: { all_of: [WORKSPACE] },
+export const listLabels = defineEndpoint({
+  direction: "read",
+  label: text("Labels", "Labels", "Etiquetas", "Étiquettes"),
+  description: text(
+    "Every label that exists on the repository.",
+    "Alle Labels, die es im Repository gibt.",
+    "Todas las etiquetas que existen en el repositorio.",
+    "Toutes les étiquettes qui existent dans le dépôt."
+  ),
+  group: "issues",
+  ...PUBLIC_READ,
+  cache_ttl_seconds: 300,
+  params: { ...REPO },
+  returns: {
+    names: many(out("string", { label: text("Labels", "Labels", "Etiquetas", "Étiquettes") })),
+    ...COUNT_OUT,
+    ...TOTAL_OUT,
+    ...UNAVAILABLE,
   },
+  requires: { all_of: [WORKSPACE] },
 
-  async run(call) {
+  async handler(call) {
     const access = await repoAccess(call);
     if (isResult(access)) return { actor: "installation", result: access };
     const answer = await graphql<{ repository: { labels: Connection<{ name?: string }> } | null }>(
@@ -118,34 +114,31 @@ export const listLabels: Read = {
       result: { names, count: names.length, total: labels.totalCount ?? names.length },
     };
   },
-};
+});
 
-export const listMilestones: Read = {
-  declaration: {
-    id: READ_IDS.listMilestones,
-    direction: "read",
-    label: text("Milestones", "Meilensteine", "Hitos", "Jalons"),
-    description: text(
-      "The milestones a repository is still working towards.",
-      "Die Meilensteine, auf die ein Repository noch hinarbeitet.",
-      "Los hitos hacia los que un repositorio todavía trabaja.",
-      "Les jalons vers lesquels un dépôt travaille encore."
-    ),
-    group: "issues",
-    ...PUBLIC_READ,
-    cache_ttl_seconds: 300,
-    params: [REPO],
-    returns: [
-      many(out("numbers", "int", { label: text("Milestones", "Meilensteine", "Hitos", "Jalons") })),
-      many(out("titles", "string", { label: text("Names", "Namen", "Nombres", "Noms") })),
-      COUNT_OUT,
-      TOTAL_OUT,
-      UNAVAILABLE,
-    ],
-    requires: { all_of: [WORKSPACE] },
+export const listMilestones = defineEndpoint({
+  direction: "read",
+  label: text("Milestones", "Meilensteine", "Hitos", "Jalons"),
+  description: text(
+    "The milestones a repository is still working towards.",
+    "Die Meilensteine, auf die ein Repository noch hinarbeitet.",
+    "Los hitos hacia los que un repositorio todavía trabaja.",
+    "Les jalons vers lesquels un dépôt travaille encore."
+  ),
+  group: "issues",
+  ...PUBLIC_READ,
+  cache_ttl_seconds: 300,
+  params: { ...REPO },
+  returns: {
+    numbers: many(out("int", { label: text("Milestones", "Meilensteine", "Hitos", "Jalons") })),
+    titles: many(out("string", { label: text("Names", "Namen", "Nombres", "Noms") })),
+    ...COUNT_OUT,
+    ...TOTAL_OUT,
+    ...UNAVAILABLE,
   },
+  requires: { all_of: [WORKSPACE] },
 
-  async run(call) {
+  async handler(call) {
     const access = await repoAccess(call);
     if (isResult(access)) return { actor: "installation", result: access };
     // Open ones, soonest due first: what somebody is planning against.
@@ -180,48 +173,45 @@ export const listMilestones: Read = {
       },
     };
   },
-};
+});
 
-export const getIssue: Read = {
-  declaration: {
-    id: READ_IDS.getIssue,
-    direction: "read",
-    label: text("Get an issue", "Issue abrufen", "Obtener una incidencia", "Récupérer un ticket"),
-    description: text(
-      "One issue by number: its state, its labels and who it is assigned to.",
-      "Ein Issue nach Nummer: Status, Labels und zuständige Personen.",
-      "Una incidencia por número: su estado, sus etiquetas y a quién está asignada.",
-      "Un ticket par numéro : son état, ses étiquettes et à qui il est assigné."
-    ),
-    group: "issues",
-    ...PUBLIC_READ,
-    cache_ttl_seconds: 0,
-    params: [REPO, NUMBER],
-    returns: [
-      REPO_OUT,
-      OWNER_OUT,
-      NUMBER_OUT,
-      TITLE_OUT,
-      STATE_OUT,
-      out("state_reason", "string", {
-        label: text("Why it closed", "Warum geschlossen", "Motivo del cierre", "Raison de la fermeture"),
-      }),
-      URL_OUT,
-      AUTHOR_OUT,
-      LABELS_OUT,
-      ASSIGNEES_OUT,
-      MILESTONE_OUT,
-      COMMENTS_OUT,
-      out("is_pull_request", "bool"),
-      CREATED_OUT,
-      UPDATED_OUT,
-      CLOSED_OUT,
-      UNAVAILABLE,
-    ],
-    requires: { all_of: [WORKSPACE] },
+export const getIssue = defineEndpoint({
+  direction: "read",
+  label: text("Get an issue", "Issue abrufen", "Obtener una incidencia", "Récupérer un ticket"),
+  description: text(
+    "One issue by number: its state, its labels and who it is assigned to.",
+    "Ein Issue nach Nummer: Status, Labels und zuständige Personen.",
+    "Una incidencia por número: su estado, sus etiquetas y a quién está asignada.",
+    "Un ticket par numéro : son état, ses étiquettes et à qui il est assigné."
+  ),
+  group: "issues",
+  ...PUBLIC_READ,
+  cache_ttl_seconds: 0,
+  params: { ...REPO, ...NUMBER },
+  returns: {
+    ...REPO_OUT,
+    ...OWNER_OUT,
+    ...NUMBER_OUT,
+    ...TITLE_OUT,
+    ...STATE_OUT,
+    state_reason: out("string", {
+      label: text("Why it closed", "Warum geschlossen", "Motivo del cierre", "Raison de la fermeture"),
+    }),
+    ...URL_OUT,
+    ...AUTHOR_OUT,
+    ...LABELS_OUT,
+    ...ASSIGNEES_OUT,
+    ...MILESTONE_OUT,
+    ...COMMENTS_OUT,
+    is_pull_request: out("bool"),
+    ...CREATED_OUT,
+    ...UPDATED_OUT,
+    ...CLOSED_OUT,
+    ...UNAVAILABLE,
   },
+  requires: { all_of: [WORKSPACE] },
 
-  async run(call) {
+  async handler(call) {
     const access = await repoAccess(call);
     if (isResult(access)) return { actor: "installation", result: access };
     const number = int(call.params, "number");
@@ -253,43 +243,40 @@ export const getIssue: Read = {
       },
     };
   },
-};
+});
 
 const ISSUE_STATES = ["open", "closed", "all"] as const;
 
-export const findIssues: Read = {
-  declaration: {
-    id: READ_IDS.findIssues,
-    direction: "read",
-    label: text("Find issues", "Issues suchen", "Buscar incidencias", "Rechercher des tickets"),
-    description: text(
-      "The issues matching a question, as the numbers to act on.",
-      "Die Issues, die zu einer Frage passen, als die Nummern, mit denen man weiterarbeitet.",
-      "Las incidencias que coinciden con una consulta, como los números sobre los que actuar.",
-      "Les tickets correspondant à une question, sous forme des numéros sur lesquels agir."
-    ),
-    group: "issues",
-    ...PUBLIC_READ,
-    cache_ttl_seconds: 60,
-    params: [
-      REPO,
-      param("state", "select", text("State", "Status", "Estado", "État"), { options: [...ISSUE_STATES] }),
-      LABELS_IN,
-      param("assignee", "string", text("Assignee", "Zuständige Person", "Persona asignada", "Personne assignée"), {
-        options_from: PEOPLE_OF,
-      }),
-      param("milestone", "int", text("Milestone", "Meilenstein", "Hito", "Jalon"), { options_from: MILESTONES_OF }),
-      SINCE_IN,
-      SINCE_DAYS_IN,
-      SORT_IN,
-      DIRECTION_IN,
-      LIMIT_IN,
-    ],
-    returns: ROWS_OUT,
-    requires: { all_of: [WORKSPACE] },
+export const findIssues = defineEndpoint({
+  direction: "read",
+  label: text("Find issues", "Issues suchen", "Buscar incidencias", "Rechercher des tickets"),
+  description: text(
+    "The issues matching a question, as the numbers to act on.",
+    "Die Issues, die zu einer Frage passen, als die Nummern, mit denen man weiterarbeitet.",
+    "Las incidencias que coinciden con una consulta, como los números sobre los que actuar.",
+    "Les tickets correspondant à une question, sous forme des numéros sur lesquels agir."
+  ),
+  group: "issues",
+  ...PUBLIC_READ,
+  cache_ttl_seconds: 60,
+  params: {
+    ...REPO,
+    state: param("select", text("State", "Status", "Estado", "État"), { options: [...ISSUE_STATES] }),
+    ...LABELS_IN,
+    assignee: param("string", text("Assignee", "Zuständige Person", "Persona asignada", "Personne assignée"), {
+      options_from: PEOPLE_OF,
+    }),
+    milestone: param("int", text("Milestone", "Meilenstein", "Hito", "Jalon"), { options_from: MILESTONES_OF }),
+    ...SINCE_IN,
+    ...SINCE_DAYS_IN,
+    ...SORT_IN,
+    ...DIRECTION_IN,
+    ...LIMIT_IN,
   },
+  returns: ROWS_OUT,
+  requires: { all_of: [WORKSPACE] },
 
-  async run(call) {
+  async handler(call) {
     const access = await repoAccess(call);
     if (isResult(access)) return { actor: "installation", result: access };
     const labels = list(call.params, "labels");
@@ -324,7 +311,7 @@ export const findIssues: Read = {
     if (!issues) return { actor: "installation", result: unavailable("not-found") };
     return { actor: "installation", result: rows(nodes(issues), issues.totalCount) };
   },
-};
+});
 
 /** The repository a write names, checked against what the installation covers. */
 export async function writePlace(call: Call, place: Place): Promise<{ repo: string } | WriteOutcome> {
@@ -351,39 +338,36 @@ async function setState(call: Call, token: string, place: Place, closing: boolea
   return { ok: true, result: { repository: where.repo, ...pick(answer.body, ["number", "state", "html_url"]) } };
 }
 
-export const openIssue: Write = {
-  declaration: {
-    id: WRITE_IDS.openIssue,
-    direction: "write",
-    label: text("Open an issue", "Issue öffnen", "Abrir una incidencia", "Ouvrir un ticket"),
-    description: text(
-      "Opens one in a repository the installation covers, as the member.",
-      "Öffnet eines in einem Repository der Installation, als das Mitglied.",
-      "Abre una en un repositorio que cubre la instalación, como el miembro.",
-      "En ouvre un dans un dépôt couvert par l'installation, en tant que le membre."
-    ),
-    group: "issues",
-    ...PUBLIC_WRITE,
-    params: [
-      REPO,
-      param("title", "string", text("Title", "Titel", "Título", "Titre"), { required: true }),
-      param("body", "string", text("Body", "Text", "Cuerpo", "Corps")),
-      LABELS_IN,
-      param("assignees", "string", text("Assignees", "Zuständige", "Asignados", "Assignés"), {
-        list: true,
-        options_from: PEOPLE_OF,
-      }),
-    ],
-    returns: [
-      REPO_OUT,
-      NUMBER_OUT,
-      LINK_OUT,
-      out("id", "int", { label: text("GitHub id", "GitHub-ID", "ID de GitHub", "Identifiant GitHub") }),
-    ],
-    identity: ISSUE_IDENTITY,
+export const openIssue = defineEndpoint({
+  direction: "write",
+  label: text("Open an issue", "Issue öffnen", "Abrir una incidencia", "Ouvrir un ticket"),
+  description: text(
+    "Opens one in a repository the installation covers, as the member.",
+    "Öffnet eines in einem Repository der Installation, als das Mitglied.",
+    "Abre una en un repositorio que cubre la instalación, como el miembro.",
+    "En ouvre un dans un dépôt couvert par l'installation, en tant que le membre."
+  ),
+  group: "issues",
+  ...PUBLIC_WRITE,
+  params: {
+    ...REPO,
+    title: param("string", text("Title", "Titel", "Título", "Titre"), { required: true }),
+    body: param("string", text("Body", "Text", "Cuerpo", "Corps")),
+    ...LABELS_IN,
+    assignees: param("string", text("Assignees", "Zuständige", "Asignados", "Assignés"), {
+      list: true,
+      options_from: PEOPLE_OF,
+    }),
   },
+  returns: {
+    ...REPO_OUT,
+    ...NUMBER_OUT,
+    ...LINK_OUT,
+    id: out("int", { label: text("GitHub id", "GitHub-ID", "ID de GitHub", "Identifiant GitHub") }),
+  },
+  identity: ISSUE_IDENTITY,
 
-  async run(call, token, place) {
+  handler: memberWrite(async (call, token, place) => {
     const where = await writePlace(call, place);
     if ("ok" in where) return where;
     const title = textParam(call.params, "title");
@@ -400,35 +384,32 @@ export const openIssue: Write = {
     });
     if (!answer.ok) return writeFailure(answer.failure, answer.message);
     return { ok: true, result: { repository: where.repo, ...pick(answer.body, ["number", "html_url", "id"]) } };
-  },
-};
+  }),
+});
 
-export const comment: Write = {
-  declaration: {
-    id: WRITE_IDS.comment,
-    direction: "write",
-    label: text("Comment", "Kommentieren", "Comentar", "Commenter"),
-    description: text(
-      "Adds a comment to an issue or a pull request, as the member.",
-      "Fügt einem Issue oder Pull Request einen Kommentar hinzu, als das Mitglied.",
-      "Añade un comentario a una incidencia o pull request, como el miembro.",
-      "Ajoute un commentaire à un ticket ou une pull request, en tant que le membre."
-    ),
-    group: "issues",
-    ...PUBLIC_WRITE,
-    params: [REPO, NUMBER, param("body", "string", text("Body", "Text", "Cuerpo", "Corps"), { required: true })],
-    returns: [
-      REPO_OUT,
-      NUMBER_OUT,
-      out("id", "int", {
-        label: text("Comment id", "Kommentar-ID", "ID del comentario", "Identifiant du commentaire"),
-      }),
-      LINK_OUT,
-    ],
-    identity: ISSUE_IDENTITY,
+export const comment = defineEndpoint({
+  direction: "write",
+  label: text("Comment", "Kommentieren", "Comentar", "Commenter"),
+  description: text(
+    "Adds a comment to an issue or a pull request, as the member.",
+    "Fügt einem Issue oder Pull Request einen Kommentar hinzu, als das Mitglied.",
+    "Añade un comentario a una incidencia o pull request, como el miembro.",
+    "Ajoute un commentaire à un ticket ou une pull request, en tant que le membre."
+  ),
+  group: "issues",
+  ...PUBLIC_WRITE,
+  params: { ...REPO, ...NUMBER, body: param("string", text("Body", "Text", "Cuerpo", "Corps"), { required: true }) },
+  returns: {
+    ...REPO_OUT,
+    ...NUMBER_OUT,
+    id: out("int", {
+      label: text("Comment id", "Kommentar-ID", "ID del comentario", "Identifiant du commentaire"),
+    }),
+    ...LINK_OUT,
   },
+  identity: ISSUE_IDENTITY,
 
-  async run(call, token, place) {
+  handler: memberWrite(async (call, token, place) => {
     const where = await writePlace(call, place);
     if ("ok" in where) return where;
     const number = int(call.params, "number");
@@ -445,81 +426,71 @@ export const comment: Write = {
     );
     if (!answer.ok) return writeFailure(answer.failure, answer.message);
     return { ok: true, result: { repository: where.repo, number, ...pick(answer.body, ["id", "html_url"]) } };
+  }),
+});
+
+const STATE_RETURNS = { ...REPO_OUT, ...NUMBER_OUT, state: out("string"), ...LINK_OUT };
+
+export const closeIssue = defineEndpoint({
+  direction: "write",
+  label: text("Close an issue", "Issue schließen", "Cerrar una incidencia", "Fermer un ticket"),
+  description: text(
+    "Closes it as completed or as not planned, as the member.",
+    "Schließt es als erledigt oder als nicht geplant, als das Mitglied.",
+    "La cierra como completada o como no planificada, como el miembro.",
+    "Le ferme comme terminé ou comme non planifié, en tant que le membre."
+  ),
+  group: "issues",
+  ...PUBLIC_WRITE,
+  params: {
+    ...REPO,
+    ...NUMBER,
+    reason: param("select", text("Reason", "Grund", "Motivo", "Raison"), { options: ["completed", "not_planned"] }),
   },
-};
+  returns: STATE_RETURNS,
+  identity: ISSUE_IDENTITY,
 
-const STATE_RETURNS = [REPO_OUT, NUMBER_OUT, out("state", "string"), LINK_OUT];
+  handler: memberWrite((call, token, place) => setState(call, token, place, true)),
+});
 
-export const closeIssue: Write = {
-  declaration: {
-    id: WRITE_IDS.closeIssue,
-    direction: "write",
-    label: text("Close an issue", "Issue schließen", "Cerrar una incidencia", "Fermer un ticket"),
-    description: text(
-      "Closes it as completed or as not planned, as the member.",
-      "Schließt es als erledigt oder als nicht geplant, als das Mitglied.",
-      "La cierra como completada o como no planificada, como el miembro.",
-      "Le ferme comme terminé ou comme non planifié, en tant que le membre."
-    ),
-    group: "issues",
-    ...PUBLIC_WRITE,
-    params: [
-      REPO,
-      NUMBER,
-      param("reason", "select", text("Reason", "Grund", "Motivo", "Raison"), { options: ["completed", "not_planned"] }),
-    ],
-    returns: STATE_RETURNS,
-    identity: ISSUE_IDENTITY,
-  },
+export const reopenIssue = defineEndpoint({
+  direction: "write",
+  label: text("Reopen an issue", "Issue wieder öffnen", "Reabrir una incidencia", "Rouvrir un ticket"),
+  description: text(
+    "Puts a closed issue back into the open state, as the member.",
+    "Versetzt ein geschlossenes Issue zurück in den offenen Zustand, als das Mitglied.",
+    "Devuelve una incidencia cerrada al estado abierto, como el miembro.",
+    "Remet un ticket fermé à l'état ouvert, en tant que le membre."
+  ),
+  group: "issues",
+  ...PUBLIC_WRITE,
+  params: { ...REPO, ...NUMBER },
+  returns: STATE_RETURNS,
+  identity: ISSUE_IDENTITY,
 
-  run: (call, token, place) => setState(call, token, place, true),
-};
+  handler: memberWrite((call, token, place) => setState(call, token, place, false)),
+});
 
-export const reopenIssue: Write = {
-  declaration: {
-    id: WRITE_IDS.reopenIssue,
-    direction: "write",
-    label: text("Reopen an issue", "Issue wieder öffnen", "Reabrir una incidencia", "Rouvrir un ticket"),
-    description: text(
-      "Puts a closed issue back into the open state, as the member.",
-      "Versetzt ein geschlossenes Issue zurück in den offenen Zustand, als das Mitglied.",
-      "Devuelve una incidencia cerrada al estado abierto, como el miembro.",
-      "Remet un ticket fermé à l'état ouvert, en tant que le membre."
-    ),
-    group: "issues",
-    ...PUBLIC_WRITE,
-    params: [REPO, NUMBER],
-    returns: STATE_RETURNS,
-    identity: ISSUE_IDENTITY,
-  },
+export const label = defineEndpoint({
+  direction: "write",
+  label: text("Change labels", "Labels ändern", "Cambiar etiquetas", "Modifier les étiquettes"),
+  description: text(
+    "Adds or removes labels on an issue or a pull request, as the member.",
+    "Fügt an einem Issue oder Pull Request Labels hinzu oder entfernt sie, als das Mitglied.",
+    "Añade o quita etiquetas en una incidencia o pull request, como el miembro.",
+    "Ajoute ou retire des étiquettes sur un ticket ou une pull request, en tant que le membre."
+  ),
+  group: "issues",
+  ...PUBLIC_WRITE,
+  params: {
+    ...REPO,
+    ...NUMBER,
+    add: { ...LABELS_IN.labels, label: text("Labels to add", "Hinzuzufügende Labels", "Etiquetas a añadir", "Étiquettes à ajouter") },
+    remove: { ...LABELS_IN.labels, label: text("Labels to remove", "Zu entfernende Labels", "Etiquetas a quitar", "Étiquettes à retirer") }},
+  returns: { ...REPO_OUT, ...NUMBER_OUT },
+  identity: ISSUE_IDENTITY,
 
-  run: (call, token, place) => setState(call, token, place, false),
-};
-
-export const label: Write = {
-  declaration: {
-    id: WRITE_IDS.label,
-    direction: "write",
-    label: text("Change labels", "Labels ändern", "Cambiar etiquetas", "Modifier les étiquettes"),
-    description: text(
-      "Adds or removes labels on an issue or a pull request, as the member.",
-      "Fügt an einem Issue oder Pull Request Labels hinzu oder entfernt sie, als das Mitglied.",
-      "Añade o quita etiquetas en una incidencia o pull request, como el miembro.",
-      "Ajoute ou retire des étiquettes sur un ticket ou une pull request, en tant que le membre."
-    ),
-    group: "issues",
-    ...PUBLIC_WRITE,
-    params: [
-      REPO,
-      NUMBER,
-      { ...LABELS_IN, key: "add", label: text("Labels to add", "Hinzuzufügende Labels", "Etiquetas a añadir", "Étiquettes à ajouter") },
-      { ...LABELS_IN, key: "remove", label: text("Labels to remove", "Zu entfernende Labels", "Etiquetas a quitar", "Étiquettes à retirer") },
-    ],
-    returns: [REPO_OUT, NUMBER_OUT],
-    identity: ISSUE_IDENTITY,
-  },
-
-  async run(call, token, place) {
+  handler: memberWrite(async (call, token, place) => {
     const where = await writePlace(call, place);
     if ("ok" in where) return where;
     const number = int(call.params, "number");
@@ -540,5 +511,5 @@ export const label: Write = {
       if (!answer.ok) return writeFailure(answer.failure, answer.message);
     }
     return { ok: true, result: { repository: where.repo, number } };
-  },
-};
+  }),
+});

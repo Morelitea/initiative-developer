@@ -5,13 +5,7 @@
  * ships.
  */
 
-import type {
-  EndpointIdentity,
-  EndpointParam,
-  EndpointReturn,
-  LocalizedText,
-  Scope,
-} from "initiative-app-kit";
+import type { LocalizedText, ParamSpec, ParamType, ReturnSpec, ReturnValueType, Scope } from "initiative-app-sdk/manifest";
 
 export const PUBLIC_ID = "morelitea.github";
 
@@ -37,191 +31,201 @@ export const ACCOUNT = "account";
 /** The schedule on which Initiative asks whether the organization's installation still exists. */
 export const CHECK_INSTALLATION = "check-installation";
 
-export const PATHS = {
-  jwks: "/.well-known/jwks.json",
-} as const;
-
 export function declare(name: string): string {
   return `app.${PUBLIC_ID}.${name}`;
 }
 
-export const READ_IDS = {
-  listRepositories: declare("list-repositories"),
-  listAssignees: declare("list-assignees"),
-  listBranches: declare("list-branches"),
-  listLabels: declare("list-labels"),
-  listMilestones: declare("list-milestones"),
-  getIssue: declare("get-issue"),
-  findIssues: declare("find-issues"),
-  getPullRequest: declare("get-pull-request"),
-  findPullRequests: declare("find-pull-requests"),
-  listAlerts: declare("list-alerts"),
-  listProjects: declare("list-projects"),
-  listProjectFields: declare("list-project-fields"),
-  listProjectOptions: declare("list-project-options"),
-  findProjectItem: declare("find-project-item"),
+/** Each name's manifest id, `app.<public id>.<name>`. */
+function ids<const T extends Record<string, string>>(names: T): { [K in keyof T]: string } {
+  return Object.fromEntries(Object.entries(names).map(([key, name]) => [key, declare(name)])) as { [K in keyof T]: string };
+}
+
+/** The endpoints, by the names the app's definition keys them by. */
+export const READ = {
+  listRepositories: "list-repositories",
+  listAssignees: "list-assignees",
+  listBranches: "list-branches",
+  listLabels: "list-labels",
+  listMilestones: "list-milestones",
+  getIssue: "get-issue",
+  findIssues: "find-issues",
+  getPullRequest: "get-pull-request",
+  findPullRequests: "find-pull-requests",
+  listAlerts: "list-alerts",
+  listProjects: "list-projects",
+  listProjectFields: "list-project-fields",
+  listProjectOptions: "list-project-options",
+  findProjectItem: "find-project-item",
 } as const;
 
-export const WRITE_IDS = {
-  openIssue: declare("open-issue"),
-  comment: declare("comment"),
-  closeIssue: declare("close-issue"),
-  reopenIssue: declare("reopen-issue"),
-  label: declare("label"),
-  requestReview: declare("request-review"),
-  moveProjectItem: declare("move-project-item"),
+export const WRITE = {
+  openIssue: "open-issue",
+  comment: "comment",
+  closeIssue: "close-issue",
+  reopenIssue: "reopen-issue",
+  label: "label",
+  requestReview: "request-review",
+  moveProjectItem: "move-project-item",
 } as const;
 
-export const EMIT_IDS = {
-  issueOpened: declare("issue-opened"),
-  issueClosed: declare("issue-closed"),
-  reviewRequested: declare("review-requested"),
-  releasePublished: declare("release-published"),
-  prereleasePublished: declare("prerelease-published"),
-  tagCreated: declare("tag-created"),
+export const EMIT = {
+  issueOpened: "issue-opened",
+  issueClosed: "issue-closed",
+  reviewRequested: "review-requested",
+  releasePublished: "release-published",
+  prereleasePublished: "prerelease-published",
+  tagCreated: "tag-created",
 } as const;
+
+export const READ_IDS = ids(READ);
+export const WRITE_IDS = ids(WRITE);
+export const EMIT_IDS = ids(EMIT);
 
 export function text(en: string, de: string, es: string, fr: string): LocalizedText {
   return { en, de, es, fr };
 }
 
-export function param(
-  key: string,
-  type: EndpointParam["type"],
+export function param<const T extends ParamType, const X extends Partial<ParamSpec> = {}>(
+  type: T,
   label: LocalizedText,
-  extra: Partial<EndpointParam> = {}
-): EndpointParam {
-  return { key, type, label, ...extra };
+  extra?: X
+): { type: T; label: LocalizedText } & X {
+  return { type, label, ...(extra as X) };
 }
 
-export function out(
-  key: string,
-  type: EndpointReturn["type"],
-  extra: Partial<EndpointReturn> = {}
-): EndpointReturn {
-  return { key, type, ...extra };
+export function out<const T extends ReturnValueType, const X extends Partial<Exclude<ReturnSpec, string>> = {}>(
+  type: T,
+  extra?: X
+): { type: T } & X {
+  return { type, ...(extra as X) };
 }
 
-export function many(value: EndpointReturn): EndpointReturn {
+export function many<const V extends object>(value: V): V & { list: true } {
   return { ...value, list: true };
 }
 
 /** An issue or pull request is named by its repository and number, on a write and on an event alike. */
-export const ISSUE_IDENTITY: EndpointIdentity = { kind: "issue", key: ["repository", "number"] };
+export const ISSUE_IDENTITY = { kind: "issue", key: ["repository", "number"] };
 
 /** A release is named by its repository and tag. */
-export const RELEASE_IDENTITY: EndpointIdentity = { kind: "release", key: ["repository", "tag"] };
+export const RELEASE_IDENTITY = { kind: "release", key: ["repository", "tag"] };
 
 /**
  * A tag is named the same way but is its own kind: a tag and a release cut at
  * it are two objects at GitHub, and either exists without the other.
  */
-export const TAG_IDENTITY: EndpointIdentity = { kind: "tag", key: ["repository", "tag"] };
+export const TAG_IDENTITY = { kind: "tag", key: ["repository", "tag"] };
 
-export const REPO = param("repo", "string", text("Repository", "Repository", "Repositorio", "Dépôt"), {
-  options_from: { endpoint: READ_IDS.listRepositories, key: "names" },
-});
+export const REPO = {
+  repo: param("string", text("Repository", "Repository", "Repositorio", "Dépôt"), {
+    options_from: { endpoint: READ.listRepositories, key: "names" },
+  }),
+};
 
 /**
  * Who can be assigned in that repository. GitHub answers who may be asked for
  * a review with the same list, so one read fills both.
  */
-export const PEOPLE_OF = { endpoint: READ_IDS.listAssignees, key: "logins", needs: { repo: "repo" } };
+export const PEOPLE_OF = { endpoint: READ.listAssignees, key: "logins", needs: { repo: "repo" } };
 
 /** That repository's open milestones, by number, read by title. */
 export const MILESTONES_OF = {
-  endpoint: READ_IDS.listMilestones,
+  endpoint: READ.listMilestones,
   key: "numbers",
   label_key: "titles",
   needs: { repo: "repo" },
 };
 
-export const NUMBER = param("number", "int", text("Number", "Nummer", "Número", "Numéro"));
+export const NUMBER = { number: param("int", text("Number", "Nummer", "Número", "Numéro")) };
 
-export const LABELS_IN = param("labels", "string", text("Labels", "Labels", "Etiquetas", "Étiquettes"), {
-  list: true,
-  options_from: { endpoint: READ_IDS.listLabels, key: "names", needs: { repo: "repo" } },
-});
+export const LABELS_IN = {
+  labels: param("string", text("Labels", "Labels", "Etiquetas", "Étiquettes"), {
+    list: true,
+    options_from: { endpoint: READ.listLabels, key: "names", needs: { repo: "repo" } },
+  }),
+};
 
-export const BOARD = param("project_id", "string", text("Project", "Projekt", "Proyecto", "Projet"), {
-  options_from: { endpoint: READ_IDS.listProjects, key: "ids", label_key: "titles" },
-});
+export const BOARD = {
+  project_id: param("string", text("Project", "Projekt", "Proyecto", "Projet"), {
+    options_from: { endpoint: READ.listProjects, key: "ids", label_key: "titles" },
+  }),
+};
 
 export const FIELDS_OF = {
-  endpoint: READ_IDS.listProjectFields,
+  endpoint: READ.listProjectFields,
   key: "ids",
   label_key: "names",
   needs: { project_id: "project_id" },
 };
 
-export const SORT_IN = param("sort", "select", text("Order by", "Sortieren nach", "Ordenar por", "Trier par"), {
-  options: ["created", "updated", "comments"],
-});
+export const SORT_IN = {
+  sort: param("select", text("Order by", "Sortieren nach", "Ordenar por", "Trier par"), {
+    options: ["created", "updated", "comments"],
+  }),
+};
 
-export const DIRECTION_IN = param("direction", "select", text("Order", "Reihenfolge", "Orden", "Ordre"), {
-  options: ["desc", "asc"],
-});
+export const DIRECTION_IN = {
+  direction: param("select", text("Order", "Reihenfolge", "Orden", "Ordre"), { options: ["desc", "asc"] }),
+};
 
-export const LIMIT_IN = param("limit", "int", text("How many", "Wie viele", "Cuántos", "Combien"));
+export const LIMIT_IN = { limit: param("int", text("How many", "Wie viele", "Cuántos", "Combien")) };
 
-export const SINCE_IN = param("since", "datetime", text("Since", "Seit", "Desde", "Depuis"));
+export const SINCE_IN = { since: param("datetime", text("Since", "Seit", "Desde", "Depuis")) };
 
-export const SINCE_DAYS_IN = param(
-  "since_days",
-  "int",
-  text("Days back", "Tage zurück", "Días atrás", "Jours en arrière")
-);
+export const SINCE_DAYS_IN = {
+  since_days: param("int", text("Days back", "Tage zurück", "Días atrás", "Jours en arrière")),
+};
 
-export const REPO_OUT = out("repository", "string");
-export const OWNER_OUT = out("owner", "string");
-export const NUMBER_OUT = out("number", "int");
-export const TITLE_OUT = out("title", "string");
-export const STATE_OUT = out("state", "string");
-export const URL_OUT = out("url", "url");
-export const AUTHOR_OUT = out("author", "string");
-export const MILESTONE_OUT = out("milestone", "string");
-export const COMMENTS_OUT = out("comments", "int");
-export const CLOSED_OUT = out("closed_at", "string");
-export const LABELS_OUT = many(out("labels", "string"));
-export const ASSIGNEES_OUT = many(out("assignees", "string"));
-export const LINK_OUT = out("html_url", "url", { label: text("Link", "Link", "Enlace", "Lien") });
+export const REPO_OUT = { repository: out("string") };
+export const OWNER_OUT = { owner: out("string") };
+export const NUMBER_OUT = { number: out("int") };
+export const TITLE_OUT = { title: out("string") };
+export const STATE_OUT = { state: out("string") };
+export const URL_OUT = { url: out("url") };
+export const AUTHOR_OUT = { author: out("string") };
+export const MILESTONE_OUT = { milestone: out("string") };
+export const COMMENTS_OUT = { comments: out("int") };
+export const CLOSED_OUT = { closed_at: out("string") };
+export const LABELS_OUT = { labels: many(out("string")) };
+export const ASSIGNEES_OUT = { assignees: many(out("string")) };
+export const LINK_OUT = { html_url: out("url", { label: text("Link", "Link", "Enlace", "Lien") }) };
 
-export const CREATED_OUT = out("created_at", "string", {
-  label: text("Opened", "Geöffnet", "Abierta", "Ouvert"),
-});
-
-export const UPDATED_OUT = out("updated_at", "string", {
+const OPENED = out("string", { label: text("Opened", "Geöffnet", "Abierta", "Ouvert") });
+const LAST_UPDATED = out("string", {
   label: text("Last updated", "Zuletzt aktualisiert", "Última actualización", "Dernière mise à jour"),
 });
 
-export const COUNT_OUT = out("count", "int", {
-  label: text("How many", "Wie viele", "Cuántos", "Combien"),
-});
+export const CREATED_OUT = { created_at: OPENED };
+export const UPDATED_OUT = { updated_at: LAST_UPDATED };
 
-export const TOTAL_OUT = out("total", "int", {
-  label: text("How many in all", "Wie viele insgesamt", "Cuántos en total", "Combien en tout"),
-});
+export const COUNT_OUT = { count: out("int", { label: text("How many", "Wie viele", "Cuántos", "Combien") }) };
+
+export const TOTAL_OUT = {
+  total: out("int", { label: text("How many in all", "Wie viele insgesamt", "Cuántos en total", "Combien en tout") }),
+};
 
 /** Why a read has no answer, in a code a widget can put into words. */
-export const UNAVAILABLE = out("unavailable", "string", {
-  label: text(
-    "Why there is no answer",
-    "Warum es keine Antwort gibt",
-    "Por qué no hay respuesta",
-    "Pourquoi il n'y a pas de réponse"
-  ),
-});
+export const UNAVAILABLE = {
+  unavailable: out("string", {
+    label: text(
+      "Why there is no answer",
+      "Warum es keine Antwort gibt",
+      "Por qué no hay respuesta",
+      "Pourquoi il n'y a pas de réponse"
+    ),
+  }),
+};
 
 /** The columns every list of issues or pull requests answers with. */
-export const ROWS_OUT: EndpointReturn[] = [
-  many(out("numbers", "int")),
-  many(out("titles", "string")),
-  many(out("urls", "url")),
-  many(out("states", "string")),
-  many(CREATED_OUT),
-  many(UPDATED_OUT),
-  many(out("closed_at", "string")),
-  COUNT_OUT,
-  TOTAL_OUT,
-  UNAVAILABLE,
-];
+export const ROWS_OUT = {
+  numbers: many(out("int")),
+  titles: many(out("string")),
+  urls: many(out("url")),
+  states: many(out("string")),
+  created_at: many(OPENED),
+  updated_at: many(LAST_UPDATED),
+  closed_at: many(out("string")),
+  ...COUNT_OUT,
+  ...TOTAL_OUT,
+  ...UNAVAILABLE,
+};

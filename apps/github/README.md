@@ -90,7 +90,7 @@ Then generate a private key and a client secret on the app's page.
 The app proves who it is to Initiative with its own key:
 
 ```sh
-npx initiative-app keygen --alg ES256 --out ./secrets
+npx -p initiative-app-sdk initiative-app keygen --alg ES256 --out ./secrets
 ```
 
 `secrets/private-key.pem` becomes `INITIATIVE_APP_PRIVATE_KEY` and the printed
@@ -209,15 +209,22 @@ connections (the vendor values under App services).
 
 ## Working on it
 
+The app is built on [initiative-app-sdk](https://github.com/Morelitea/initiative-app-kit):
+`src/app.ts` declares everything it does, and the SDK serves it.
+
 ```sh
 npm install
 npm run typecheck
 npm test
-npm run manifest   # rebuild manifest.json and listing.json, validated by the kit
+npm run manifest         # rebuild manifest.json from src/app.ts, widgets bundled
+npm run manifest:check   # CI: fail if manifest.json is stale
+npm run listing          # at a release: manifest.json and the registry source
 ```
 
-`listing.json` is the app's registry source listing, with the manifest inline
-and `assets/avatar.png` beside it. At a release, its image digest and key set
-are replaced by the pushed image's digest and the app's public key.
+`npm run listing` writes the app's registry source under
+`registry/sources/morelitea/<uid>/`: the listing, this version's manifest and
+`assets/avatar.png`. It writes it only while the listing in `src/app.ts` names
+the version in `package.json`, so run it once the release has bumped both and
+the listing names the pushed image's digest.
 
 MIT licensed.

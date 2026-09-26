@@ -13,15 +13,15 @@
   },
   "versions": [
     {
-      "version": "2.2.0",
-      "definition": "2.2.0/manifest.json",
+      "version": "2.3.0",
+      "definition": "2.3.0/manifest.json",
       "min_app_version": "0.72.0",
-      "release_notes": "GitHub's webhooks now arrive through Initiative, which checks and routes them, so the app needs no public address. Set the GitHub App's webhook URL to Initiative's app-hooks address and enter its webhook secret as a vendor value."
+      "release_notes": "Initiative now calls the app every 15 minutes to check each installation, so the app keeps no timer of its own and is ready as soon as it starts."
     }
   ],
   "registration": {
     "kind": "container",
-    "image": "ghcr.io/morelitea/initiative-github@sha256:5b3c787f4a26314be7332832cc74732bf9a2c60349269ee0e76146fd002c0f27",
+    "image": "ghcr.io/morelitea/initiative-github@sha256:dfd2348327b7d57b67ad0d668285090056d89d081e70ede00584286e569ec8bb",
     "jwks": {
       "keys": [
         {

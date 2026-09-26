@@ -112,7 +112,7 @@ is what the deployment registers for the app (the app also serves it at
    request for an owner to approve, and Initiative says it is waiting.
 4. GitHub asks you to authorize once, and the app checks that the installation
    you chose is one you hold. You are sent back to Initiative, connected. The
-   app reports the organization's configuration as working at its next sync.
+   app reports the organization's configuration as working at its next check.
 5. Each member who wants their review queue, or whose automations write to
    GitHub, connects *Your GitHub account* in the app's settings.
 
@@ -137,7 +137,6 @@ Optional:
 | Variable | Default | |
 |---|---|---|
 | `PORT` | `8080` | |
-| `SYNC_INTERVAL_SECONDS` | `300` | How often installations are listed and checked. |
 | `GITHUB_API_BASE` | `https://api.github.com` | GitHub's API. |
 | `GITHUB_WEB_BASE` | `https://github.com` | Where a member's lapsed token is renewed before their authorization is ended. |
 
@@ -150,8 +149,13 @@ docker run -d --name initiative-github -p 8080:8080 --env-file github-app.env \
 
 Register the container's address (for example `http://initiative-github:8080`)
 as the app's location in Initiative. Initiative calls the app there, for its
-endpoints and its three hooks (`/v1/hooks/after_connect`, `/v1/hooks/revoke`,
-`/v1/hooks/webhook`).
+endpoints and its four hooks (`/v1/hooks/after_connect`, `/v1/hooks/revoke`,
+`/v1/hooks/webhook`, `/v1/hooks/schedule`).
+
+Every 15 minutes, Initiative asks the app to check each community's
+organization. The app reports the configuration as not working when GitHub has
+removed or suspended the installation, or will not give a token for it. There
+is nothing to set up for this.
 
 The app needs no public address. GitHub's webhook deliveries go to Initiative,
 which checks each one and forwards it to the app's webhook hook for every
@@ -159,8 +163,13 @@ community connected to the installation it came from. No browser is ever sent
 to the app, and only Initiative calls it. A deployment that registers the
 app's key by address reads it at `/.well-known/jwks.json`.
 
-`GET /healthz` answers once the process is up; `GET /readyz` once the first
-installations sync has reached Initiative.
+`GET /healthz` and `GET /readyz` both answer once the process is up.
+
+## Upgrading from 2.2
+
+Initiative now runs the organization check on a schedule, so this needs an
+Initiative that runs app schedules. Remove `SYNC_INTERVAL_SECONDS` from the
+app's settings; it no longer reads it.
 
 ## Upgrading from 2.1
 

@@ -16,7 +16,7 @@ import { createHash } from "node:crypto";
 
 import { LISTING_UID, PUBLIC_ID, SCOPES } from "./vocabulary.js";
 
-export const VERSION = "2.2.0";
+export const VERSION = "2.3.0";
 
 /**
  * The oldest Initiative that runs this app's connections. Development builds
@@ -28,7 +28,7 @@ export const MIN_APP_VERSION = "0.72.0";
 
 /** The image this version runs, pinned by digest. */
 export const IMAGE =
-  "ghcr.io/morelitea/initiative-github@sha256:5b3c787f4a26314be7332832cc74732bf9a2c60349269ee0e76146fd002c0f27";
+  "ghcr.io/morelitea/initiative-github@sha256:dfd2348327b7d57b67ad0d668285090056d89d081e70ede00584286e569ec8bb";
 
 /** The public key the app's token requests are verified with. */
 export const JWKS = {
@@ -63,7 +63,7 @@ export function listingEntry(avatar: Buffer): Record<string, unknown> {
         definition: DEFINITION_PATH,
         min_app_version: MIN_APP_VERSION,
         release_notes:
-          "GitHub's webhooks now arrive through Initiative, which checks and routes them, so the app needs no public address. Set the GitHub App's webhook URL to Initiative's app-hooks address and enter its webhook secret as a vendor value.",
+          "Initiative now calls the app every 15 minutes to check each installation, so the app keeps no timer of its own and is ready as soon as it starts.",
       },
     ],
     registration: {

@@ -34,6 +34,9 @@ export const WORKSPACE = "workspace";
 /** Each member's own GitHub authorization, which Initiative runs and holds. */
 export const ACCOUNT = "account";
 
+/** The schedule on which Initiative asks whether the organization's installation still exists. */
+export const CHECK_INSTALLATION = "check-installation";
+
 export const PATHS = {
   jwks: "/.well-known/jwks.json",
 } as const;

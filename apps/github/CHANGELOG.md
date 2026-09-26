@@ -1,5 +1,21 @@
 # Changelog
 
+## [2.3.0]
+
+Initiative runs the organization check.
+
+### Changed
+
+- Every 15 minutes, Initiative asks the app whether each community's GitHub
+  installation still exists. The app no longer runs a timer of its own.
+- `/readyz` answers as soon as the process is up.
+
+### Upgrading
+
+- Needs an Initiative that runs app schedules.
+- Remove `SYNC_INTERVAL_SECONDS` from the app's settings; it is no longer
+  read.
+
 ## [2.2.0]
 
 Initiative receives GitHub's webhooks.

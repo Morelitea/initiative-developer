@@ -15,10 +15,7 @@ beforeEach(async () => {
   h.github.install(42);
 });
 
-afterEach(async () => {
-  await h.settle();
-  await h.close();
-});
+afterEach(() => h.close());
 
 describe("context verification", () => {
   it("refuses a call with no token", async () => {
@@ -87,10 +84,8 @@ describe("context verification", () => {
 });
 
 describe("health", () => {
-  it("is alive at once and ready after the first sync", async () => {
+  it("is alive and ready once it serves", async () => {
     expect((await fetch(`${h.url}/healthz`)).status).toBe(200);
-    expect((await fetch(`${h.url}/readyz`)).status).toBe(503);
-    await h.sync.run();
     expect((await fetch(`${h.url}/readyz`)).status).toBe(200);
   });
 

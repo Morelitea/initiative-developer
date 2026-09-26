@@ -197,6 +197,12 @@
       "field": "installation_id"
     }
   },
+  "schedules": [
+    {
+      "id": "check-installation",
+      "every": "15m"
+    }
+  ],
   "endpoints": [
     {
       "id": "app.morelitea.github.list-repositories",

@@ -16,10 +16,7 @@ beforeEach(async () => {
   h.initiative.install("gapp_other", { workspace: { owner: "other", installation_id: 77 } });
 });
 
-afterEach(async () => {
-  await h.settle();
-  await h.close();
-});
+afterEach(() => h.close());
 
 async function deliver(event: string, payload: unknown, installation = "gapp_one") {
   return h.hook(installation, "webhook", {

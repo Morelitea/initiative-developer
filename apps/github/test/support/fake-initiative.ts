@@ -1,9 +1,7 @@
 /**
  * A fake Initiative deployment, answering the calls `InitiativeAuth` makes in
- * the shapes Initiative sends: the token endpoint, the installations list (a
- * page of one at a time, so every listing follows its `Link`), and the
- * installation's own configuration, connection tokens, config status and
- * events. It also signs what Initiative signs for the app: context tokens for
+ * the shapes Initiative sends: the token endpoint, and the installation's own
+ * configuration, connection tokens, config status and events. It also signs what Initiative signs for the app: context tokens for
  * endpoint calls and lifecycle tokens for hook calls.
  *
  * Connection tokens are answered as Initiative answers them: a member's from
@@ -48,12 +46,8 @@ export interface InstallState {
 
 export class FakeInitiative {
   readonly installs = new Map<string, InstallState>();
-  /** Which installations the listing answers with. Null: every one. */
+  /** Which installations Initiative still answers for. Null: every one. */
   listed: string[] | null = null;
-  /** When set, the installations list answers with this status. */
-  listFails: number | null = null;
-  /** Installations the listing reports as paused: switched off, or their community on hold. */
-  readonly inactive = new Set<string>();
   readonly tokenRequests: URLSearchParams[] = [];
   /** When set, every connection token answers with this status. */
   connectionTokenFails: number | null = null;
@@ -137,23 +131,9 @@ export class FakeInitiative {
       if (form.get("client_assertion_type") !== "urn:ietf:params:oauth:client-assertion-type:jwt-bearer" || !form.get("client_assertion")) {
         return json(401, { error: "invalid_client" });
       }
-      const installation = form.get("installation");
-      if (installation === null) return json(200, { access_token: "app-token", token_type: "Bearer", expires_in: 600 });
+      const installation = form.get("installation") ?? "";
       if (!this.installs.has(installation)) return json(400, { error: "invalid_grant", error_description: "unknown installation" });
       return json(200, { access_token: `inst:${installation}`, token_type: "Bearer", expires_in: 600, scope: "projects:read" });
-    }
-
-    if (path === "/api/v1/app-platform/installations" && method === "GET") {
-      if (bearer !== "app-token") return json(401, { detail: "unauthorized" });
-      if (this.listFails !== null) return json(this.listFails, { detail: "unavailable" });
-      const names = this.listed ?? [...this.installs.keys()];
-      const at = Number(url.searchParams.get("cursor") ?? 0);
-      const page = json(
-        200,
-        names.slice(at, at + 1).map((installation) => ({ installation, active: !this.inactive.has(installation) }))
-      );
-      if (at + 1 < names.length) page.headers.set("Link", `<?cursor=${at + 1}>; rel="next"`);
-      return page;
     }
 
     const prefix = "/api/v1/app-platform/installation/";

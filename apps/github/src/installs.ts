@@ -65,22 +65,6 @@ export class InstallRegistry {
     this.reading.set(installation, request);
     return request;
   }
-
-  /** Every installation this process has a snapshot of. */
-  known(): string[] {
-    return [...this.snapshots.keys()];
-  }
-
-  peek(installation: string): InstallSnapshot | undefined {
-    return this.snapshots.get(installation);
-  }
-
-  /** Forget an installation entirely, handing back what was last known of it. */
-  forget(installation: string): InstallSnapshot | undefined {
-    const held = this.snapshots.get(installation);
-    this.snapshots.delete(installation);
-    return held;
-  }
 }
 
 export function snapshotOf(

@@ -7,9 +7,8 @@ import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
 
 import type { Config } from "../../src/config.js";
-import { createContext, settle, type AppContext, type Logger } from "../../src/context.js";
+import { createContext, type AppContext, type Logger } from "../../src/context.js";
 import { createAppServer } from "../../src/server.js";
-import { InstallationSync } from "../../src/sync.js";
 import { ENDPOINTS_PATH, HOOKS_PATH } from "initiative-app-kit";
 import { FakeGitHub, GITHUB_API, GITHUB_WEB } from "./fake-github.js";
 import { FakeInitiative, INITIATIVE_BASE, INITIATIVE_ORIGIN } from "./fake-initiative.js";
@@ -52,7 +51,6 @@ export interface Harness {
   initiative: FakeInitiative;
   github: FakeGitHub;
   context: AppContext;
-  sync: InstallationSync;
   url: string;
   logs: string[];
   /**
@@ -72,7 +70,6 @@ export interface Harness {
     body: unknown,
     options?: { token?: string }
   ): Promise<{ status: number; body: Record<string, any> | null }>;
-  settle(): Promise<void>;
   close(): Promise<void>;
 }
 
@@ -86,7 +83,6 @@ export function testConfig(): Config {
       apiBase: GITHUB_API,
       webBase: GITHUB_WEB,
     },
-    syncIntervalSeconds: 300,
   };
 }
 
@@ -108,8 +104,7 @@ export async function startHarness(): Promise<Harness> {
   }) as typeof fetch;
 
   const context = createContext(testConfig(), { fetch: outbound, log });
-  const sync = new InstallationSync(context);
-  const server: Server = createAppServer(context, { ready: () => sync.ready });
+  const server: Server = createAppServer(context);
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 
@@ -117,7 +112,6 @@ export async function startHarness(): Promise<Harness> {
     initiative,
     github,
     context,
-    sync,
     url,
     logs,
     async invoke(installation, endpoint, params = {}, options = {}) {
@@ -141,7 +135,6 @@ export async function startHarness(): Promise<Harness> {
       const text = await response.text();
       return { status: response.status, body: text ? (JSON.parse(text) as Record<string, any>) : null };
     },
-    settle: () => settle(context),
     close: () => new Promise<void>((resolve) => server.close(() => resolve())),
   };
 }

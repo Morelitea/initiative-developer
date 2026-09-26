@@ -18,10 +18,7 @@ beforeEach(async () => {
   h.github.install(42);
 });
 
-afterEach(async () => {
-  await h.settle();
-  await h.close();
-});
+afterEach(() => h.close());
 
 describe("a member's token", () => {
   it("is asked of Initiative by the member's handle, for every call", async () => {

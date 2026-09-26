@@ -25,6 +25,6 @@
     "vitest": "^5.0.1"
   },
   "dependencies": {
-    "initiative-app-sdk": "github:Morelitea/initiative-app-kit#1e6f56bdf073f309c4a619983fd79bd300654ac7"
+    "initiative-app-sdk": "github:Morelitea/initiative-app-kit#cef9f9c82ae1b2c5322a9242b5f602d18194a26d"
   }
 }

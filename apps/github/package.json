@@ -14,15 +14,17 @@
     "typecheck": "tsc --noEmit",
     "test": "node scripts/run-tests.mjs",
     "test:watch": "vitest",
-    "manifest": "npm run build && node dist/scripts/build-manifest.js && initiative-app validate manifest.json",
-    "manifest:check": "npm run build && node dist/scripts/build-manifest.js --check && initiative-app validate manifest.json"
-  },
-  "dependencies": {
-    "initiative-app-kit": "github:Morelitea/initiative-app-kit#v0.27.0"
+    "manifest": "initiative-app build",
+    "manifest:check": "initiative-app build --check",
+    "listing": "initiative-app build --registry ../../registry/sources"
   },
   "devDependencies": {
     "@types/node": "^26.6.2",
+    "esbuild": "^0.28.2",
     "typescript": "^7.0.2",
     "vitest": "^5.0.1"
+  },
+  "dependencies": {
+    "initiative-app-sdk": "github:Morelitea/initiative-app-kit#cef9f9c82ae1b2c5322a9242b5f602d18194a26d"
   }
 }

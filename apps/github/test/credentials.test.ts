@@ -41,25 +41,25 @@ describe("a member's token", () => {
 
   it("stops at the next call once the member is blocked", async () => {
     const install = h.initiative.install(INSTALLATION, { members: { cref_alice: "ghu_alice" } });
-    expect(await memberToken(h.context, INSTALLATION, "cref_alice")).toEqual({ ok: true, token: "ghu_alice" });
+    expect(await memberToken(h.context, h.client(INSTALLATION), "cref_alice")).toEqual({ ok: true, token: "ghu_alice" });
     install.members.get("cref_alice")!.blocked = true;
-    expect(await memberToken(h.context, INSTALLATION, "cref_alice")).toEqual({ ok: false, reason: "not-connected" });
+    expect(await memberToken(h.context, h.client(INSTALLATION), "cref_alice")).toEqual({ ok: false, reason: "not-connected" });
   });
 
   it("is refused for a connection Initiative could not renew, which the member connects again", async () => {
     const install = h.initiative.install(INSTALLATION, { members: { cref_alice: "ghu_alice" } });
     install.members.get("cref_alice")!.status = "expired";
-    expect(await memberToken(h.context, INSTALLATION, "cref_alice")).toEqual({ ok: false, reason: "not-connected" });
+    expect(await memberToken(h.context, h.client(INSTALLATION), "cref_alice")).toEqual({ ok: false, reason: "not-connected" });
   });
 
   it("is refused for a handle Initiative does not hold", async () => {
     h.initiative.install(INSTALLATION);
-    expect(await memberToken(h.context, INSTALLATION, "cref_nobody")).toEqual({ ok: false, reason: "not-connected" });
+    expect(await memberToken(h.context, h.client(INSTALLATION), "cref_nobody")).toEqual({ ok: false, reason: "not-connected" });
   });
 
   it("is unavailable, not disconnected, when Initiative could not reach GitHub", async () => {
     h.initiative.install(INSTALLATION, { members: { cref_alice: "ghu_alice" } });
     h.initiative.connectionTokenFails = 502;
-    expect(await memberToken(h.context, INSTALLATION, "cref_alice")).toEqual({ ok: false, reason: "unavailable" });
+    expect(await memberToken(h.context, h.client(INSTALLATION), "cref_alice")).toEqual({ ok: false, reason: "unavailable" });
   });
 });

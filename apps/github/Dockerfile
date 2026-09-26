@@ -35,7 +35,7 @@ WORKDIR /app
 
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist/src ./dist/src
-COPY package.json ./
+COPY package.json manifest.json ./
 
 USER node
 EXPOSE 8080

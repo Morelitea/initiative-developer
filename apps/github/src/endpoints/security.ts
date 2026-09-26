@@ -1,9 +1,10 @@
+import { defineEndpoint } from "initiative-app-sdk/manifest";
+
 import { graphql } from "../github/http.js";
 import {
   COUNT_OUT,
   many,
   out,
-  READ_IDS,
   REPO,
   text,
   TOTAL_OUT,
@@ -21,7 +22,6 @@ import {
   repoAccess,
   unavailable,
   type Connection,
-  type Read,
 } from "./support.js";
 
 interface Alert {
@@ -29,35 +29,32 @@ interface Alert {
   securityVulnerability?: { severity?: string; package?: { name?: string } } | null;
 }
 
-export const listAlerts: Read = {
-  declaration: {
-    id: READ_IDS.listAlerts,
-    direction: "read",
-    label: text("Dependabot alerts", "Dependabot-Warnungen", "Alertas de Dependabot", "Alertes Dependabot"),
-    description: text(
-      "Open dependency alerts, with the severity and package of each.",
-      "Offene Abhängigkeitswarnungen, mit Schwere und Paket zu jeder.",
-      "Alertas de dependencias abiertas, con la severidad y el paquete de cada una.",
-      "Alertes de dépendances ouvertes, avec la gravité et le paquet de chacune."
-    ),
-    group: "security",
-    ...PUBLIC_READ,
-    cache_ttl_seconds: 300,
-    params: [REPO],
-    returns: [
-      many(out("numbers", "int", { label: text("Alert numbers", "Warnungsnummern", "Números de alerta", "Numéros d'alerte") })),
-      many(out("severities", "string")),
-      many(out("packages", "string")),
-      many(out("urls", "url")),
-      COUNT_OUT,
-      TOTAL_OUT,
-      URL_OUT,
-      UNAVAILABLE,
-    ],
-    requires: { all_of: [WORKSPACE] },
+export const listAlerts = defineEndpoint({
+  direction: "read",
+  label: text("Dependabot alerts", "Dependabot-Warnungen", "Alertas de Dependabot", "Alertes Dependabot"),
+  description: text(
+    "Open dependency alerts, with the severity and package of each.",
+    "Offene Abhängigkeitswarnungen, mit Schwere und Paket zu jeder.",
+    "Alertas de dependencias abiertas, con la severidad y el paquete de cada una.",
+    "Alertes de dépendances ouvertes, avec la gravité et le paquet de chacune."
+  ),
+  group: "security",
+  ...PUBLIC_READ,
+  cache_ttl_seconds: 300,
+  params: { ...REPO },
+  returns: {
+    numbers: many(out("int", { label: text("Alert numbers", "Warnungsnummern", "Números de alerta", "Numéros d'alerte") })),
+    severities: many(out("string")),
+    packages: many(out("string")),
+    urls: many(out("url")),
+    ...COUNT_OUT,
+    ...TOTAL_OUT,
+    ...URL_OUT,
+    ...UNAVAILABLE,
   },
+  requires: { all_of: [WORKSPACE] },
 
-  async run(call) {
+  async handler(call) {
     const access = await repoAccess(call);
     if (isResult(access)) return { actor: "installation", result: access };
     const answer = await graphql<{ repository: { vulnerabilityAlerts: Connection<Alert> | null } | null }>(
@@ -96,4 +93,4 @@ export const listAlerts: Read = {
       },
     };
   },
-};
+});

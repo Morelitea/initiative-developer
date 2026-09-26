@@ -1,5 +1,5 @@
 /**
- * A fake Initiative deployment, answering the calls `InitiativeAuth` makes in
+ * A fake Initiative deployment, answering the calls the SDK's client makes in
  * the shapes Initiative sends: the token endpoint, and the installation's own
  * configuration, connection tokens, config status and events. It also signs what Initiative signs for the app: context tokens for
  * endpoint calls and lifecycle tokens for hook calls.
@@ -11,8 +11,6 @@
  */
 
 import { randomUUID } from "node:crypto";
-
-import { audienceFor } from "initiative-app-kit";
 
 import { PUBLIC_ID } from "../../src/vocabulary.js";
 import type { FakeGitHub } from "./fake-github.js";
@@ -86,7 +84,7 @@ export class FakeInitiative {
     return signRs256(key ?? platform.privateKeyPem, platform.kid, {
       jti: randomUUID(),
       iss: "initiative",
-      aud: audienceFor(PUBLIC_ID),
+      aud: `initiative-app:${PUBLIC_ID}`,
       iat: now,
       exp: now + 60,
       guild_ref: installation,

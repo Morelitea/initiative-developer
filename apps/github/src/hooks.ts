@@ -12,22 +12,45 @@
  * - **`webhook`**: a GitHub delivery for the community's installation, which
  *   Initiative has checked and routed. It becomes one of the six
  *   announcements, emitted in that community.
+ * - **`schedule`** for `check-installation`: whether the organization's
+ *   installation still exists at GitHub, reported as the configuration's
+ *   status when that changes.
  *
  * The kit verifies the lifecycle token and the body; these handlers do only
  * the GitHub work. A handler that throws answers 500, which Initiative reads
- * as the hook failing: a connection is then not recorded, and a revocation is
- * tried again.
+ * as the hook failing: a connection is then not recorded, and a revocation or
+ * a scheduled check is tried again.
  */
 
-import type { AfterConnectAnswer, AfterConnectCall, HookHandlers, RevokeCall, WebhookCall } from "initiative-app-kit";
+import type {
+  AfterConnectAnswer,
+  AfterConnectCall,
+  HookHandlers,
+  RevokeCall,
+  ScheduleCall,
+  WebhookCall,
+} from "initiative-app-kit";
 
 import type { AppContext } from "./context.js";
 import { translate } from "./endpoints/emissions.js";
 import { endAuthorization, userInstallations, userLogin } from "./github/oauth.js";
-import { DETAILS } from "./sync.js";
-import { ACCOUNT, WORKSPACE } from "./vocabulary.js";
+import { ACCOUNT, CHECK_INSTALLATION, WORKSPACE } from "./vocabulary.js";
 
 const REFUSE: AfterConnectAnswer = { refuse: true };
+
+/**
+ * Checks in a row on which Initiative could get no token for an installation
+ * before it is reported as unavailable. One such check may be GitHub having a
+ * bad minute.
+ */
+export const UNAVAILABLE_CHECKS = 2;
+
+/** The details this app reports an installation as invalid with. */
+export const DETAILS = {
+  removed: "github_installation_removed",
+  suspended: "github_installation_suspended",
+  unavailable: "github_installation_unavailable",
+} as const;
 
 export function hookHandlers(context: AppContext): HookHandlers {
   return {
@@ -35,6 +58,7 @@ export function hookHandlers(context: AppContext): HookHandlers {
     revoke: (call) => logged(context, `revoke for ${call.connection}`, revoke(context, call)),
     webhook: (call, claims) =>
       logged(context, `webhook ${call.headers["x-github-event"]}`, delivered(context, call, claims.guild_ref)),
+    schedule: (call, claims) => logged(context, `schedule ${call.schedule}`, scheduled(context, call, claims.guild_ref)),
   };
 }
 
@@ -119,4 +143,33 @@ async function changed(context: AppContext, installation: string, payload: Recor
     state: "invalid",
     detail: action === "deleted" ? DETAILS.removed : DETAILS.suspended,
   });
+}
+
+async function scheduled(context: AppContext, call: ScheduleCall, installation: string): Promise<void> {
+  if (call.schedule === CHECK_INSTALLATION) await checkInstallation(context, installation);
+}
+
+/** Whether the community's GitHub installation still exists, reported when the verdict changes. */
+async function checkInstallation(context: AppContext, installation: string): Promise<void> {
+  const snapshot = await context.installs.refresh(installation);
+  if (!snapshot.workspace) return;
+  const lookup = await context.github.check(installation, snapshot.workspace);
+  if (lookup.state === "unknown") throw new Error(`could not check the installation: ${lookup.detail}`);
+
+  let detail: string | null;
+  if (lookup.state === "unavailable") {
+    const checks = (context.unavailable.get(installation) ?? 0) + 1;
+    context.unavailable.set(installation, checks);
+    // A removal or suspension already reported says more than this does.
+    const known = Object.values(DETAILS) as string[];
+    if (checks < UNAVAILABLE_CHECKS || known.includes(snapshot.configStateDetail ?? "")) return;
+    detail = DETAILS.unavailable;
+  } else {
+    context.unavailable.delete(installation);
+    detail = lookup.state === "gone" ? DETAILS.removed : lookup.state === "suspended" ? DETAILS.suspended : null;
+  }
+
+  const state = detail ? "invalid" : "ok";
+  if (snapshot.configState === state && snapshot.configStateDetail === detail) return;
+  await context.auth.reportConfigStatus(installation, detail ? { state: "invalid", detail } : { state: "ok" });
 }

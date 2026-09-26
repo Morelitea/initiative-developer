@@ -1,5 +1,5 @@
 /**
- * Everything the app's routes and jobs share, built once from the settings.
+ * Everything the app's routes and hooks share, built once from the settings.
  *
  * Outbound HTTP goes through one injectable `fetch`, and time through one
  * clock, so the tests can stand a fake GitHub and a fake Initiative behind
@@ -40,8 +40,8 @@ export interface AppContext {
   /** The GitHub App's client, for ending a member's authorization. */
   oauth: OAuthClient;
   installs: InstallRegistry;
-  /** Work started in the background, so a test or a shutdown can wait for it. */
-  pending: Set<Promise<unknown>>;
+  /** Installation checks in a row on which Initiative could get no token, by installation. */
+  unavailable: Map<string, number>;
 }
 
 export interface ContextOptions {
@@ -81,18 +81,6 @@ export function createContext(config: Config, options: ContextOptions = {}): App
       clientSecret: config.github.clientSecret,
     },
     installs: new InstallRegistry({ auth, now }),
-    pending: new Set<Promise<unknown>>(),
+    unavailable: new Map<string, number>(),
   };
-}
-
-/** Run something in the background, logging a failure rather than losing it. */
-export function track(context: AppContext, work: Promise<unknown>, what: string): void {
-  const guarded = work.catch((error) => context.log.error(`could not ${what}`, error));
-  context.pending.add(guarded);
-  void guarded.finally(() => context.pending.delete(guarded));
-}
-
-/** Wait for every background job started so far. */
-export async function settle(context: AppContext): Promise<void> {
-  while (context.pending.size) await Promise.all([...context.pending]);
 }

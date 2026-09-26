@@ -9,6 +9,7 @@ import { ENDPOINTS } from "./endpoints/index.js";
 import { PERMISSIONS } from "./github/app.js";
 import {
   ACCOUNT,
+  CHECK_INSTALLATION,
   DASHBOARD_UID,
   PUBLIC_ID,
   READ_IDS,
@@ -160,6 +161,9 @@ export const manifest: Manifest = {
     dedup: "X-GitHub-Delivery",
     route: { path: "installation.id", connection: WORKSPACE, field: "installation_id" },
   },
+
+  // Initiative calls the schedule hook for each community on this interval.
+  schedules: [{ id: CHECK_INSTALLATION, every: "15m" }],
 
   endpoints: [...ENDPOINTS],
   widgets: [...WIDGETS],

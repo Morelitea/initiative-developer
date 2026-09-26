@@ -23,10 +23,7 @@ beforeEach(async () => {
   h.github.install(42);
 });
 
-afterEach(async () => {
-  await h.settle();
-  await h.close();
-});
+afterEach(() => h.close());
 
 const refusedByGitHub = { body: { data: null, errors: [{ type: "FORBIDDEN", message: "Resource not accessible by integration" }] } };
 

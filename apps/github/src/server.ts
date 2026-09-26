@@ -5,7 +5,7 @@
  * |---|---|
  * | `GET /healthz`, `GET /readyz` | the container runtime |
  * | `GET, POST /v1/endpoints` | Initiative, with a context token |
- * | `POST /v1/hooks/after_connect`, `/v1/hooks/revoke`, `/v1/hooks/webhook` | Initiative, with a lifecycle token |
+ * | `POST /v1/hooks/after_connect`, `/v1/hooks/revoke`, `/v1/hooks/webhook`, `/v1/hooks/schedule` | Initiative, with a lifecycle token |
  * | `GET /.well-known/jwks.json` | a deployment that registers the app's key by address |
  *
  * Nobody's browser comes here, and nor does GitHub: Initiative runs the GitHub
@@ -23,11 +23,6 @@ import { PATHS, PUBLIC_ID } from "./vocabulary.js";
 
 /** The most a request body may carry. */
 const MAX_BODY_BYTES = 5 * 1024 * 1024;
-
-export interface ServerOptions {
-  /** Whether the first installations sync has completed. */
-  ready: () => boolean;
-}
 
 class TooLarge extends Error {}
 
@@ -65,9 +60,9 @@ function parseJson(raw: Buffer): unknown {
   }
 }
 
-export function createAppServer(context: AppContext, options: ServerOptions): Server {
+export function createAppServer(context: AppContext): Server {
   return createServer((req, res) => {
-    handle(context, options, req, res).catch((error) => {
+    handle(context, req, res).catch((error) => {
       if (error instanceof TooLarge) {
         json(res, 413, { error: "too-large" });
         return;
@@ -79,20 +74,12 @@ export function createAppServer(context: AppContext, options: ServerOptions): Se
   });
 }
 
-async function handle(
-  context: AppContext,
-  options: ServerOptions,
-  req: IncomingMessage,
-  res: ServerResponse
-): Promise<void> {
+async function handle(context: AppContext, req: IncomingMessage, res: ServerResponse): Promise<void> {
   const url = new URL(req.url ?? "/", "http://localhost");
   const path = url.pathname;
   const method = req.method ?? "GET";
 
-  if (method === "GET" && path === "/healthz") return json(res, 200, { ok: true });
-  if (method === "GET" && path === "/readyz") {
-    return options.ready() ? json(res, 200, { ok: true }) : json(res, 503, { ok: false });
-  }
+  if (method === "GET" && (path === "/healthz" || path === "/readyz")) return json(res, 200, { ok: true });
   if (method === "GET" && path === PATHS.jwks) return json(res, 200, context.publicJwks);
 
   if (path === ENDPOINTS_PATH) {

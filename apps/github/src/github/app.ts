@@ -185,9 +185,4 @@ export class GitHubApp {
   forgetRepositories(installationId: number): void {
     this.repositories.delete(installationId);
   }
-
-  /** Drop the token held for one community, because its installation is gone from Initiative. */
-  forgetInstallation(installation: string): void {
-    this.tokens.delete(installation);
-  }
 }

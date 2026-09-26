@@ -25,7 +25,6 @@ export interface Config {
     apiBase: string;
     webBase: string;
   };
-  syncIntervalSeconds: number;
 }
 
 /** Every variable, and whether the app refuses to start without it. */
@@ -41,7 +40,6 @@ export const ENVIRONMENT = {
     "PORT",
     "GITHUB_API_BASE",
     "GITHUB_WEB_BASE",
-    "SYNC_INTERVAL_SECONDS",
   ],
 } as const;
 
@@ -69,7 +67,6 @@ export function loadConfig(env: Env = process.env): Config {
       apiBase: trimSlashes(url(env.GITHUB_API_BASE?.trim() || "https://api.github.com", "GITHUB_API_BASE")),
       webBase: trimSlashes(url(env.GITHUB_WEB_BASE?.trim() || "https://github.com", "GITHUB_WEB_BASE")),
     },
-    syncIntervalSeconds: integer(env.SYNC_INTERVAL_SECONDS, "SYNC_INTERVAL_SECONDS", 300),
   };
 }
 

@@ -2,12 +2,14 @@
  * The hooks Initiative calls while it runs the GitHub connections: taken only
  * on a lifecycle token for the hook called; `after_connect` checking an
  * organization's installation against the admin's own and naming a member's
- * account; and `revoke` ending a member's authorization at GitHub.
+ * account; `revoke` ending a member's authorization at GitHub; and `schedule`
+ * reporting whether the organization's installation still exists.
  */
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { READ_IDS } from "../src/vocabulary.js";
+import { DETAILS, UNAVAILABLE_CHECKS } from "../src/hooks.js";
+import { CHECK_INSTALLATION, READ_IDS } from "../src/vocabulary.js";
 import { CLIENT_ID, CLIENT_SECRET, startHarness, type Harness } from "./support/harness.js";
 import { stranger } from "./support/keys.js";
 
@@ -20,10 +22,7 @@ beforeEach(async () => {
   h.github.install(42);
 });
 
-afterEach(async () => {
-  await h.settle();
-  await h.close();
-});
+afterEach(() => h.close());
 
 const installed = (installationId: string) => ({
   connection: "workspace",
@@ -176,5 +175,75 @@ describe("revoke", () => {
     const { status } = await h.hook(INSTALLATION, "revoke", { connection: "workspace", access_token: "ghu_admin" });
     expect(status).toBe(204);
     expect(h.github.calls).toHaveLength(0);
+  });
+});
+
+describe("schedule check-installation", () => {
+  beforeEach(() => {
+    h.initiative.install(INSTALLATION);
+  });
+
+  async function check(): Promise<number> {
+    const { status } = await h.hook(INSTALLATION, "schedule", { schedule: CHECK_INSTALLATION, since: null });
+    return status;
+  }
+
+  const statuses = () => h.initiative.installs.get(INSTALLATION)!.statuses;
+
+  it("reports ok while the organization's installation exists, once", async () => {
+    expect(await check()).toBe(204);
+    expect(await check()).toBe(204);
+    expect(statuses()).toEqual([{ state: "ok" }]);
+    // The installation token was asked of Initiative by the community connection's handle.
+    expect(h.initiative.installs.get(INSTALLATION)!.tokenAsks).toContain(`cref_ws_${INSTALLATION}`);
+  });
+
+  it("reports the installation removed once GitHub stops honouring its token", async () => {
+    await check();
+    // Initiative still hands out the token it minted; GitHub no longer takes it.
+    h.github.installations.delete(42);
+    expect(await check()).toBe(204);
+    expect(statuses()).toEqual([{ state: "ok" }, { state: "invalid", detail: DETAILS.removed }]);
+  });
+
+  it("reports invalid while the organization has suspended the installation, and ok once it is back", async () => {
+    await check();
+    h.github.installations.get(42)!.suspended = true;
+    await check();
+    h.github.installations.get(42)!.suspended = false;
+    await check();
+    expect(statuses()).toEqual([{ state: "ok" }, { state: "invalid", detail: DETAILS.suspended }, { state: "ok" }]);
+  });
+
+  it("reports unavailable only after several checks on which Initiative could get no token", async () => {
+    h.github.installations.delete(42);
+    for (let count = 1; count < UNAVAILABLE_CHECKS; count += 1) await check();
+    expect(statuses()).toEqual([]);
+    await check();
+    await check();
+    expect(statuses()).toEqual([{ state: "invalid", detail: DETAILS.unavailable }]);
+  });
+
+  it("keeps a removal it reported rather than calling it unavailable later", async () => {
+    await check();
+    h.github.installations.delete(42);
+    await check();
+    // Initiative's minted token has lapsed, and GitHub mints no other.
+    h.initiative.installs.get(INSTALLATION)!.minted = null;
+    for (let count = 0; count < UNAVAILABLE_CHECKS + 1; count += 1) await check();
+    expect(statuses().at(-1)).toEqual({ state: "invalid", detail: DETAILS.removed });
+  });
+
+  it("fails, so Initiative tries again, when Initiative itself could not be asked", async () => {
+    h.initiative.connectionTokenFails = 503;
+    expect(await check()).toBe(500);
+    expect(statuses()).toEqual([]);
+  });
+
+  it("reports nothing for a community that has not connected an organization", async () => {
+    h.initiative.install(INSTALLATION, { workspace: null });
+    expect(await check()).toBe(204);
+    expect(statuses()).toEqual([]);
+    expect(h.initiative.installs.get(INSTALLATION)!.tokenAsks).toEqual([]);
   });
 });

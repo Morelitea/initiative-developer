@@ -42,7 +42,6 @@ pull request review is the listing's review: merging it publishes the listing.
   "registration": {
     "kind": "container",
     "image": "ghcr.io/acme/tracker@sha256:…",
-    "jwks": {"keys": [{"kty": "OKP", "crv": "Ed25519", "x": "…"}]},
     "scope_ceiling": ["projects:read", "comments:write"],
     "reference_sectors": []
   },
@@ -81,8 +80,9 @@ them:
   filled-in example shown beside the listing, as a path or inline.
 - **`registration`** is required for an app and not allowed for anything
   else.
-  - `container`: `image` pinned by digest, and `jwks`. The deployment's
-    operator gives the location it runs at.
+  - `container`: `image` pinned by digest, and no location or keys. Each
+    deployment that runs it gives the location and the key set its copy
+    signs with, since each copy holds its own private key.
   - `hosted`: `base_url`, `embed_origin`, and `jwks` or `jwks_uri`.
   - `scope_ceiling` is the most the app may ever be granted. A manifest may ask
     for less, never more.

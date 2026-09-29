@@ -302,7 +302,7 @@
       "pattern": "^https://[^\\s]+$"
     },
     "registration": {
-      "description": "For an app (and allowed for an automation): how it runs, its keys, the most it may ever be granted, and the reference sectors it may learn.",
+      "description": "For an app (and allowed for an automation): how it runs, a hosted app's keys, the most it may ever be granted, and the reference sectors it may learn.",
       "type": "object",
       "required": [
         "kind",
@@ -357,15 +357,14 @@
       },
       "oneOf": [
         {
-          "description": "A container: the operator gives the location.",
+          "description": "A container: each deployment that runs it gives its location and the keys its copy signs with.",
           "properties": {
             "kind": {
               "const": "container"
             }
           },
           "required": [
-            "image",
-            "jwks"
+            "image"
           ],
           "not": {
             "anyOf": [
@@ -377,6 +376,11 @@
               {
                 "required": [
                   "embed_origin"
+                ]
+              },
+              {
+                "required": [
+                  "jwks"
                 ]
               },
               {

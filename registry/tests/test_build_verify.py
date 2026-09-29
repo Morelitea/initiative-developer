@@ -328,6 +328,45 @@ def test_app_without_registration_is_refused(world: World) -> None:
         world.build()
 
 
+_KEYS = {"keys": [{"kty": "OKP", "crv": "Ed25519", "kid": "k", "x": "x"}]}
+
+
+def _container_with_keys(document: dict) -> None:
+    document["registration"]["jwks"] = _KEYS
+
+
+def _hosted_without_keys(document: dict) -> None:
+    registration = document["registration"]
+    del registration["image"]
+    registration.update(
+        kind="hosted",
+        base_url="https://tracker.acme.test",
+        embed_origin="https://tracker.acme.test",
+    )
+
+
+@pytest.mark.parametrize(
+    "change",
+    [_container_with_keys, _hosted_without_keys],
+    ids=["container-with-keys", "hosted-without-keys"],
+)
+def test_keys_belong_to_whoever_runs_the_app(world: World, change) -> None:
+    """A container's keys are each deployment's; a hosted app's are its
+    publisher's and required."""
+    world.edit_listing(APP, change)
+    with pytest.raises(RegistryError, match=r"listing\.schema\.json"):
+        world.build()
+
+
+def test_a_hosted_app_carries_its_keys(world: World) -> None:
+    def hosted(document: dict) -> None:
+        _hosted_without_keys(document)
+        document["registration"]["jwks"] = _KEYS
+
+    world.edit_listing(APP, hosted)
+    world.build()
+
+
 def test_content_with_registration_is_refused(world: World) -> None:
     registration = json.loads(world.listing(APP).read_text())["registration"]
     world.edit_listing(DASHBOARD, lambda d: d.update(registration=registration))

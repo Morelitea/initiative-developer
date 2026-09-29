@@ -140,7 +140,7 @@ describe("manifest", () => {
     const listing = JSON.parse(readFileSync(join(source, "listing.json"), "utf-8"));
     expect(listing).toEqual(listingEntry(avatar));
     expect(listing.registration).toMatchObject({ kind: "container", scope_ceiling: [...SCOPES], reference_sectors: [] });
-    expect(listing.registration.jwks.keys[0]).toMatchObject({ kty: "EC", kid: "github-1", alg: "ES256" });
+    expect(listing.registration).not.toHaveProperty("jwks");
     if (packageVersion === VERSION) {
       const definition = JSON.parse(readFileSync(join(source, listing.versions[0].definition), "utf-8"));
       expect(definition).toEqual(manifest);

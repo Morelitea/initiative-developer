@@ -1,12 +1,13 @@
 /**
  * The app's registry source listing: what the catalogue shows, the versions it
- * offers, and the registration a deployment reads the app's keys and ceiling
+ * offers, and the registration a deployment reads the app's image and ceiling
  * from. `npm run manifest` writes it under `registry/sources/morelitea/<uid>/`,
  * beside each version's definition (`<version>/manifest.json`) and the avatar
  * (`assets/avatar.png`).
  *
- * `IMAGE` is the digest the image workflow printed for this version, and
- * `JWKS` the public half of the key the app signs its token requests with.
+ * `IMAGE` is the digest the image workflow printed for this version. The
+ * registration names no key set: each deployment's pod signs with its own key,
+ * and the deployment registers that key's public half.
  *
  * The "GitHub overview" dashboard is not a listing of its own here: it is
  * bundled in the manifest, and a deployment publishes it from there.
@@ -29,13 +30,6 @@ export const MIN_APP_VERSION = "0.72.0";
 /** The image this version runs, pinned by digest. */
 export const IMAGE =
   "ghcr.io/morelitea/initiative-github@sha256:dfd2348327b7d57b67ad0d668285090056d89d081e70ede00584286e569ec8bb";
-
-/** The public key the app's token requests are verified with. */
-export const JWKS = {
-  keys: [
-    {"kty": "EC", "kid": "github-1", "alg": "ES256", "use": "sig", "crv": "P-256", "x": "AnzMCoYTwqIVaUH3j-djW2xSDIf3TAH1GyKkxMGqkcs", "y": "4BuzhHAZZ8LS7CZcb_Pz415ae8tD01N7cwGERgJgujk"},
-  ],
-};
 
 /** Where each version's definition sits, beside the listing. */
 export const DEFINITION_PATH = `${VERSION}/manifest.json`;
@@ -69,7 +63,6 @@ export function listingEntry(avatar: Buffer): Record<string, unknown> {
     registration: {
       kind: "container",
       image: IMAGE,
-      jwks: JWKS,
       scope_ceiling: [...SCOPES],
       reference_sectors: [],
     },

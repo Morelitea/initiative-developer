@@ -328,43 +328,22 @@ def test_app_without_registration_is_refused(world: World) -> None:
         world.build()
 
 
-_KEYS = {"keys": [{"kty": "OKP", "crv": "Ed25519", "kid": "k", "x": "x"}]}
-
-
-def _container_with_keys(document: dict) -> None:
-    document["registration"]["jwks"] = _KEYS
-
-
-def _hosted_without_keys(document: dict) -> None:
-    registration = document["registration"]
-    del registration["image"]
-    registration.update(
-        kind="hosted",
-        base_url="https://tracker.acme.test",
-        embed_origin="https://tracker.acme.test",
-    )
-
-
 @pytest.mark.parametrize(
-    "change",
-    [_container_with_keys, _hosted_without_keys],
-    ids=["container-with-keys", "hosted-without-keys"],
+    "fields",
+    [
+        {"jwks": {"keys": [{"kty": "OKP", "crv": "Ed25519", "kid": "k", "x": "x"}]}},
+        {"base_url": "https://tracker.acme.test"},
+        {"kind": "hosted"},
+    ],
+    ids=["keys", "location", "hosted"],
 )
-def test_keys_belong_to_whoever_runs_the_app(world: World, change) -> None:
-    """A container's keys are each deployment's; a hosted app's are its
-    publisher's and required."""
-    world.edit_listing(APP, change)
+def test_an_app_is_a_container_with_no_location_or_keys(
+    world: World, fields: dict
+) -> None:
+    """Each deployment runs its own copy, and gives its location and keys."""
+    world.edit_listing(APP, lambda d: d["registration"].update(fields))
     with pytest.raises(RegistryError, match=r"listing\.schema\.json"):
         world.build()
-
-
-def test_a_hosted_app_carries_its_keys(world: World) -> None:
-    def hosted(document: dict) -> None:
-        _hosted_without_keys(document)
-        document["registration"]["jwks"] = _KEYS
-
-    world.edit_listing(APP, hosted)
-    world.build()
 
 
 def test_content_with_registration_is_refused(world: World) -> None:

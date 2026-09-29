@@ -79,11 +79,10 @@ them:
 - **`versions[].example`** is optional, and only for a tool's content: the
   filled-in example shown beside the listing, as a path or inline.
 - **`registration`** is required for an app and not allowed for anything
-  else.
-  - `container`: `image` pinned by digest, and no location or keys. Each
-    deployment that runs it gives the location and the key set its copy
-    signs with, since each copy holds its own private key.
-  - `hosted`: `base_url`, `embed_origin`, and `jwks` or `jwks_uri`.
+  else. Every app is a container the deployment runs.
+  - `kind` is `container`, and `image` is pinned by digest. It names no
+    location or keys: each deployment that runs it gives the location and the
+    key set its copy signs with, since each copy holds its own private key.
   - `scope_ceiling` is the most the app may ever be granted. A manifest may ask
     for less, never more.
   - `reference_sectors` lists the reference sectors an app may be granted.

@@ -343,10 +343,10 @@ export default defineApp({
   ],
 
   // The registry listing. `image` is the digest the image workflow printed for
-  // this version, and `jwks` the public half of the key the app signs its
-  // token requests with. The "GitHub overview" dashboard is not a listing of
-  // its own: it is bundled in the manifest, and a deployment publishes it from
-  // there.
+  // this version. It names no key set: each deployment's pod signs with its
+  // own key, registered with that deployment. The "GitHub overview" dashboard
+  // is not a listing of its own: it is bundled in the manifest, and a
+  // deployment publishes it from there.
   listing: {
     publisher: "morelitea",
     summary: "Your organization's issues, reviews and dependency alerts, on a dashboard and in your automations.",
@@ -367,18 +367,5 @@ export default defineApp({
     releaseNotes:
       "Initiative now calls the app every 15 minutes to check each installation, so the app keeps no timer of its own and is ready as soon as it starts.",
     image: "ghcr.io/morelitea/initiative-github@sha256:dfd2348327b7d57b67ad0d668285090056d89d081e70ede00584286e569ec8bb",
-    jwks: {
-      keys: [
-        {
-          kty: "EC",
-          kid: "github-1",
-          alg: "ES256",
-          use: "sig",
-          crv: "P-256",
-          x: "AnzMCoYTwqIVaUH3j-djW2xSDIf3TAH1GyKkxMGqkcs",
-          y: "4BuzhHAZZ8LS7CZcb_Pz415ae8tD01N7cwGERgJgujk",
-        },
-      ],
-    },
   },
 });

@@ -22,16 +22,6 @@
   "registration": {
     "kind": "container",
     "image": "ghcr.io/acme/tracker@sha256:0000000000000000000000000000000000000000000000000000000000000000",
-    "jwks": {
-      "keys": [
-        {
-          "kty": "OKP",
-          "crv": "Ed25519",
-          "kid": "example",
-          "x": "11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlrwIaaPcHURo"
-        }
-      ]
-    },
     "scope_ceiling": ["projects:read", "projects:write", "comments:write"],
     "reference_sectors": []
   },

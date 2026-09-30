@@ -138,7 +138,7 @@ describe("manifest", () => {
     const listing = JSON.parse(readFileSync(join(source, "listing.json"), "utf-8"));
     expect(listing).toMatchObject({ uid: LISTING_UID, public_id: "morelitea.github", publisher: app.listing!.publisher });
     expect(listing.registration).toMatchObject({ kind: "container", scope_ceiling: [...SCOPES], reference_sectors: [] });
-    expect(listing.registration.jwks.keys[0]).toMatchObject({ kty: "EC", kid: "github-1", alg: "ES256" });
+    expect(listing.registration).not.toHaveProperty("jwks");
     // Between releases the app runs ahead of what the listing publishes, never behind it.
     expect(packageVersion === listing.versions[0].version || later(packageVersion, listing.versions[0].version)).toBe(true);
   });

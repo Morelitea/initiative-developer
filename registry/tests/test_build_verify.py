@@ -328,6 +328,24 @@ def test_app_without_registration_is_refused(world: World) -> None:
         world.build()
 
 
+@pytest.mark.parametrize(
+    "fields",
+    [
+        {"jwks": {"keys": [{"kty": "OKP", "crv": "Ed25519", "kid": "k", "x": "x"}]}},
+        {"base_url": "https://tracker.acme.test"},
+        {"kind": "hosted"},
+    ],
+    ids=["keys", "location", "hosted"],
+)
+def test_an_app_is_a_container_with_no_location_or_keys(
+    world: World, fields: dict
+) -> None:
+    """Each deployment runs its own copy, and gives its location and keys."""
+    world.edit_listing(APP, lambda d: d["registration"].update(fields))
+    with pytest.raises(RegistryError, match=r"listing\.schema\.json"):
+        world.build()
+
+
 def test_content_with_registration_is_refused(world: World) -> None:
     registration = json.loads(world.listing(APP).read_text())["registration"]
     world.edit_listing(DASHBOARD, lambda d: d.update(registration=registration))

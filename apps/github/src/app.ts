@@ -366,6 +366,6 @@ export default defineApp({
     minAppVersion: "0.72.0",
     releaseNotes:
       "Rebuilt on the Initiative app SDK, with no change to what it does. It needs an Initiative that types the tokens it sends apps.",
-    image: "ghcr.io/morelitea/initiative-github@sha256:dfd2348327b7d57b67ad0d668285090056d89d081e70ede00584286e569ec8bb",
+    image: "ghcr.io/morelitea/initiative-github@sha256:ec966af338fef63213bfa6b37e6d1392a39374001e78a15ed07db2a8847e56c5",
   },
 });

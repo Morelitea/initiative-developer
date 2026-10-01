@@ -6,7 +6,7 @@
  * memory only.
  */
 
-import { InitiativeApiError, type InitiativeAuth } from "initiative-app-kit";
+import { InitiativeApiError, type Client } from "initiative-app-sdk/client";
 
 import type { Logger } from "../context.js";
 import type { Workspace } from "../installs.js";
@@ -58,7 +58,6 @@ interface HeldToken {
 
 export interface GitHubAppOptions {
   http: GitHubHttp;
-  auth: InitiativeAuth;
   log: Logger;
 }
 
@@ -80,14 +79,15 @@ export class GitHubApp {
    * or the configuration is not complete). Cached until shortly before it
    * expires.
    */
-  async installationToken(installation: string, workspace: Workspace): Promise<string | null> {
+  async installationToken(client: Client, workspace: Workspace): Promise<string | null> {
+    const installation = client.installation;
     const held = this.tokens.get(installation);
     if (held && held.installationId === workspace.installationId && held.expiresAt - TOKEN_SKEW_MS > this.http.now()) {
       return held.token;
     }
     const pending = this.asking.get(installation);
     if (pending) return pending;
-    const request = this.ask(installation, workspace)
+    const request = this.ask(client, workspace)
       .then((token) => token.accessToken)
       .catch((error: unknown) => {
         this.tokens.delete(installation);
@@ -99,10 +99,10 @@ export class GitHubApp {
     return request;
   }
 
-  private async ask(installation: string, workspace: Workspace): Promise<{ accessToken: string }> {
-    const answer = await this.options.auth.connectionToken(installation, workspace.ref);
+  private async ask(client: Client, workspace: Workspace): Promise<{ accessToken: string }> {
+    const answer = await client.connectionToken(workspace.ref);
     if (answer.expiresAt !== null) {
-      this.tokens.set(installation, {
+      this.tokens.set(client.installation, {
         token: answer.accessToken,
         expiresAt: answer.expiresAt,
         installationId: workspace.installationId,
@@ -115,12 +115,12 @@ export class GitHubApp {
    * Whether GitHub still has the community's installation: a fresh token is
    * asked of Initiative and shown to GitHub once.
    */
-  async check(installation: string, workspace: Workspace): Promise<InstallationCheck> {
+  async check(client: Client, workspace: Workspace): Promise<InstallationCheck> {
     let token: string;
     try {
-      token = (await this.ask(installation, workspace)).accessToken;
+      token = (await this.ask(client, workspace)).accessToken;
     } catch (error) {
-      this.tokens.delete(installation);
+      this.tokens.delete(client.installation);
       // Initiative asked GitHub for a token and got none.
       if (error instanceof InitiativeApiError && error.status === 502) return { state: "unavailable" };
       return { state: "unknown", detail: (error as Error).message };
@@ -144,13 +144,13 @@ export class GitHubApp {
    * now, or why GitHub would not say. Never a partial list.
    */
   async installationRepositories(
-    installation: string,
+    client: Client,
     workspace: Workspace
   ): Promise<{ names: string[] } | { failure: Failure }> {
     const held = this.repositories.get(workspace.installationId);
     if (held && held.readAt > this.http.now() - REPOSITORY_TTL_MS) return { names: held.names };
 
-    const token = await this.installationToken(installation, workspace);
+    const token = await this.installationToken(client, workspace);
     if (!token) return { failure: "vendor-error" };
 
     const names: string[] = [];

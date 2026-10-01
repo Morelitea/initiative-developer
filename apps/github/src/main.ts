@@ -1,8 +1,10 @@
 /** The container's entry point: read the settings and serve. */
 
+import { createApp, serve } from "initiative-app-sdk/server";
+
+import app from "./app.js";
 import { ConfigError, loadConfig } from "./config.js";
-import { createContext } from "./context.js";
-import { createAppServer } from "./server.js";
+import { consoleLogger, createContext } from "./context.js";
 
 function main(): void {
   let config;
@@ -16,11 +18,16 @@ function main(): void {
     throw error;
   }
 
-  const server = createAppServer(createContext(config));
-
-  server.listen(config.port, () => {
-    console.log(`initiative-github listening on ${config.port}`);
-  });
+  const server = serve(
+    createApp(app, {
+      baseUrl: config.initiative.baseUrl,
+      key: { privateKey: config.initiative.privateKey, kid: config.initiative.keyId },
+      context: createContext(config),
+      log: consoleLogger,
+    }),
+    { port: config.port }
+  );
+  server.on("listening", () => console.log(`initiative-github listening on ${config.port}`));
 
   const shutdown = () => server.close(() => process.exit(0));
   process.on("SIGTERM", shutdown);

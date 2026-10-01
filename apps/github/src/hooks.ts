@@ -1,6 +1,6 @@
 /**
- * `POST /v1/hooks/{name}`: what Initiative asks the app while it runs the
- * GitHub connections.
+ * What Initiative asks the app while it runs the GitHub connections, receives
+ * GitHub's deliveries and keeps the app's schedule.
  *
  * - **`after_connect`** for `workspace`: an admin installed the GitHub App and
  *   authorized once. The installation they came back with must be one GitHub
@@ -12,11 +12,11 @@
  * - **`webhook`**: a GitHub delivery for the community's installation, which
  *   Initiative has checked and routed. It becomes one of the six
  *   announcements, emitted in that community.
- * - **`schedule`** for `check-installation`: whether the organization's
+ * - **`check-installation`**, on its schedule: whether the organization's
  *   installation still exists at GitHub, reported as the configuration's
  *   status when that changes.
  *
- * The kit verifies the lifecycle token and the body; these handlers do only
+ * The SDK verifies the lifecycle token and the body; these handlers do only
  * the GitHub work. A handler that throws answers 500, which Initiative reads
  * as the hook failing: a connection is then not recorded, and a revocation or
  * a scheduled check is tried again.
@@ -25,16 +25,15 @@
 import type {
   AfterConnectAnswer,
   AfterConnectCall,
-  HookHandlers,
+  Call,
+  Hooks,
   RevokeCall,
-  ScheduleCall,
   WebhookCall,
-} from "initiative-app-kit";
+} from "initiative-app-sdk/manifest";
 
-import type { AppContext } from "./context.js";
 import { translate } from "./endpoints/emissions.js";
 import { endAuthorization, userInstallations, userLogin } from "./github/oauth.js";
-import { ACCOUNT, CHECK_INSTALLATION, WORKSPACE } from "./vocabulary.js";
+import { ACCOUNT, WORKSPACE } from "./vocabulary.js";
 
 const REFUSE: AfterConnectAnswer = { refuse: true };
 
@@ -52,34 +51,20 @@ export const DETAILS = {
   unavailable: "github_installation_unavailable",
 } as const;
 
-export function hookHandlers(context: AppContext): HookHandlers {
-  return {
-    after_connect: (call) => logged(context, `after_connect for ${call.connection}`, afterConnect(context, call)),
-    revoke: (call) => logged(context, `revoke for ${call.connection}`, revoke(context, call)),
-    webhook: (call, claims) =>
-      logged(context, `webhook ${call.headers["x-github-event"]}`, delivered(context, call, claims.guild_ref)),
-    schedule: (call, claims) => logged(context, `schedule ${call.schedule}`, scheduled(context, call, claims.guild_ref)),
-  };
-}
-
-/** The kit answers a handler that throws with 500 and says no more, so the reason is logged here. */
-async function logged<T>(context: AppContext, what: string, work: Promise<T>): Promise<T> {
-  try {
-    return await work;
-  } catch (error) {
-    context.log.error(`${what} failed`, error);
-    throw error;
-  }
-}
-
-async function afterConnect(context: AppContext, call: AfterConnectCall): Promise<AfterConnectAnswer> {
-  if (call.connection === WORKSPACE && call.actor === "installation") return installed(context, call);
-  if (call.connection === ACCOUNT && call.actor === "member") return authorized(context, call);
-  return REFUSE;
-}
+export const hooks: Hooks = {
+  after_connect: (call) =>
+    call.connection === WORKSPACE && call.actor === "installation"
+      ? installed(call)
+      : call.connection === ACCOUNT && call.actor === "member"
+        ? authorized(call)
+        : Promise.resolve(REFUSE),
+  revoke,
+  webhook: delivered,
+};
 
 /** The organization's installation, checked against the ones the admin holds. */
-async function installed(context: AppContext, call: AfterConnectCall): Promise<AfterConnectAnswer> {
+async function installed(call: AfterConnectCall): Promise<AfterConnectAnswer> {
+  const context = call.context;
   const claimed = Number(call.params.installation_id);
   if (!Number.isSafeInteger(claimed) || claimed <= 0) return REFUSE;
 
@@ -96,33 +81,33 @@ async function installed(context: AppContext, call: AfterConnectCall): Promise<A
 }
 
 /** A member's own account, named by its login. */
-async function authorized(context: AppContext, call: AfterConnectCall): Promise<AfterConnectAnswer> {
-  const login = await userLogin(context.http, call.access_token);
+async function authorized(call: AfterConnectCall): Promise<AfterConnectAnswer> {
+  const login = await userLogin(call.context.http, call.access_token);
   if (!login) throw new Error("GitHub would not name the member's account");
   return { account_label: login };
 }
 
 /** A member's authorization of the GitHub App, ended at GitHub. */
-async function revoke(context: AppContext, call: RevokeCall): Promise<void> {
+async function revoke(call: RevokeCall): Promise<void> {
   if (call.connection !== ACCOUNT) return;
-  const outcome = await endAuthorization(context.oauth, {
+  const outcome = await endAuthorization(call.context.oauth, {
     accessToken: call.access_token ?? null,
     refreshToken: call.refresh_token ?? null,
   });
   if (outcome === "nothing-to-end") {
-    context.log.info("a member's GitHub authorization had already ended");
+    call.context.log.info("a member's GitHub authorization had already ended");
   }
 }
 
 /** A GitHub delivery, announced in the community it was routed to. */
-async function delivered(context: AppContext, call: WebhookCall, installation: string): Promise<void> {
+async function delivered(call: WebhookCall): Promise<void> {
   const event = call.headers["x-github-event"] ?? "";
   const payload = JSON.parse(call.body) as Record<string, unknown>;
   if (event === "installation" || event === "installation_repositories") {
-    return changed(context, installation, payload);
+    return changed(call, payload);
   }
   const announcement = translate(event, payload);
-  if (announcement) await context.auth.emitEvent(installation, announcement);
+  if (announcement) await call.client.emitEvent(announcement);
 }
 
 /**
@@ -130,7 +115,7 @@ async function delivered(context: AppContext, call: WebhookCall, installation: s
  * that was removed or suspended is reported, so the community's admins see
  * the configuration no longer works.
  */
-async function changed(context: AppContext, installation: string, payload: Record<string, unknown>): Promise<void> {
+async function changed({ context, client }: Call, payload: Record<string, unknown>): Promise<void> {
   const installationId = Number((payload.installation as { id?: unknown } | undefined)?.id);
   const action = String(payload.action ?? "");
   if (action === "added" || action === "removed") {
@@ -139,21 +124,17 @@ async function changed(context: AppContext, installation: string, payload: Recor
   }
   context.github.forget(installationId);
   if (action !== "deleted" && action !== "suspend") return;
-  await context.auth.reportConfigStatus(installation, {
+  await client.reportConfigStatus({
     state: "invalid",
     detail: action === "deleted" ? DETAILS.removed : DETAILS.suspended,
   });
 }
 
-async function scheduled(context: AppContext, call: ScheduleCall, installation: string): Promise<void> {
-  if (call.schedule === CHECK_INSTALLATION) await checkInstallation(context, installation);
-}
-
 /** Whether the community's GitHub installation still exists, reported when the verdict changes. */
-async function checkInstallation(context: AppContext, installation: string): Promise<void> {
-  const snapshot = await context.installs.refresh(installation);
+export async function checkInstallation({ context, client, installation }: Call): Promise<void> {
+  const snapshot = await context.installs.refresh(client);
   if (!snapshot.workspace) return;
-  const lookup = await context.github.check(installation, snapshot.workspace);
+  const lookup = await context.github.check(client, snapshot.workspace);
   if (lookup.state === "unknown") throw new Error(`could not check the installation: ${lookup.detail}`);
 
   let detail: string | null;
@@ -171,5 +152,5 @@ async function checkInstallation(context: AppContext, installation: string): Pro
 
   const state = detail ? "invalid" : "ok";
   if (snapshot.configState === state && snapshot.configStateDetail === detail) return;
-  await context.auth.reportConfigStatus(installation, detail ? { state: "invalid", detail } : { state: "ok" });
+  await client.reportConfigStatus(detail ? { state: "invalid", detail } : { state: "ok" });
 }

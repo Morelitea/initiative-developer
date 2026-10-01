@@ -1,3 +1,5 @@
+import { defineEndpoint } from "initiative-app-sdk/manifest";
+
 import { callerToken } from "../credentials.js";
 import { graphql, rest } from "../github/http.js";
 import {
@@ -20,7 +22,6 @@ import {
   OWNER_OUT,
   param,
   PEOPLE_OF,
-  READ_IDS,
   REPO,
   REPO_OUT,
   ROWS_OUT,
@@ -32,7 +33,6 @@ import {
   UPDATED_OUT,
   URL_OUT,
   WORKSPACE,
-  WRITE_IDS,
 } from "../vocabulary.js";
 import { writePlace } from "./issues.js";
 import {
@@ -42,6 +42,7 @@ import {
   isResult,
   limit,
   list,
+  memberWrite,
   nodes,
   ordering,
   orNull,
@@ -60,11 +61,9 @@ import {
   writeFailure,
   type Call,
   type Connection,
-  type Read,
   type ReadOutcome,
   type Row,
   type SubjectNode,
-  type Write,
 } from "./support.js";
 
 const PULL_STATES = ["open", "closed", "merged", "all"] as const;
@@ -130,41 +129,38 @@ async function waitingOn(call: Call, reviewer: string): Promise<ReadOutcome> {
   return { actor, result: rows(nodes(answer.body.search), answer.body.search.issueCount) };
 }
 
-export const findPullRequests: Read = {
-  declaration: {
-    id: READ_IDS.findPullRequests,
-    direction: "read",
-    label: text("Find pull requests", "Pull Requests suchen", "Buscar pull requests", "Rechercher des pull requests"),
-    description: text(
-      "The pull requests matching a question, including the ones waiting on a review.",
-      "Die Pull Requests, die zu einer Frage passen, auch die, die auf eine Review warten.",
-      "Las pull requests que coinciden con una consulta, incluidas las que esperan revisión.",
-      "Les pull requests correspondant à une question, y compris celles en attente de revue."
-    ),
-    group: "reviews",
-    // `@me` is the member the call is for; everything else runs on the installation.
-    ...PUBLIC_READ,
-    cache_ttl_seconds: 60,
-    params: [
-      REPO,
-      param("state", "select", text("State", "Status", "Estado", "État"), { options: [...PULL_STATES] }),
-      LABELS_IN,
-      param("base_ref", "string", text("Into branch", "Nach Branch", "Hacia la rama", "Vers la branche")),
-      param("head_ref", "string", text("From branch", "Von Branch", "Desde la rama", "Depuis la branche")),
-      param("review_requested", "string", text("Waiting on", "Wartet auf", "Esperando a", "En attente de"), {
-        options_from: PEOPLE_OF,
-      }),
-      SORT_IN,
-      DIRECTION_IN,
-      LIMIT_IN,
-    ],
-    returns: ROWS_OUT,
-    // Either is enough to be called: the member's account travels when they
-    // have connected one, and `@me` needs it.
-    requires: { any_of: [WORKSPACE, ACCOUNT] },
+export const findPullRequests = defineEndpoint({
+  direction: "read",
+  label: text("Find pull requests", "Pull Requests suchen", "Buscar pull requests", "Rechercher des pull requests"),
+  description: text(
+    "The pull requests matching a question, including the ones waiting on a review.",
+    "Die Pull Requests, die zu einer Frage passen, auch die, die auf eine Review warten.",
+    "Las pull requests que coinciden con una consulta, incluidas las que esperan revisión.",
+    "Les pull requests correspondant à une question, y compris celles en attente de revue."
+  ),
+  group: "reviews",
+  // `@me` is the member the call is for; everything else runs on the installation.
+  ...PUBLIC_READ,
+  cache_ttl_seconds: 60,
+  params: {
+    ...REPO,
+    state: param("select", text("State", "Status", "Estado", "État"), { options: [...PULL_STATES] }),
+    ...LABELS_IN,
+    base_ref: param("string", text("Into branch", "Nach Branch", "Hacia la rama", "Vers la branche")),
+    head_ref: param("string", text("From branch", "Von Branch", "Desde la rama", "Depuis la branche")),
+    review_requested: param("string", text("Waiting on", "Wartet auf", "Esperando a", "En attente de"), {
+      options_from: PEOPLE_OF,
+    }),
+    ...SORT_IN,
+    ...DIRECTION_IN,
+    ...LIMIT_IN,
   },
+  returns: ROWS_OUT,
+  // Either is enough to be called: the member's account travels when they
+  // have connected one, and `@me` needs it.
+  requires: { any_of: [WORKSPACE, ACCOUNT] },
 
-  async run(call) {
+  async handler(call) {
     const reviewer = textParam(call.params, "review_requested");
     if (reviewer !== undefined) return waitingOn(call, reviewer);
 
@@ -200,7 +196,7 @@ export const findPullRequests: Read = {
     if (!pulls) return { actor: "installation", result: unavailable("not-found") };
     return { actor: "installation", result: rows(nodes(pulls), pulls.totalCount) };
   },
-};
+});
 
 interface PullNode extends SubjectNode {
   isDraft?: boolean;
@@ -212,49 +208,46 @@ interface PullNode extends SubjectNode {
   commits?: { totalCount?: number };
 }
 
-export const getPullRequest: Read = {
-  declaration: {
-    id: READ_IDS.getPullRequest,
-    direction: "read",
-    label: text("Get a pull request", "Pull Request abrufen", "Obtener una pull request", "Récupérer une pull request"),
-    description: text(
-      "One pull request by number: whether it is a draft, and whether it merged.",
-      "Ein Pull Request nach Nummer: ob er ein Entwurf ist und ob er gemergt wurde.",
-      "Una pull request por número: si es un borrador y si se fusionó.",
-      "Une pull request par numéro : si c'est un brouillon, et si elle a été fusionnée."
-    ),
-    group: "reviews",
-    ...PUBLIC_READ,
-    cache_ttl_seconds: 0,
-    params: [REPO, NUMBER],
-    returns: [
-      REPO_OUT,
-      OWNER_OUT,
-      NUMBER_OUT,
-      TITLE_OUT,
-      STATE_OUT,
-      out("merged", "bool"),
-      out("draft", "bool"),
-      URL_OUT,
-      AUTHOR_OUT,
-      LABELS_OUT,
-      ASSIGNEES_OUT,
-      MILESTONE_OUT,
-      COMMENTS_OUT,
-      out("head_ref", "string", { label: text("From branch", "Von Branch", "Desde la rama", "Depuis la branche") }),
-      out("base_ref", "string", { label: text("Into branch", "Nach Branch", "Hacia la rama", "Vers la branche") }),
-      out("commits", "int"),
-      out("changed_files", "int"),
-      CREATED_OUT,
-      UPDATED_OUT,
-      CLOSED_OUT,
-      out("merged_at", "string"),
-      UNAVAILABLE,
-    ],
-    requires: { all_of: [WORKSPACE] },
+export const getPullRequest = defineEndpoint({
+  direction: "read",
+  label: text("Get a pull request", "Pull Request abrufen", "Obtener una pull request", "Récupérer une pull request"),
+  description: text(
+    "One pull request by number: whether it is a draft, and whether it merged.",
+    "Ein Pull Request nach Nummer: ob er ein Entwurf ist und ob er gemergt wurde.",
+    "Una pull request por número: si es un borrador y si se fusionó.",
+    "Une pull request par numéro : si c'est un brouillon, et si elle a été fusionnée."
+  ),
+  group: "reviews",
+  ...PUBLIC_READ,
+  cache_ttl_seconds: 0,
+  params: { ...REPO, ...NUMBER },
+  returns: {
+    ...REPO_OUT,
+    ...OWNER_OUT,
+    ...NUMBER_OUT,
+    ...TITLE_OUT,
+    ...STATE_OUT,
+    merged: out("bool"),
+    draft: out("bool"),
+    ...URL_OUT,
+    ...AUTHOR_OUT,
+    ...LABELS_OUT,
+    ...ASSIGNEES_OUT,
+    ...MILESTONE_OUT,
+    ...COMMENTS_OUT,
+    head_ref: out("string", { label: text("From branch", "Von Branch", "Desde la rama", "Depuis la branche") }),
+    base_ref: out("string", { label: text("Into branch", "Nach Branch", "Hacia la rama", "Vers la branche") }),
+    commits: out("int"),
+    changed_files: out("int"),
+    ...CREATED_OUT,
+    ...UPDATED_OUT,
+    ...CLOSED_OUT,
+    merged_at: out("string"),
+    ...UNAVAILABLE,
   },
+  requires: { all_of: [WORKSPACE] },
 
-  async run(call) {
+  async handler(call) {
     const access = await repoAccess(call);
     if (isResult(access)) return { actor: "installation", result: access };
     const number = int(call.params, "number");
@@ -291,37 +284,34 @@ export const getPullRequest: Read = {
       },
     };
   },
-};
+});
 
-export const requestReview: Write = {
-  declaration: {
-    id: WRITE_IDS.requestReview,
-    direction: "write",
-    label: text("Request a review", "Review anfragen", "Solicitar una revisión", "Demander une revue"),
-    description: text(
-      "Asks people or teams to review a pull request, as the member.",
-      "Bittet Personen oder Teams, einen Pull Request zu prüfen, als das Mitglied.",
-      "Pide a personas o equipos que revisen una pull request, como el miembro.",
-      "Demande à des personnes ou des équipes de relire une pull request, en tant que le membre."
-    ),
-    group: "reviews",
-    ...PUBLIC_WRITE,
-    params: [
-      REPO,
-      NUMBER,
-      param("reviewers", "string", text("Reviewers", "Reviewer", "Revisores", "Relecteurs"), {
-        list: true,
-        options_from: PEOPLE_OF,
-      }),
-      param("team_reviewers", "string", text("Team reviewers", "Team-Reviewer", "Equipos revisores", "Équipes relectrices"), {
-        list: true,
-      }),
-    ],
-    returns: [REPO_OUT, NUMBER_OUT, LINK_OUT],
-    identity: ISSUE_IDENTITY,
+export const requestReview = defineEndpoint({
+  direction: "write",
+  label: text("Request a review", "Review anfragen", "Solicitar una revisión", "Demander une revue"),
+  description: text(
+    "Asks people or teams to review a pull request, as the member.",
+    "Bittet Personen oder Teams, einen Pull Request zu prüfen, als das Mitglied.",
+    "Pide a personas o equipos que revisen una pull request, como el miembro.",
+    "Demande à des personnes ou des équipes de relire une pull request, en tant que le membre."
+  ),
+  group: "reviews",
+  ...PUBLIC_WRITE,
+  params: {
+    ...REPO,
+    ...NUMBER,
+    reviewers: param("string", text("Reviewers", "Reviewer", "Revisores", "Relecteurs"), {
+      list: true,
+      options_from: PEOPLE_OF,
+    }),
+    team_reviewers: param("string", text("Team reviewers", "Team-Reviewer", "Equipos revisores", "Équipes relectrices"), {
+      list: true,
+    }),
   },
+  returns: { ...REPO_OUT, ...NUMBER_OUT, ...LINK_OUT },
+  identity: ISSUE_IDENTITY,
 
-  async run(call, token, place) {
+  handler: memberWrite(async (call, token, place) => {
     const where = await writePlace(call, place);
     if ("ok" in where) return where;
     const number = int(call.params, "number");
@@ -339,5 +329,5 @@ export const requestReview: Write = {
     );
     if (!answer.ok) return writeFailure(answer.failure, answer.message);
     return { ok: true, result: { repository: where.repo, number, ...pick(answer.body, ["html_url"]) } };
-  },
-};
+  }),
+});

@@ -39,8 +39,7 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
-      # The manifest validates with the kit, and manifest.json and the app's
-      # registry source are what their sources produce.
+      # manifest.json is what the app's definition builds, and it validates.
       - run: npm run manifest:check
 
   image:

@@ -8,7 +8,7 @@
  * configuration read.
  */
 
-import type { InitiativeAuth, InstallationConfig } from "initiative-app-kit";
+import type { Client, InstallationConfig } from "initiative-app-sdk/client";
 
 import { WORKSPACE } from "./vocabulary.js";
 
@@ -31,7 +31,6 @@ export interface InstallSnapshot {
 }
 
 export interface InstallRegistryOptions {
-  auth: InitiativeAuth;
   now: () => number;
 }
 
@@ -41,20 +40,21 @@ export class InstallRegistry {
 
   constructor(private readonly options: InstallRegistryOptions) {}
 
-  /** The installation's configuration, from memory when it is fresh enough. */
-  async snapshot(installation: string): Promise<InstallSnapshot> {
-    const held = this.snapshots.get(installation);
+  /** The client's installation's configuration, from memory when it is fresh enough. */
+  async snapshot(client: Client): Promise<InstallSnapshot> {
+    const held = this.snapshots.get(client.installation);
     if (held && held.readAt > this.options.now() - CONFIG_TTL_MS) return held;
-    return this.refresh(installation);
+    return this.refresh(client);
   }
 
-  /** Read the installation's configuration again, whatever is in memory. */
-  refresh(installation: string): Promise<InstallSnapshot> {
+  /** Read the configuration again, whatever is in memory. */
+  refresh(client: Client): Promise<InstallSnapshot> {
+    const installation = client.installation;
     const pending = this.reading.get(installation);
     if (pending) return pending;
     const request = (async () => {
       try {
-        const config = await this.options.auth.installationConfig(installation);
+        const config = await client.config();
         const next = snapshotOf(installation, config, this.options.now());
         this.snapshots.set(installation, next);
         return next;

@@ -7,20 +7,16 @@
  * automation can tell a refusal from a retry.
  */
 
-import type { ActorKind, ContextClaims, Endpoint } from "initiative-app-kit";
+import type { ActorKind, Endpoint, EndpointCall } from "initiative-app-sdk/manifest";
+import { EndpointError } from "initiative-app-sdk/server";
 
-import type { AppContext } from "../context.js";
+import { callerToken } from "../credentials.js";
 import type { Failure } from "../github/http.js";
 import type { Workspace } from "../installs.js";
 import { ACCOUNT, WORKSPACE } from "../vocabulary.js";
 
-export interface Call {
-  context: AppContext;
-  /** The installation reference: the community, as this app's install knows it. */
-  installation: string;
-  claims: ContextClaims;
-  params: Record<string, unknown>;
-}
+/** One endpoint call, whatever its parameters. */
+export type Call = EndpointCall<any>;
 
 export type Result = Record<string, unknown>;
 
@@ -29,19 +25,9 @@ export interface ReadOutcome {
   result: Result;
 }
 
-export interface Read {
-  declaration: Endpoint;
-  run(call: Call): Promise<ReadOutcome>;
-}
-
 export type WriteOutcome =
   | { ok: true; result: Result }
   | { ok: false; status: number; error: string; detail?: string };
-
-export interface Write {
-  declaration: Endpoint;
-  run(call: Call, token: string, place: Place): Promise<WriteOutcome>;
-}
 
 /**
  * A read other apps may call through Initiative, as the community or as one of
@@ -65,6 +51,27 @@ export const PUBLIC_WRITE = {
 
 /** Where a call lands: the community's GitHub account and installation. */
 export type Place = Workspace;
+
+/**
+ * A write's handler: it runs on the token of the member it is done for, which
+ * the context token names by handle and Initiative hands over, and never falls
+ * back to the app.
+ */
+export function memberWrite(run: (call: Call, token: string, place: Place) => Promise<WriteOutcome>) {
+  return async (call: Call): Promise<{ actor: "member"; result: Result }> => {
+    const snapshot = await call.context.installs.snapshot(call.client);
+    if (!snapshot.workspace) throw new EndpointError(409, "not-configured");
+    const member = await callerToken(call);
+    if (!member.ok) {
+      throw member.reason === "not-connected"
+        ? new EndpointError(409, "not-connected", "the member has no connected GitHub account")
+        : new EndpointError(502, "vendor-error", "no GitHub token could be had for the member");
+    }
+    const outcome = await run(call, member.token, snapshot.workspace);
+    if (!outcome.ok) throw new EndpointError(outcome.status, outcome.error, outcome.detail);
+    return { actor: "member", result: outcome.result };
+  };
+}
 
 /** Why a read has no answer. */
 export type Unavailable = { unavailable: string };
@@ -91,9 +98,9 @@ export interface InstallationAccess extends Place {
 
 /** The community's GitHub installation and a token acting inside it, or why there is none. */
 export async function installationAccess(call: Call): Promise<InstallationAccess | Unavailable> {
-  const snapshot = await call.context.installs.snapshot(call.installation);
+  const snapshot = await call.context.installs.snapshot(call.client);
   if (!snapshot.workspace) return unavailable("not-configured");
-  const token = await call.context.github.installationToken(call.installation, snapshot.workspace);
+  const token = await call.context.github.installationToken(call.client, snapshot.workspace);
   if (!token) return unavailable("installation-unavailable");
   return { ...snapshot.workspace, token };
 }
@@ -113,7 +120,7 @@ export async function repository(
 ): Promise<{ repo: string } | Unavailable> {
   const asked = text(call.params, "repo");
   if (!asked) return { unavailable: "repository-required" };
-  const covered = await call.context.github.installationRepositories(call.installation, workspace);
+  const covered = await call.context.github.installationRepositories(call.client, workspace);
   if ("failure" in covered) return { unavailable: covered.failure === "invalid" ? "vendor-error" : covered.failure };
   const repo = covered.names.find((name) => name.toLowerCase() === asked.toLowerCase());
   return repo ? { repo } : { unavailable: "repository-not-listed" };

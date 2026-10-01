@@ -4,12 +4,14 @@
  */
 
 import type { AddressInfo } from "node:net";
-import type { Server } from "node:http";
 
+import { Initiative, loadPrivateKey, type Client } from "initiative-app-sdk/client";
+import { createApp, serve } from "initiative-app-sdk/server";
+
+import app from "../../src/app.js";
 import type { Config } from "../../src/config.js";
-import { createContext, type AppContext, type Logger } from "../../src/context.js";
-import { createAppServer } from "../../src/server.js";
-import { ENDPOINTS_PATH, HOOKS_PATH } from "initiative-app-kit";
+import { createContext, type GitHubContext, type Logger } from "../../src/context.js";
+import { PUBLIC_ID } from "../../src/vocabulary.js";
 import { FakeGitHub, GITHUB_API, GITHUB_WEB } from "./fake-github.js";
 import { FakeInitiative, INITIATIVE_BASE, INITIATIVE_ORIGIN } from "./fake-initiative.js";
 import { appKey } from "./keys.js";
@@ -50,7 +52,7 @@ export function asCommunity(installation: string): CallOptions {
 export interface Harness {
   initiative: FakeInitiative;
   github: FakeGitHub;
-  context: AppContext;
+  context: GitHubContext;
   url: string;
   logs: string[];
   /**
@@ -70,6 +72,8 @@ export interface Harness {
     body: unknown,
     options?: { token?: string }
   ): Promise<{ status: number; body: Record<string, any> | null }>;
+  /** Initiative as the app reaches it, acting as one installation. */
+  client(installation: string): Client;
   close(): Promise<void>;
 }
 
@@ -103,10 +107,21 @@ export async function startHarness(): Promise<Harness> {
     throw new Error(`unexpected call to ${url}`);
   }) as typeof fetch;
 
-  const context = createContext(testConfig(), { fetch: outbound, log });
-  const server: Server = createAppServer(context);
-  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const config = testConfig();
+  const context = createContext(config, { fetch: outbound, log });
+  const key = { privateKey: config.initiative.privateKey, kid: config.initiative.keyId };
+  const server = serve(
+    createApp(app, { baseUrl: config.initiative.baseUrl, key, context, fetch: outbound, log }),
+    { port: 0, hostname: "127.0.0.1" }
+  );
+  await new Promise((resolve) => server.once("listening", resolve));
   const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  const initiativeClient = new Initiative({
+    baseUrl: config.initiative.baseUrl,
+    publicId: PUBLIC_ID,
+    key: loadPrivateKey(key.privateKey, key.kid),
+    fetch: outbound,
+  });
 
   return {
     initiative,
@@ -118,7 +133,7 @@ export async function startHarness(): Promise<Harness> {
       const token =
         options.token ??
         initiative.contextToken(installation, endpoint, { connectionRefs: options.connectionRefs, claims: options.claims });
-      const response = await fetch(`${url}${ENDPOINTS_PATH}`, {
+      const response = await fetch(`${url}/v1/endpoints`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify({ endpoint, guild_ref: installation, params }),
@@ -127,7 +142,7 @@ export async function startHarness(): Promise<Harness> {
     },
     async hook(installation, name, body, options = {}) {
       const token = options.token ?? initiative.hookToken(installation, name);
-      const response = await fetch(`${url}${HOOKS_PATH}/${name}`, {
+      const response = await fetch(`${url}/v1/hooks/${name}`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify(body),
@@ -135,6 +150,7 @@ export async function startHarness(): Promise<Harness> {
       const text = await response.text();
       return { status: response.status, body: text ? (JSON.parse(text) as Record<string, any>) : null };
     },
+    client: (installation) => initiativeClient.asInstallation(installation),
     close: () => new Promise<void>((resolve) => server.close(() => resolve())),
   };
 }

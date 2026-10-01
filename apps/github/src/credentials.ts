@@ -11,9 +11,9 @@
  * the viewing member's `account` handle when they have connected one.
  */
 
-import { InitiativeApiError } from "initiative-app-kit";
+import { InitiativeApiError, type Client } from "initiative-app-sdk/client";
+import type { AppContext } from "initiative-app-sdk/manifest";
 
-import type { AppContext } from "./context.js";
 import type { Call } from "./endpoints/support.js";
 import { ACCOUNT } from "./vocabulary.js";
 
@@ -31,19 +31,15 @@ export type MemberToken =
 /** Initiative's answers that mean the member has no usable connection. */
 const NOT_CONNECTED = new Set([403, 404, 409]);
 
-export async function memberToken(
-  context: AppContext,
-  installation: string,
-  connectionRef: string
-): Promise<MemberToken> {
+export async function memberToken(context: AppContext, client: Client, connectionRef: string): Promise<MemberToken> {
   try {
-    const { accessToken } = await context.auth.connectionToken(installation, connectionRef);
+    const { accessToken } = await client.connectionToken(connectionRef);
     return { ok: true, token: accessToken };
   } catch (error) {
     if (error instanceof InitiativeApiError && NOT_CONNECTED.has(error.status)) {
       return { ok: false, reason: "not-connected" };
     }
-    context.log.warn(`no member token for ${installation}: ${(error as Error).message}`);
+    context.log.warn(`no member token for ${client.installation}: ${(error as Error).message}`);
     return { ok: false, reason: "unavailable" };
   }
 }
@@ -53,8 +49,8 @@ export async function memberToken(
  * token carries. A call made as the community has none.
  */
 export async function callerToken(call: Call): Promise<MemberToken> {
-  if (call.claims.actor === "installation") return { ok: false, reason: "no-member" };
-  const ref = call.claims.connection_refs?.[ACCOUNT];
+  if (call.caller !== null && call.actor.kind === "installation") return { ok: false, reason: "no-member" };
+  const ref = call.connections[ACCOUNT];
   if (!ref) return { ok: false, reason: "not-connected" };
-  return memberToken(call.context, call.installation, ref);
+  return memberToken(call.context, call.client, ref);
 }

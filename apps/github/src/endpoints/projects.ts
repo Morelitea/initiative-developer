@@ -1,3 +1,5 @@
+import { defineEndpoint } from "initiative-app-sdk/manifest";
+
 import { graphql } from "../github/http.js";
 import {
   BOARD,
@@ -9,20 +11,20 @@ import {
   out,
   OWNER_OUT,
   param,
-  READ_IDS,
+  READ,
   REPO,
   REPO_OUT,
   text,
   TOTAL_OUT,
   UNAVAILABLE,
   WORKSPACE,
-  WRITE_IDS,
 } from "../vocabulary.js";
 import {
   bad,
   installationAccess,
   int,
   isResult,
+  memberWrite,
   nodes,
   PAGE,
   PUBLIC_READ,
@@ -34,9 +36,7 @@ import {
   writeFailure,
   type Call,
   type Connection,
-  type Read,
   type Unavailable,
-  type Write,
 } from "./support.js";
 
 const CARD = text("Card", "Karte", "Tarjeta", "Carte");
@@ -48,33 +48,30 @@ interface Board {
   url?: string;
 }
 
-export const listProjects: Read = {
-  declaration: {
-    id: READ_IDS.listProjects,
-    direction: "read",
-    label: text("Project boards", "Projektboards", "Tableros de proyecto", "Tableaux de projet"),
-    description: text(
-      "The Projects boards on the installation's account.",
-      "Die Projects-Boards des Kontos der Installation.",
-      "Los tableros de Projects de la cuenta de la instalación.",
-      "Les tableaux Projects du compte de l'installation."
-    ),
-    group: "projects",
-    ...PUBLIC_READ,
-    cache_ttl_seconds: 300,
-    returns: [
-      many(out("ids", "string", { label: text("Boards", "Boards", "Tableros", "Tableaux") })),
-      many(out("titles", "string")),
-      many(out("numbers", "int")),
-      many(out("urls", "url")),
-      COUNT_OUT,
-      TOTAL_OUT,
-      UNAVAILABLE,
-    ],
-    requires: { all_of: [WORKSPACE] },
+export const listProjects = defineEndpoint({
+  direction: "read",
+  label: text("Project boards", "Projektboards", "Tableros de proyecto", "Tableaux de projet"),
+  description: text(
+    "The Projects boards on the installation's account.",
+    "Die Projects-Boards des Kontos der Installation.",
+    "Los tableros de Projects de la cuenta de la instalación.",
+    "Les tableaux Projects du compte de l'installation."
+  ),
+  group: "projects",
+  ...PUBLIC_READ,
+  cache_ttl_seconds: 300,
+  returns: {
+    ids: many(out("string", { label: text("Boards", "Boards", "Tableros", "Tableaux") })),
+    titles: many(out("string")),
+    numbers: many(out("int")),
+    urls: many(out("url")),
+    ...COUNT_OUT,
+    ...TOTAL_OUT,
+    ...UNAVAILABLE,
   },
+  requires: { all_of: [WORKSPACE] },
 
-  async run(call) {
+  async handler(call) {
     const access = await installationAccess(call);
     if (isResult(access)) return { actor: "installation", result: access };
     const answer = await graphql<{ repositoryOwner: { projectsV2: Connection<Board> | null } | null }>(
@@ -104,7 +101,7 @@ export const listProjects: Read = {
       },
     };
   },
-};
+});
 
 interface Field {
   id: string;
@@ -147,31 +144,28 @@ async function singleSelectFields(call: Call): Promise<{ fields: Field[] } | Una
   return { fields: nodes(node.fields).filter((field): field is Field => typeof field.id === "string") };
 }
 
-export const listProjectFields: Read = {
-  declaration: {
-    id: READ_IDS.listProjectFields,
-    direction: "read",
-    label: text("Project fields", "Projektfelder", "Campos de proyecto", "Champs de projet"),
-    description: text(
-      "The single-select fields one board has: its columns, and anything else set that way.",
-      "Die Einfachauswahl-Felder eines Boards: seine Spalten und alles andere dieser Art.",
-      "Los campos de selección única de un tablero: sus columnas y cualquier otro similar.",
-      "Les champs à choix unique d'un tableau : ses colonnes, et tout autre du même type."
-    ),
-    group: "projects",
-    ...PUBLIC_READ,
-    cache_ttl_seconds: 300,
-    params: [BOARD],
-    returns: [
-      many(out("ids", "string", { label: text("Fields", "Felder", "Campos", "Champs") })),
-      many(out("names", "string", { label: text("Field names", "Feldnamen", "Nombres de campos", "Noms des champs") })),
-      COUNT_OUT,
-      UNAVAILABLE,
-    ],
-    requires: { all_of: [WORKSPACE] },
+export const listProjectFields = defineEndpoint({
+  direction: "read",
+  label: text("Project fields", "Projektfelder", "Campos de proyecto", "Champs de projet"),
+  description: text(
+    "The single-select fields one board has: its columns, and anything else set that way.",
+    "Die Einfachauswahl-Felder eines Boards: seine Spalten und alles andere dieser Art.",
+    "Los campos de selección única de un tablero: sus columnas y cualquier otro similar.",
+    "Les champs à choix unique d'un tableau : ses colonnes, et tout autre du même type."
+  ),
+  group: "projects",
+  ...PUBLIC_READ,
+  cache_ttl_seconds: 300,
+  params: { ...BOARD },
+  returns: {
+    ids: many(out("string", { label: text("Fields", "Felder", "Campos", "Champs") })),
+    names: many(out("string", { label: text("Field names", "Feldnamen", "Nombres de campos", "Noms des champs") })),
+    ...COUNT_OUT,
+    ...UNAVAILABLE,
   },
+  requires: { all_of: [WORKSPACE] },
 
-  async run(call) {
+  async handler(call) {
     const found = await singleSelectFields(call);
     if (isResult(found)) return { actor: "installation", result: found };
     return {
@@ -183,39 +177,36 @@ export const listProjectFields: Read = {
       },
     };
   },
-};
+});
 
-export const listProjectOptions: Read = {
-  declaration: {
-    id: READ_IDS.listProjectOptions,
-    direction: "read",
-    label: text(
-      "Project field values",
-      "Werte eines Projektfelds",
-      "Valores de un campo de proyecto",
-      "Valeurs d'un champ de projet"
-    ),
-    description: text(
-      "What one single-select field on a board can be set to.",
-      "Worauf ein Einfachauswahl-Feld eines Boards gesetzt werden kann.",
-      "A qué se puede establecer un campo de selección única de un tablero.",
-      "Ce à quoi un champ à choix unique d'un tableau peut être défini."
-    ),
-    group: "projects",
-    ...PUBLIC_READ,
-    cache_ttl_seconds: 300,
-    params: [BOARD, param("field", "string", text("Field", "Feld", "Campo", "Champ"), { options_from: FIELDS_OF })],
-    returns: [
-      out("field_id", "string"),
-      out("field_name", "string"),
-      many(out("option_ids", "string", { label: text("Values", "Werte", "Valores", "Valeurs") })),
-      many(out("option_names", "string", { label: text("Value names", "Wertnamen", "Nombres de valores", "Noms des valeurs") })),
-      UNAVAILABLE,
-    ],
-    requires: { all_of: [WORKSPACE] },
+export const listProjectOptions = defineEndpoint({
+  direction: "read",
+  label: text(
+    "Project field values",
+    "Werte eines Projektfelds",
+    "Valores de un campo de proyecto",
+    "Valeurs d'un champ de projet"
+  ),
+  description: text(
+    "What one single-select field on a board can be set to.",
+    "Worauf ein Einfachauswahl-Feld eines Boards gesetzt werden kann.",
+    "A qué se puede establecer un campo de selección única de un tablero.",
+    "Ce à quoi un champ à choix unique d'un tableau peut être défini."
+  ),
+  group: "projects",
+  ...PUBLIC_READ,
+  cache_ttl_seconds: 300,
+  params: { ...BOARD, field: param("string", text("Field", "Feld", "Campo", "Champ"), { options_from: FIELDS_OF }) },
+  returns: {
+    field_id: out("string"),
+    field_name: out("string"),
+    option_ids: many(out("string", { label: text("Values", "Werte", "Valores", "Valeurs") })),
+    option_names: many(out("string", { label: text("Value names", "Wertnamen", "Nombres de valores", "Noms des valeurs") })),
+    ...UNAVAILABLE,
   },
+  requires: { all_of: [WORKSPACE] },
 
-  async run(call) {
+  async handler(call) {
     const wanted = textParam(call.params, "field");
     if (!wanted) return { actor: "installation", result: unavailable("field-required") };
     const found = await singleSelectFields(call);
@@ -238,28 +229,25 @@ export const listProjectOptions: Read = {
       },
     };
   },
-};
+});
 
-export const findProjectItem: Read = {
-  declaration: {
-    id: READ_IDS.findProjectItem,
-    direction: "read",
-    label: text("Find a project card", "Projektkarte finden", "Encontrar una tarjeta de proyecto", "Trouver une carte de projet"),
-    description: text(
-      "The card an issue or pull request has on a board.",
-      "Die Karte, die ein Issue oder Pull Request auf einem Board hat.",
-      "La tarjeta que una incidencia o pull request tiene en un tablero.",
-      "La carte qu'un ticket ou une pull request a sur un tableau."
-    ),
-    group: "projects",
-    ...PUBLIC_READ,
-    cache_ttl_seconds: 0,
-    params: [BOARD, REPO, NUMBER],
-    returns: [out("item_id", "string", { label: CARD }), REPO_OUT, OWNER_OUT, NUMBER_OUT, UNAVAILABLE],
-    requires: { all_of: [WORKSPACE] },
-  },
+export const findProjectItem = defineEndpoint({
+  direction: "read",
+  label: text("Find a project card", "Projektkarte finden", "Encontrar una tarjeta de proyecto", "Trouver une carte de projet"),
+  description: text(
+    "The card an issue or pull request has on a board.",
+    "Die Karte, die ein Issue oder Pull Request auf einem Board hat.",
+    "La tarjeta que una incidencia o pull request tiene en un tablero.",
+    "La carte qu'un ticket ou une pull request a sur un tableau."
+  ),
+  group: "projects",
+  ...PUBLIC_READ,
+  cache_ttl_seconds: 0,
+  params: { ...BOARD, ...REPO, ...NUMBER },
+  returns: { item_id: out("string", { label: CARD }), ...REPO_OUT, ...OWNER_OUT, ...NUMBER_OUT, ...UNAVAILABLE },
+  requires: { all_of: [WORKSPACE] },
 
-  async run(call) {
+  async handler(call) {
     const access = await repoAccess(call);
     if (isResult(access)) return { actor: "installation", result: access };
     const board = textParam(call.params, "project_id");
@@ -295,41 +283,38 @@ export const findProjectItem: Read = {
       result: { item_id: card.id, repository: access.repo, owner: access.owner, number },
     };
   },
-};
+});
 
-export const moveProjectItem: Write = {
-  // A board belongs to an organization or to a repository, and either
-  // permission reaches it.
-  declaration: {
-    id: WRITE_IDS.moveProjectItem,
-    direction: "write",
-    label: text("Move a project card", "Projektkarte verschieben", "Mover una tarjeta de proyecto", "Déplacer une carte de projet"),
-    description: text(
-      "Sets one single-select field on a Projects card, as the member.",
-      "Setzt ein Einfachauswahl-Feld auf einer Projects-Karte, als das Mitglied.",
-      "Establece un campo de selección única en una tarjeta de Projects, como el miembro.",
-      "Définit un champ à choix unique sur une carte Projects, en tant que le membre."
-    ),
-    group: "projects",
-    ...PUBLIC_WRITE,
-    params: [
-      BOARD,
-      param("item_id", "string", CARD),
-      param("field_id", "string", text("Field", "Feld", "Campo", "Champ"), { options_from: FIELDS_OF }),
-      param("option_id", "string", text("Value", "Wert", "Valor", "Valeur"), {
-        options_from: {
-          endpoint: READ_IDS.listProjectOptions,
-          key: "option_ids",
-          label_key: "option_names",
-          needs: { project_id: "project_id", field: "field_id" },
-        },
-      }),
-    ],
-    returns: [out("item_id", "string", { label: CARD })],
-    identity: { kind: "project_card", key: ["item_id"] },
+// A board belongs to an organization or to a repository, and either
+// permission reaches it.
+export const moveProjectItem = defineEndpoint({
+  direction: "write",
+  label: text("Move a project card", "Projektkarte verschieben", "Mover una tarjeta de proyecto", "Déplacer une carte de projet"),
+  description: text(
+    "Sets one single-select field on a Projects card, as the member.",
+    "Setzt ein Einfachauswahl-Feld auf einer Projects-Karte, als das Mitglied.",
+    "Establece un campo de selección única en una tarjeta de Projects, como el miembro.",
+    "Définit un champ à choix unique sur une carte Projects, en tant que le membre."
+  ),
+  group: "projects",
+  ...PUBLIC_WRITE,
+  params: {
+    ...BOARD,
+    item_id: param("string", CARD),
+    field_id: param("string", text("Field", "Feld", "Campo", "Champ"), { options_from: FIELDS_OF }),
+    option_id: param("string", text("Value", "Wert", "Valor", "Valeur"), {
+      options_from: {
+        endpoint: READ.listProjectOptions,
+        key: "option_ids",
+        label_key: "option_names",
+        needs: { project_id: "project_id", field: "field_id" },
+      },
+    }),
   },
+  returns: { item_id: out("string", { label: CARD }) },
+  identity: { kind: "project_card", key: ["item_id"] },
 
-  async run(call, token) {
+  handler: memberWrite(async (call, token) => {
     const project = textParam(call.params, "project_id");
     const item = textParam(call.params, "item_id");
     const field = textParam(call.params, "field_id");
@@ -350,5 +335,5 @@ export const moveProjectItem: Write = {
     );
     if (!answer.ok) return writeFailure(answer.failure, answer.message);
     return { ok: true, result: { item_id: answer.body.updateProjectV2ItemFieldValue?.projectV2Item?.id ?? item } };
-  },
-};
+  }),
+});

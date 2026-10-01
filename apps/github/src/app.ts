@@ -358,14 +358,14 @@ export default defineApp({
       "Members who connect their own GitHub account get their own review queue, and automations can open, comment on, close, label and move issues as them.",
     ].join("\n"),
     avatar: "assets/avatar.png",
-    version: "2.3.0",
+    version: "2.4.0",
     // The oldest Initiative that runs this app's connections. Development
     // builds report the last release until the next one, and no release before
     // the next one follows the registry, so this admits development builds and
     // every later release.
     minAppVersion: "0.72.0",
     releaseNotes:
-      "Initiative now calls the app every 15 minutes to check each installation, so the app keeps no timer of its own and is ready as soon as it starts.",
+      "Rebuilt on the Initiative app SDK, with no change to what it does. It needs an Initiative that types the tokens it sends apps.",
     image: "ghcr.io/morelitea/initiative-github@sha256:dfd2348327b7d57b67ad0d668285090056d89d081e70ede00584286e569ec8bb",
   },
 });

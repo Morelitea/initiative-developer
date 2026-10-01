@@ -1,6 +1,6 @@
 {
   "name": "initiative-github",
-  "version": "2.3.0",
+  "version": "2.4.0",
   "private": true,
   "description": "A GitHub organization's issues, reviews and dependency alerts in an Initiative community: endpoints an automation can call, widgets a dashboard can draw.",
   "license": "MIT",
@@ -25,6 +25,6 @@
     "vitest": "^5.0.1"
   },
   "dependencies": {
-    "initiative-app-sdk": "github:Morelitea/initiative-app-kit#c75c71efe15a0124617a8f8108c3450392329214"
+    "initiative-app-sdk": "github:Morelitea/initiative-app-kit#v1.0.0"
   }
 }

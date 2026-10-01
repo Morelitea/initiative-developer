@@ -346,6 +346,21 @@ def test_an_app_is_a_container_with_no_location_or_keys(
         world.build()
 
 
+@pytest.mark.parametrize(
+    ("scope", "accepted"),
+    [("apps:other.tool", True), ("apps:other.", False), ("apps:Other.tool", False)],
+)
+def test_a_ceiling_may_name_another_app(
+    world: World, scope: str, accepted: bool
+) -> None:
+    world.edit_listing(APP, lambda d: d["registration"]["scope_ceiling"].append(scope))
+    if accepted:
+        world.build()
+    else:
+        with pytest.raises(RegistryError, match=r"listing\.schema\.json"):
+            world.build()
+
+
 def test_content_with_registration_is_refused(world: World) -> None:
     registration = json.loads(world.listing(APP).read_text())["registration"]
     world.edit_listing(DASHBOARD, lambda d: d.update(registration=registration))

@@ -209,7 +209,7 @@ connections (the vendor values under App services).
 
 ## Working on it
 
-The app is built on [initiative-app-sdk](https://github.com/Morelitea/initiative-app-kit):
+The app is built on [initiative-app-sdk](https://github.com/Morelitea/initiative-app-sdk):
 `src/app.ts` declares everything it does, and the SDK serves it.
 
 ```sh

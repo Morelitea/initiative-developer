@@ -85,25 +85,53 @@ Then generate a private key and a client secret on the app's page.
   carries the tokens but not those. It never needs the private key or the
   webhook secret.
 
-### 2. Give the app a key for Initiative
+### 2. Run the app
 
-The app proves who it is to Initiative with its own key:
+Add it to the `docker-compose.yml` that runs Initiative, so the two share a
+network:
+
+```yaml
+  initiative-github:
+    image: ghcr.io/morelitea/initiative-github@sha256:<digest>
+    container_name: initiative-github
+    restart: unless-stopped
+    environment:
+      INITIATIVE_BASE_URL: http://initiative:8173/api/v1
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET}
+    volumes:
+      - initiative_github_data:/data
+```
+
+and `initiative_github_data:` under `volumes:`. Then `docker compose up -d`.
+
+The app proves who it is to Initiative with its own key. On first start it
+generates one, keeps it in `/data`, and serves the public half at
+`/.well-known/jwks.json`. At every start it logs the key's fingerprint:
+
+```text
+app key fingerprint: <thumbprint> (kid <kid>)
+```
+
+Register the app in Initiative under **Settings → Platform → Integrations →
+App services**: its address, `http://initiative-github:8080`, and its key set.
+The fingerprint Initiative shows for that key set is the one in the log.
+
+To give it a key instead, generate one and set `INITIATIVE_APP_PRIVATE_KEY`
+and `INITIATIVE_APP_KEY_ID` (the volume is then not needed):
 
 ```sh
 npx -p initiative-app-sdk initiative-app keygen --alg ES256 --out ./secrets
 ```
 
-`secrets/private-key.pem` becomes `INITIATIVE_APP_PRIVATE_KEY` and the printed
-`kid` becomes `INITIATIVE_APP_KEY_ID`. The public half in `secrets/jwks.json`
-is what the deployment registers for the app (the app also serves it at
-`/.well-known/jwks.json`). Keep `secrets/` out of any repository.
+`secrets/private-key.pem` is the key and the printed `kid` its id. Keep
+`secrets/` out of any repository.
 
 ### 3. In Initiative
 
-1. A community admin installs **GitHub** from the marketplace and confirms
-   what it may reach.
-2. In the app's settings, the admin presses **Connect** on *GitHub
-   organization*.
+1. A community superadmin installs **GitHub** from the marketplace and
+   confirms what it may reach.
+2. In the app's settings, they press **Connect** on *GitHub organization*.
 
 ### 4. On GitHub
 
@@ -127,8 +155,6 @@ missing.
 | Variable | |
 |---|---|
 | `INITIATIVE_BASE_URL` | Initiative's API as this container reaches it, e.g. `http://initiative:8173/api/v1`. |
-| `INITIATIVE_APP_PRIVATE_KEY` | The app's own key for Initiative: PEM, PEM with literal `\n`, or base64 of the PEM. |
-| `INITIATIVE_APP_KEY_ID` | The `kid` that key is registered under. |
 | `GITHUB_CLIENT_ID` | The GitHub App's client ID, for ending a member's authorization. |
 | `GITHUB_CLIENT_SECRET` | The GitHub App's client secret, for the same. |
 
@@ -137,19 +163,16 @@ Optional:
 | Variable | Default | |
 |---|---|---|
 | `PORT` | `8080` | |
+| `INITIATIVE_APP_PRIVATE_KEY` | | The app's own key for Initiative: PEM, PEM with literal `\n`, or base64 of the PEM. Unset, the app generates one. |
+| `INITIATIVE_APP_KEY_ID` | the key's thumbprint | The `kid` that key is registered under. |
+| `INITIATIVE_APP_DATA_DIR` | `/data` | Where a generated key is kept, as `app-key.pem`. |
 | `GITHUB_API_BASE` | `https://api.github.com` | GitHub's API. |
 | `GITHUB_WEB_BASE` | `https://github.com` | Where a member's lapsed token is renewed before their authorization is ended. |
 
 ## Running it
 
-```sh
-docker run -d --name initiative-github -p 8080:8080 --env-file github-app.env \
-  ghcr.io/morelitea/initiative-github@sha256:<digest>
-```
-
-Register the container's address (for example `http://initiative-github:8080`)
-as the app's location in Initiative. Initiative calls the app there, for its
-endpoints and its four hooks (`/v1/hooks/after_connect`, `/v1/hooks/revoke`,
+Initiative calls the app at its registered address, for its endpoints and its
+four hooks (`/v1/hooks/after_connect`, `/v1/hooks/revoke`,
 `/v1/hooks/webhook`, `/v1/hooks/schedule`).
 
 Every 15 minutes, Initiative asks the app to check each community's

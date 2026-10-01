@@ -21,7 +21,7 @@ function main(): void {
   const server = serve(
     createApp(app, {
       baseUrl: config.initiative.baseUrl,
-      key: { privateKey: config.initiative.privateKey, kid: config.initiative.keyId },
+      key: config.initiative.key,
       context: createContext(config),
       log: consoleLogger,
     }),

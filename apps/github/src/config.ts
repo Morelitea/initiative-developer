@@ -1,11 +1,12 @@
 /**
  * The deployment's settings, read once from the environment.
  *
- * Every secret this app holds arrives here: the GitHub App's client secret,
- * and the app's own key for Initiative. None of them is ever written anywhere
- * else. The GitHub App's private key and webhook secret are not among them:
- * Initiative holds both, mints the organization's installation tokens, and
- * checks GitHub's webhook deliveries.
+ * Every secret given to this app arrives here: the GitHub App's client secret,
+ * and the app's own key for Initiative when one is given. None of them is ever
+ * written anywhere else. With no key given, the SDK generates one on first
+ * start and keeps it in `INITIATIVE_APP_DATA_DIR`. The GitHub App's private key
+ * and webhook secret are not among them: Initiative holds both, mints the
+ * organization's installation tokens, and checks GitHub's webhook deliveries.
  */
 
 export interface Config {
@@ -13,10 +14,11 @@ export interface Config {
   initiative: {
     /** Initiative's API base as this container reaches it, e.g. `http://initiative:8173/api/v1`. */
     baseUrl: string;
-    /** The app's own signing key (PEM), registered with Initiative as a JWKS. */
-    privateKey: string;
-    /** The `kid` that key was registered under. */
-    keyId: string;
+    /**
+     * The app's own signing key (PEM) and the `kid` it is registered under
+     * (default: its thumbprint). Unset, the SDK's generated key is used.
+     */
+    key?: { privateKey: string; kid?: string };
   };
   github: {
     /** The GitHub App's client ID and secret, for ending a member's authorization. */
@@ -31,13 +33,14 @@ export interface Config {
 export const ENVIRONMENT = {
   required: [
     "INITIATIVE_BASE_URL",
-    "INITIATIVE_APP_PRIVATE_KEY",
-    "INITIATIVE_APP_KEY_ID",
     "GITHUB_CLIENT_ID",
     "GITHUB_CLIENT_SECRET",
   ],
   optional: [
     "PORT",
+    "INITIATIVE_APP_PRIVATE_KEY",
+    "INITIATIVE_APP_KEY_ID",
+    "INITIATIVE_APP_DATA_DIR",
     "GITHUB_API_BASE",
     "GITHUB_WEB_BASE",
   ],
@@ -53,13 +56,15 @@ export function loadConfig(env: Env = process.env): Config {
     throw new ConfigError(`missing required settings: ${missing.join(", ")}`);
   }
   const value = (name: string) => env[name]!.trim();
+  const privateKey = env.INITIATIVE_APP_PRIVATE_KEY?.trim();
 
   return {
     port: integer(env.PORT, "PORT", 8080),
     initiative: {
       baseUrl: trimSlashes(url(value("INITIATIVE_BASE_URL"), "INITIATIVE_BASE_URL")),
-      privateKey: pem(value("INITIATIVE_APP_PRIVATE_KEY"), "INITIATIVE_APP_PRIVATE_KEY"),
-      keyId: value("INITIATIVE_APP_KEY_ID"),
+      key: privateKey
+        ? { privateKey: pem(privateKey, "INITIATIVE_APP_PRIVATE_KEY"), kid: env.INITIATIVE_APP_KEY_ID?.trim() || undefined }
+        : undefined,
     },
     github: {
       clientId: value("GITHUB_CLIENT_ID"),

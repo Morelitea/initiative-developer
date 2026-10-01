@@ -30,8 +30,14 @@ LABEL org.opencontainers.image.title="initiative-github" \
       org.opencontainers.image.version="${VERSION}" \
       org.opencontainers.image.revision="${REVISION}"
 
-ENV NODE_ENV=production
+ENV NODE_ENV=production \
+    INITIATIVE_APP_DATA_DIR=/data
 WORKDIR /app
+
+# With no key in the environment, the app generates its key for Initiative on
+# first start and keeps it here. Mount a volume to keep it across containers.
+RUN mkdir -m 700 /data && chown node:node /data
+VOLUME /data
 
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist/src ./dist/src

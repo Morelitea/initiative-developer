@@ -80,7 +80,7 @@ export interface Harness {
 export function testConfig(): Config {
   return {
     port: 0,
-    initiative: { baseUrl: INITIATIVE_BASE, privateKey: appKey.privateKeyPem, keyId: appKey.kid },
+    initiative: { baseUrl: INITIATIVE_BASE, key: { privateKey: appKey.privateKeyPem, kid: appKey.kid } },
     github: {
       clientId: CLIENT_ID,
       clientSecret: CLIENT_SECRET,
@@ -109,7 +109,7 @@ export async function startHarness(): Promise<Harness> {
 
   const config = testConfig();
   const context = createContext(config, { fetch: outbound, log });
-  const key = { privateKey: config.initiative.privateKey, kid: config.initiative.keyId };
+  const key = config.initiative.key!;
   const server = serve(
     createApp(app, { baseUrl: config.initiative.baseUrl, key, context, fetch: outbound, log }),
     { port: 0, hostname: "127.0.0.1" }

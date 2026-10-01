@@ -147,19 +147,31 @@ describe("manifest", () => {
 describe("settings", () => {
   const env = {
     INITIATIVE_BASE_URL: "http://initiative:8173/api/v1/",
-    INITIATIVE_APP_PRIVATE_KEY: Buffer.from(appKey.privateKeyPem).toString("base64"),
-    INITIATIVE_APP_KEY_ID: "app-1",
     GITHUB_CLIENT_ID: "Iv1.x",
     GITHUB_CLIENT_SECRET: "s",
   };
+  const withKey = {
+    ...env,
+    INITIATIVE_APP_PRIVATE_KEY: Buffer.from(appKey.privateKeyPem).toString("base64"),
+    INITIATIVE_APP_KEY_ID: "app-1",
+  };
 
-  it("reads every required setting, and keys as PEM, escaped PEM or base64", () => {
+  it("reads every required setting, and leaves the key to the SDK when none is given", () => {
     const config = loadConfig(env);
     expect(config.initiative.baseUrl).toBe("http://initiative:8173/api/v1");
-    expect(config.initiative.privateKey).toContain("-----BEGIN PRIVATE KEY-----");
-    expect(loadConfig({ ...env, INITIATIVE_APP_PRIVATE_KEY: appKey.privateKeyPem.replaceAll("\n", "\\n") }).initiative.privateKey).toContain("\n");
+    expect(config.initiative.key).toBeUndefined();
     expect(config.github.apiBase).toBe("https://api.github.com");
     expect(config.port).toBe(8080);
+  });
+
+  it("reads a given key as PEM, escaped PEM or base64", () => {
+    const { key } = loadConfig(withKey).initiative;
+    expect(key?.privateKey).toContain("-----BEGIN PRIVATE KEY-----");
+    expect(key?.kid).toBe("app-1");
+    expect(loadConfig({ ...env, INITIATIVE_APP_PRIVATE_KEY: appKey.privateKeyPem.replaceAll("\n", "\\n") }).initiative.key).toEqual({
+      privateKey: appKey.privateKeyPem,
+      kid: undefined,
+    });
   });
 
   it("refuses to start without one, naming it", () => {

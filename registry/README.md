@@ -83,8 +83,9 @@ them:
   - `kind` is `container`, and `image` is pinned by digest. It names no
     location or keys: each deployment that runs it gives the location and the
     key set its copy signs with, since each copy holds its own private key.
-  - `scope_ceiling` is the most the app may ever be granted. A manifest may ask
-    for less, never more.
+  - `scope_ceiling` is the most the app may ever be granted, with
+    `apps:<public_id>` for each app it may call. A manifest may ask for less,
+    never more.
   - `reference_sectors` lists the reference sectors an app may be granted.
 - **`price`** is `null` for a free listing.
 

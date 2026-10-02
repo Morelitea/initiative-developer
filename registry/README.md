@@ -72,23 +72,26 @@ them:
   checks the file against it. If you leave it out, the build computes it.
 - **`versions[].definition`** is what the version installs, as a path to a JSON
   file or an object inline:
-  - for an app, its kit manifest (`manifest.json`). It is a service app
-    (`"app_kind": "service"`) whose `service.public_id` is the listing's
-    `public_id`;
+  - for an app, its kit manifest (`manifest.json`), with `"app_kind":
+    "service"`. A container's `service.public_id` is the listing's
+    `public_id`; a declarative app's manifest has no `service` block;
   - for a tool's content, that tool's definition.
 - **`versions[].example`** is optional, and only for a tool's content: the
   filled-in example shown beside the listing, as a path or inline.
 - **`registration`** is required for an app and not allowed for anything
-  else. Every app is a container the deployment runs.
-  - `kind` is `container`, and `image` is pinned by digest. It names no
-    location or keys: each deployment that runs it gives the location and the
-    key set its copy signs with, since each copy holds its own private key.
+  else.
+  - `kind` is `container` or `declarative`.
+  - A container names its `image`, pinned by digest. It names no location or
+    keys: each deployment that runs it gives the location and the key set its
+    copy signs with, since each copy holds its own private key.
+  - A declarative app names no `image` and no `compose`: there is nothing to
+    run, and Initiative makes its calls from its kit manifest.
   - `scope_ceiling` is the most the app may ever be granted, with
     `apps:<public_id>` for each app it may call. A manifest may ask for less,
     never more.
   - `reference_sectors` lists the reference sectors an app may be granted.
-  - `compose` is optional: the Docker Compose service an operator copies to
-    run the container beside Initiative. `service` is the fragment, as YAML
+  - `compose` is optional, and a container's only: the Docker Compose service
+    an operator copies to run the container beside Initiative. `service` is the fragment, as YAML
     text of at most 4096 characters. It may use two placeholders, which
     Initiative fills when it shows the snippet: `${IMAGE}`, the image above,
     and `${INITIATIVE_URL}`, the deployment's public address. Any other `${`

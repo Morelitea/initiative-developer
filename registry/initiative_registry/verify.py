@@ -24,7 +24,7 @@ from tuf.ngclient.fetcher import FetcherInterface
 from . import layout, schemas
 from .build import PUBLIC
 from .errors import RegistryError
-from .sources import service_public_id, sha256
+from .sources import definition_matches, sha256
 
 #: A uid no listing can have: it probes a delegation without naming a target.
 _PROBE_UID = "_"
@@ -162,11 +162,13 @@ def _check_manifest(path: str, data: bytes, entry: dict) -> None:
     for key in ("uid", "public_id", "kind"):
         if manifest[key] != entry[key]:
             raise RegistryError(f"{path} names a different {key}")
-    if "registration" in entry and (
-        service_public_id(manifest["definition"]) != entry["public_id"]
+    registration = entry.get("registration")
+    if registration and not definition_matches(
+        registration, entry["public_id"], manifest["definition"]
     ):
         raise RegistryError(
-            f"{path}: its definition is not the service app {entry['public_id']!r}"
+            f"{path}: its definition is not the {registration['kind']} app "
+            f"{entry['public_id']!r}"
         )
 
 

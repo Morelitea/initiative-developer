@@ -193,6 +193,19 @@ def service_public_id(definition: dict[str, Any]) -> str | None:
     return public_id if isinstance(public_id, str) and public_id else None
 
 
+def definition_matches(
+    registration: dict[str, Any], public_id: str, definition: dict[str, Any]
+) -> bool:
+    """Whether a kit manifest is the app a registration says.
+
+    A container's names ``public_id`` as its service; a declarative app's has
+    no service block.
+    """
+    if registration.get("kind") == "declarative":
+        return definition.get("app_kind") == "service" and "service" not in definition
+    return service_public_id(definition) == public_id
+
+
 def manifest_document(
     listing: Listing,
     kind: str,
@@ -219,14 +232,20 @@ def _publish_version(
     example = None
     if "example" in version:
         example = _document(listing, version["example"], what=f"{what} example")
-    if "registration" in listing.entry:
-        named = service_public_id(definition)
-        if named != listing.public_id:
+    registration = listing.entry.get("registration")
+    if registration and not definition_matches(
+        registration, listing.public_id, definition
+    ):
+        if registration["kind"] == "declarative":
             raise RegistryError(
-                f"{what} definition: a listing with a registration is a service "
-                f"app, and its service.public_id must be {listing.public_id!r} "
-                f"(it is {named!r})"
+                f"{what} definition: a declarative app's kit manifest has no "
+                "service block"
             )
+        raise RegistryError(
+            f"{what} definition: a listing with a registration is a service "
+            f"app, and its service.public_id must be {listing.public_id!r} "
+            f"(it is {service_public_id(definition)!r})"
+        )
     manifest = manifest_document(listing, kind, definition, example)
     schemas.validate(schemas.MANIFEST, manifest, what=f"{what} manifest")
     data = dumps(manifest)

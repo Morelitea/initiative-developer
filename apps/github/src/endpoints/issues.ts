@@ -38,11 +38,9 @@ import {
   URL_OUT,
 } from "../vocabulary.js";
 import {
-  FULL_NAME,
   GITHUB_ERRORS,
   graphql,
   LIMIT,
-  memberSteps,
   needs,
   NEEDS_NUMBER,
   NEEDS_REPO,
@@ -50,6 +48,7 @@ import {
   PAGE,
   PUBLIC_READ,
   PUBLIC_WRITE,
+  REPO_PATH,
   REPO_VARIABLES,
   repositoryList,
   rest,
@@ -250,16 +249,15 @@ export const findIssues = defineEndpoint({
 /** An issue's state changed as the member, with GitHub's reason when it closes. */
 function setState(closing: boolean) {
   return {
-    steps: memberSteps(
-      rest("PATCH", `"/repos/" & ${FULL_NAME} & "/issues/" & params.number`, {
-        body: closing
-          ? `$merge([{"state": "closed"}, params.reason in ["completed", "not_planned"] ? {"state_reason": params.reason}])`
-          : `{"state": "open"}`,
-      })
-    ),
+    request: rest("PATCH", `${REPO_PATH} & "/issues/" & params.number`, {
+      connection: ACCOUNT,
+      body: closing
+        ? `$merge([{"state": "closed"}, params.reason in ["completed", "not_planned"] ? {"state_reason": params.reason}])`
+        : `{"state": "open"}`,
+    }),
     errors: GITHUB_ERRORS,
     map: `{
-      "repository": steps.repository.body.name,
+      "repository": $split(response.body.repository_url, "/")[-1],
       "number": response.body.number,
       "state": response.body.state,
       "html_url": response.body.html_url
@@ -295,19 +293,18 @@ export const openIssue = defineEndpoint({
     id: out("int", { label: text("GitHub id", "GitHub-ID", "ID de GitHub", "Identifiant GitHub") }),
   },
   identity: ISSUE_IDENTITY,
-  steps: memberSteps(
-    rest("POST", `"/repos/" & ${FULL_NAME} & "/issues"`, {
-      body: `$merge([
-        {"title": params.title},
-        params.body ? {"body": params.body},
-        $count(params.labels) ? {"labels": [params.labels]},
-        $count(params.assignees) ? {"assignees": [params.assignees]}
-      ])`,
-    })
-  ),
+  request: rest("POST", `${REPO_PATH} & "/issues"`, {
+    connection: ACCOUNT,
+    body: `$merge([
+      {"title": params.title},
+      params.body ? {"body": params.body},
+      $count(params.labels) ? {"labels": [params.labels]},
+      $count(params.assignees) ? {"assignees": [params.assignees]}
+    ])`,
+  }),
   errors: GITHUB_ERRORS,
   map: `{
-    "repository": steps.repository.body.name,
+    "repository": $split(response.body.repository_url, "/")[-1],
     "number": response.body.number,
     "html_url": response.body.html_url,
     "id": response.body.id
@@ -335,14 +332,13 @@ export const comment = defineEndpoint({
     ...LINK_OUT,
   },
   identity: ISSUE_IDENTITY,
-  steps: memberSteps(
-    rest("POST", `"/repos/" & ${FULL_NAME} & "/issues/" & params.number & "/comments"`, {
-      body: `{"body": params.body}`,
-    })
-  ),
+  request: rest("POST", `${REPO_PATH} & "/issues/" & params.number & "/comments"`, {
+    connection: ACCOUNT,
+    body: `{"body": params.body}`,
+  }),
   errors: GITHUB_ERRORS,
   map: `{
-    "repository": steps.repository.body.name,
+    "repository": $split(response.body.issue_url, "/")[-3],
     "number": params.number,
     "id": response.body.id,
     "html_url": response.body.html_url
@@ -411,13 +407,10 @@ export const label = defineEndpoint({
   // written as the member. Naming a label in both lists ends with it present;
   // GitHub matches label names without regard to case.
   steps: [
-    {
-      name: "issue",
-      request: rest("GET", `"/repos/" & connection.owner & "/" & params.repo & "/issues/" & params.number`),
-    },
+    { name: "issue", request: rest("GET", `${REPO_PATH} & "/issues/" & params.number`) },
     {
       name: "labels",
-      request: rest("PUT", `"/repos/" & $substringAfter(steps.issue.body.repository_url, "/repos/") & "/issues/" & params.number & "/labels"`, {
+      request: rest("PUT", `${REPO_PATH} & "/issues/" & params.number & "/labels"`, {
         connection: ACCOUNT,
         body: `(
           $add := [params.add];

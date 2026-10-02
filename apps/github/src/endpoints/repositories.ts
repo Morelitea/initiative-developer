@@ -45,7 +45,7 @@ export const listRepositories = defineEndpoint({
   errors: GITHUB_ERRORS,
   map: `(
     $names := [response.body.name];
-    {"names": $names, "owner": connection.owner, "count": $count($names)}
+    {"names": $names, "owner": connections.workspace.owner, "count": $count($names)}
   )`,
 });
 

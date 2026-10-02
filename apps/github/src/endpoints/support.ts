@@ -3,16 +3,17 @@
  * what GitHub's answers mean, and the JSONata that reads parameters and
  * reshapes answers.
  *
- * Every expression reads `params`, the request's connection as `connection`
- * (the organization's `owner` on the workspace), `now`, and once GitHub has
- * answered, `response` and each earlier step as `steps.<name>`. Initiative
- * adds the token itself.
+ * Every expression reads `params`, the request's connection as `connection`,
+ * every connection the endpoint requires as `connections.<id>` (the
+ * organization's `owner` is `connections.workspace.owner`), `now`, and once
+ * GitHub has answered, `response` and each earlier step as `steps.<name>`.
+ * Initiative adds the token itself.
  *
  * A read answers what it could not do in its result (`unavailable`), so a
  * widget can say why. A write is refused with the code.
  */
 
-import type { Endpoint, ErrorRule, Expression, Paging, RequestStep, VendorRequest } from "initiative-app-sdk/manifest";
+import type { Endpoint, ErrorRule, Expression, Paging, VendorRequest } from "initiative-app-sdk/manifest";
 
 import { ACCOUNT, WORKSPACE } from "../vocabulary.js";
 
@@ -55,22 +56,11 @@ export function graphql(query: string, variables: Expression, connection: string
   };
 }
 
-/** The repository a call names, on the organization's installation, as GitHub has it. */
-export const REPOSITORY_STEP: RequestStep = {
-  name: "repository",
-  request: rest("GET", `"/repos/" & connection.owner & "/" & params.repo`),
-};
-
-/** The repository's `owner/name`, once {@link REPOSITORY_STEP} has answered. */
-export const FULL_NAME = "steps.repository.body.full_name";
-
 /**
- * A write: the repository on the organization's installation, then the change
- * itself on the member's own account.
+ * The repository a call names, as its path at GitHub: on the organization,
+ * whichever connection the request carries.
  */
-export function memberSteps(change: VendorRequest): RequestStep[] {
-  return [REPOSITORY_STEP, { name: "change", request: { ...change, connection: ACCOUNT } }];
-}
+export const REPO_PATH = `"/repos/" & connections.workspace.owner & "/" & params.repo`;
 
 /**
  * A read other apps may call through Initiative, as the community or as one of
@@ -153,7 +143,7 @@ export const SINCE = `(
 )`;
 
 /** The variables naming the call's repository on the organization. */
-export const REPO_VARIABLES = `"owner": connection.owner, "repo": params.repo`;
+export const REPO_VARIABLES = `"owner": connections.workspace.owner, "repo": params.repo`;
 
 // --- answers -------------------------------------------------------------------
 

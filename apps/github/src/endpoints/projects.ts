@@ -62,7 +62,7 @@ export const listProjects = defineEndpoint({
          ... on User { projectsV2(first: $first) { totalCount nodes { id title number url } } }
        }
      }`,
-    `{"login": connection.owner, "first": ${PAGE}}`
+    `{"login": connections.workspace.owner, "first": ${PAGE}}`
   ),
   errors: GITHUB_ERRORS,
   map: `(
@@ -100,7 +100,7 @@ function onBoard(answer: string): string {
   return `(
     $board := response.body.data.node;
     $fields := $board.fields.nodes[$type(id) = "string"];
-    $owned := $type($board.owner.login) = "string" and $lowercase($board.owner.login) = $lowercase(connection.owner);
+    $owned := $type($board.owner.login) = "string" and $lowercase($board.owner.login) = $lowercase(connections.workspace.owner);
     $board.fields ? ($owned ? ${answer} : {"unavailable": "project-not-listed"}) : {"unavailable": "no-such-project"}
   )`;
 }

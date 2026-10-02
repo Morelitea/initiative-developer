@@ -23,6 +23,6 @@
     "vitest": "^5.0.1"
   },
   "dependencies": {
-    "initiative-app-sdk": "1.4.1"
+    "initiative-app-sdk": "1.5.0"
   }
 }

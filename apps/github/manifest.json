@@ -433,7 +433,7 @@
           "code": "invalid"
         }
       ],
-      "map": "(\n    $names := [response.body.name];\n    {\"names\": $names, \"owner\": connection.owner, \"count\": $count($names)}\n  )"
+      "map": "(\n    $names := [response.body.name];\n    {\"names\": $names, \"owner\": connections.workspace.owner, \"count\": $count($names)}\n  )"
     },
     {
       "id": "app.morelitea.github.list-assignees",
@@ -531,7 +531,7 @@
         },
         "graphql": {
           "query": "query Assignees($owner: String!, $repo: String!, $first: Int!) { repository(owner: $owner, name: $repo) { assignableUsers(first: $first) { totalCount nodes { login } } } }",
-          "variables": "{\"owner\": connection.owner, \"repo\": params.repo, \"first\": 100}"
+          "variables": "{\"owner\": connections.workspace.owner, \"repo\": params.repo, \"first\": 100}"
         },
         "connection": "workspace"
       },
@@ -668,7 +668,7 @@
         },
         "graphql": {
           "query": "query Branches($owner: String!, $repo: String!, $first: Int!) { repository(owner: $owner, name: $repo) { refs(refPrefix: \"refs/heads/\", first: $first, orderBy: { field: ALPHABETICAL, direction: ASC }) { totalCount nodes { name } } } }",
-          "variables": "{\"owner\": connection.owner, \"repo\": params.repo, \"first\": 100}"
+          "variables": "{\"owner\": connections.workspace.owner, \"repo\": params.repo, \"first\": 100}"
         },
         "connection": "workspace"
       },
@@ -805,7 +805,7 @@
         },
         "graphql": {
           "query": "query Labels($owner: String!, $repo: String!, $first: Int!) { repository(owner: $owner, name: $repo) { labels(first: $first) { totalCount nodes { name } } } }",
-          "variables": "{\"owner\": connection.owner, \"repo\": params.repo, \"first\": 100}"
+          "variables": "{\"owner\": connections.workspace.owner, \"repo\": params.repo, \"first\": 100}"
         },
         "connection": "workspace"
       },
@@ -953,7 +953,7 @@
         },
         "graphql": {
           "query": "query Milestones($owner: String!, $repo: String!, $first: Int!) { repository(owner: $owner, name: $repo) { milestones(first: $first, states: [OPEN], orderBy: { field: DUE_DATE, direction: ASC }) { totalCount nodes { number title } } } }",
-          "variables": "{\"owner\": connection.owner, \"repo\": params.repo, \"first\": 100}"
+          "variables": "{\"owner\": connections.workspace.owner, \"repo\": params.repo, \"first\": 100}"
         },
         "connection": "workspace"
       },
@@ -1153,7 +1153,7 @@
         },
         "graphql": {
           "query": "query Subject($owner: String!, $repo: String!, $number: Int!) { repository(owner: $owner, name: $repo) { name owner { login } issueOrPullRequest(number: $number) { __typename ... on Issue { number title url state createdAt updatedAt closedAt author { login } milestone { title } comments { totalCount } labels(first: 50) { nodes { name } } assignees(first: 20) { nodes { login } } stateReason } ... on PullRequest { number title url state createdAt updatedAt closedAt author { login } milestone { title } comments { totalCount } labels(first: 50) { nodes { name } } assignees(first: 20) { nodes { login } } } } } }",
-          "variables": "{\"owner\": connection.owner, \"repo\": params.repo, \"number\": params.number}"
+          "variables": "{\"owner\": connections.workspace.owner, \"repo\": params.repo, \"number\": params.number}"
         },
         "connection": "workspace"
       },
@@ -1464,7 +1464,7 @@
         },
         "graphql": {
           "query": "query Issues($owner: String!, $repo: String!, $first: Int!, $filter: IssueFilters, $order: IssueOrder!) { repository(owner: $owner, name: $repo) { issues(first: $first, filterBy: $filter, orderBy: $order) { totalCount nodes { number title url state createdAt updatedAt closedAt } } } }",
-          "variables": "{\n      \"owner\": connection.owner, \"repo\": params.repo,\n      \"first\": ($exists(params.limit) ? $min([$max([params.limit, 1]), 100]) : 30),\n      \"order\": {\n  \"field\": params.sort = \"updated\" ? \"UPDATED_AT\" : params.sort = \"comments\" ? \"COMMENTS\" : \"CREATED_AT\",\n  \"direction\": params.direction = \"asc\" ? \"ASC\" : \"DESC\"\n},\n      \"filter\": $merge([\n        {\"states\": params.state = \"all\" ? null : params.state = \"closed\" ? [\"CLOSED\"] : [\"OPEN\"]},\n        $count(params.labels) ? {\"labels\": [params.labels]},\n        params.assignee ? {\"assignee\": params.assignee},\n        $exists(params.milestone) ? {\"milestoneNumber\": $string(params.milestone)},\n        ($since := (\n  params.since ? $fromMillis($toMillis(params.since))\n  : params.since_days > 0 ? $fromMillis($millis() - params.since_days * 86400000)\n); $since ? {\"since\": $since})\n      ])\n    }"
+          "variables": "{\n      \"owner\": connections.workspace.owner, \"repo\": params.repo,\n      \"first\": ($exists(params.limit) ? $min([$max([params.limit, 1]), 100]) : 30),\n      \"order\": {\n  \"field\": params.sort = \"updated\" ? \"UPDATED_AT\" : params.sort = \"comments\" ? \"COMMENTS\" : \"CREATED_AT\",\n  \"direction\": params.direction = \"asc\" ? \"ASC\" : \"DESC\"\n},\n      \"filter\": $merge([\n        {\"states\": params.state = \"all\" ? null : params.state = \"closed\" ? [\"CLOSED\"] : [\"OPEN\"]},\n        $count(params.labels) ? {\"labels\": [params.labels]},\n        params.assignee ? {\"assignee\": params.assignee},\n        $exists(params.milestone) ? {\"milestoneNumber\": $string(params.milestone)},\n        ($since := (\n  params.since ? $fromMillis($toMillis(params.since))\n  : params.since_days > 0 ? $fromMillis($millis() - params.since_days * 86400000)\n); $since ? {\"since\": $since})\n      ])\n    }"
         },
         "connection": "workspace"
       },
@@ -1690,7 +1690,7 @@
         },
         "graphql": {
           "query": "query Pull($owner: String!, $repo: String!, $number: Int!) { repository(owner: $owner, name: $repo) { name owner { login } pullRequest(number: $number) { number title url state createdAt updatedAt closedAt author { login } milestone { title } comments { totalCount } labels(first: 50) { nodes { name } } assignees(first: 20) { nodes { login } } isDraft merged mergedAt headRefName baseRefName changedFiles commits { totalCount } } } }",
-          "variables": "{\"owner\": connection.owner, \"repo\": params.repo, \"number\": params.number}"
+          "variables": "{\"owner\": connections.workspace.owner, \"repo\": params.repo, \"number\": params.number}"
         },
         "connection": "workspace"
       },
@@ -1984,7 +1984,7 @@
         },
         "graphql": {
           "query": "query Search($query: String!, $first: Int!) { search(query: $query, type: ISSUE, first: $first) { issueCount nodes { ... on PullRequest { number title url state createdAt updatedAt closedAt } } } }",
-          "variables": "(\n      $quoted := function($value) { '\"' & $replace($value, '\"', '') & '\"' };\n      {\n        \"query\": $join([\n          \"repo:\" & connection.owner & \"/\" & params.repo,\n          \"is:pr\",\n          params.state = \"closed\" ? \"is:closed is:unmerged\" : params.state = \"merged\" ? \"is:merged\" : $not(params.state = \"all\") ? \"is:open\",\n          params.labels.(\"label:\" & $quoted($)),\n          params.base_ref ? \"base:\" & $quoted(params.base_ref),\n          params.head_ref ? \"head:\" & $quoted(params.head_ref),\n          params.review_requested and ($login := params.review_requested; $length($login) <= 39 and $contains($login, /^[A-Za-z0-9]+(-[A-Za-z0-9]+)*$/)) ? \"review-requested:\" & params.review_requested,\n          \"sort:\" & (params.sort ? params.sort : \"created\") & \"-\" & (params.direction = \"asc\" ? \"asc\" : \"desc\")\n        ], \" \"),\n        \"first\": ($exists(params.limit) ? $min([$max([params.limit, 1]), 100]) : 30)\n      }\n    )"
+          "variables": "(\n      $quoted := function($value) { '\"' & $replace($value, '\"', '') & '\"' };\n      {\n        \"query\": $join([\n          \"repo:\" & connections.workspace.owner & \"/\" & params.repo,\n          \"is:pr\",\n          params.state = \"closed\" ? \"is:closed is:unmerged\" : params.state = \"merged\" ? \"is:merged\" : $not(params.state = \"all\") ? \"is:open\",\n          params.labels.(\"label:\" & $quoted($)),\n          params.base_ref ? \"base:\" & $quoted(params.base_ref),\n          params.head_ref ? \"head:\" & $quoted(params.head_ref),\n          params.review_requested and ($login := params.review_requested; $length($login) <= 39 and $contains($login, /^[A-Za-z0-9]+(-[A-Za-z0-9]+)*$/)) ? \"review-requested:\" & params.review_requested,\n          \"sort:\" & (params.sort ? params.sort : \"created\") & \"-\" & (params.direction = \"asc\" ? \"asc\" : \"desc\")\n        ], \" \"),\n        \"first\": ($exists(params.limit) ? $min([$max([params.limit, 1]), 100]) : 30)\n      }\n    )"
         },
         "connection": "workspace"
       },
@@ -2251,38 +2251,20 @@
           }
         }
       ],
-      "steps": [
-        {
-          "name": "repository",
-          "request": {
-            "method": "GET",
-            "url": "\"https://api.github.com\" & \"/repos/\" & connection.owner & \"/\" & params.repo",
-            "headers": {
-              "Accept": "\"application/vnd.github+json\"",
-              "X-GitHub-Api-Version": "\"2022-11-28\"",
-              "User-Agent": "\"initiative-github\""
-            },
-            "connection": "workspace"
-          }
+      "request": {
+        "method": "POST",
+        "url": "\"https://api.github.com/graphql\"",
+        "headers": {
+          "Accept": "\"application/vnd.github+json\"",
+          "X-GitHub-Api-Version": "\"2022-11-28\"",
+          "User-Agent": "\"initiative-github\""
         },
-        {
-          "name": "search",
-          "request": {
-            "method": "POST",
-            "url": "\"https://api.github.com/graphql\"",
-            "headers": {
-              "Accept": "\"application/vnd.github+json\"",
-              "X-GitHub-Api-Version": "\"2022-11-28\"",
-              "User-Agent": "\"initiative-github\""
-            },
-            "graphql": {
-              "query": "query Search($query: String!, $first: Int!) { search(query: $query, type: ISSUE, first: $first) { issueCount nodes { ... on PullRequest { number title url state createdAt updatedAt closedAt } } } }",
-              "variables": "(\n      $quoted := function($value) { '\"' & $replace($value, '\"', '') & '\"' };\n      {\n        \"query\": $join([\n          \"repo:\" & steps.repository.body.full_name,\n          \"is:pr\",\n          params.state = \"closed\" ? \"is:closed is:unmerged\" : params.state = \"merged\" ? \"is:merged\" : $not(params.state = \"all\") ? \"is:open\",\n          params.labels.(\"label:\" & $quoted($)),\n          params.base_ref ? \"base:\" & $quoted(params.base_ref),\n          params.head_ref ? \"head:\" & $quoted(params.head_ref),\n          \"review-requested:@me\",\n          \"sort:\" & (params.sort ? params.sort : \"created\") & \"-\" & (params.direction = \"asc\" ? \"asc\" : \"desc\")\n        ], \" \"),\n        \"first\": ($exists(params.limit) ? $min([$max([params.limit, 1]), 100]) : 30)\n      }\n    )"
-            },
-            "connection": "account"
-          }
-        }
-      ],
+        "graphql": {
+          "query": "query Search($query: String!, $first: Int!) { search(query: $query, type: ISSUE, first: $first) { issueCount nodes { ... on PullRequest { number title url state createdAt updatedAt closedAt } } } }",
+          "variables": "(\n      $quoted := function($value) { '\"' & $replace($value, '\"', '') & '\"' };\n      {\n        \"query\": $join([\n          \"repo:\" & connections.workspace.owner & \"/\" & params.repo,\n          \"is:pr\",\n          params.state = \"closed\" ? \"is:closed is:unmerged\" : params.state = \"merged\" ? \"is:merged\" : $not(params.state = \"all\") ? \"is:open\",\n          params.labels.(\"label:\" & $quoted($)),\n          params.base_ref ? \"base:\" & $quoted(params.base_ref),\n          params.head_ref ? \"head:\" & $quoted(params.head_ref),\n          \"review-requested:@me\",\n          \"sort:\" & (params.sort ? params.sort : \"created\") & \"-\" & (params.direction = \"asc\" ? \"asc\" : \"desc\")\n        ], \" \"),\n        \"first\": ($exists(params.limit) ? $min([$max([params.limit, 1]), 100]) : 30)\n      }\n    )"
+        },
+        "connection": "account"
+      },
       "unavailable": [
         "repository-required"
       ],
@@ -2435,7 +2417,7 @@
         },
         "graphql": {
           "query": "query Alerts($owner: String!, $repo: String!, $first: Int!) { repository(owner: $owner, name: $repo) { name owner { login } vulnerabilityAlerts(first: $first, states: [OPEN]) { totalCount nodes { number securityVulnerability { severity package { name } } } } } }",
-          "variables": "{\"owner\": connection.owner, \"repo\": params.repo, \"first\": 100}"
+          "variables": "{\"owner\": connections.workspace.owner, \"repo\": params.repo, \"first\": 100}"
         },
         "connection": "workspace"
       },
@@ -2571,7 +2553,7 @@
         },
         "graphql": {
           "query": "query Boards($login: String!, $first: Int!) { repositoryOwner(login: $login) { ... on Organization { projectsV2(first: $first) { totalCount nodes { id title number url } } } ... on User { projectsV2(first: $first) { totalCount nodes { id title number url } } } } }",
-          "variables": "{\"login\": connection.owner, \"first\": 100}"
+          "variables": "{\"login\": connections.workspace.owner, \"first\": 100}"
         },
         "connection": "workspace"
       },
@@ -2738,7 +2720,7 @@
           "code": "invalid"
         }
       ],
-      "map": "(\n    $board := response.body.data.node;\n    $fields := $board.fields.nodes[$type(id) = \"string\"];\n    $owned := $type($board.owner.login) = \"string\" and $lowercase($board.owner.login) = $lowercase(connection.owner);\n    $board.fields ? ($owned ? {\"ids\": [$fields.id], \"names\": [$fields.(name ? name : \"\")], \"count\": $count($fields)} : {\"unavailable\": \"project-not-listed\"}) : {\"unavailable\": \"no-such-project\"}\n  )"
+      "map": "(\n    $board := response.body.data.node;\n    $fields := $board.fields.nodes[$type(id) = \"string\"];\n    $owned := $type($board.owner.login) = \"string\" and $lowercase($board.owner.login) = $lowercase(connections.workspace.owner);\n    $board.fields ? ($owned ? {\"ids\": [$fields.id], \"names\": [$fields.(name ? name : \"\")], \"count\": $count($fields)} : {\"unavailable\": \"project-not-listed\"}) : {\"unavailable\": \"no-such-project\"}\n  )"
     },
     {
       "id": "app.morelitea.github.list-project-options",
@@ -2907,7 +2889,7 @@
           "code": "invalid"
         }
       ],
-      "map": "(\n    $board := response.body.data.node;\n    $fields := $board.fields.nodes[$type(id) = \"string\"];\n    $owned := $type($board.owner.login) = \"string\" and $lowercase($board.owner.login) = $lowercase(connection.owner);\n    $board.fields ? ($owned ? (\n    $wanted := params.field;\n    $field := $fields[id = $wanted or $lowercase(name) = $lowercase($wanted)][0];\n    $options := $field.options[$type(id) = \"string\"];\n    $field ? {\n      \"field_id\": $field.id,\n      \"field_name\": $field.name ? $field.name : \"\",\n      \"option_ids\": [$options.id],\n      \"option_names\": [$options.(name ? name : \"\")]\n    } : {\"unavailable\": \"no-such-field\"}\n  ) : {\"unavailable\": \"project-not-listed\"}) : {\"unavailable\": \"no-such-project\"}\n  )"
+      "map": "(\n    $board := response.body.data.node;\n    $fields := $board.fields.nodes[$type(id) = \"string\"];\n    $owned := $type($board.owner.login) = \"string\" and $lowercase($board.owner.login) = $lowercase(connections.workspace.owner);\n    $board.fields ? ($owned ? (\n    $wanted := params.field;\n    $field := $fields[id = $wanted or $lowercase(name) = $lowercase($wanted)][0];\n    $options := $field.options[$type(id) = \"string\"];\n    $field ? {\n      \"field_id\": $field.id,\n      \"field_name\": $field.name ? $field.name : \"\",\n      \"option_ids\": [$options.id],\n      \"option_names\": [$options.(name ? name : \"\")]\n    } : {\"unavailable\": \"no-such-field\"}\n  ) : {\"unavailable\": \"project-not-listed\"}) : {\"unavailable\": \"no-such-project\"}\n  )"
     },
     {
       "id": "app.morelitea.github.find-project-item",
@@ -3021,7 +3003,7 @@
         },
         "graphql": {
           "query": "query Card($owner: String!, $repo: String!, $number: Int!, $first: Int!) { repository(owner: $owner, name: $repo) { name owner { login } issueOrPullRequest(number: $number) { ... on Issue { projectItems(first: $first) { nodes { id project { id } } } } ... on PullRequest { projectItems(first: $first) { nodes { id project { id } } } } } } }",
-          "variables": "{\"owner\": connection.owner, \"repo\": params.repo, \"number\": params.number, \"first\": 100}"
+          "variables": "{\"owner\": connections.workspace.owner, \"repo\": params.repo, \"number\": params.number, \"first\": 100}"
         },
         "connection": "workspace"
       },
@@ -3221,35 +3203,17 @@
           "number"
         ]
       },
-      "steps": [
-        {
-          "name": "repository",
-          "request": {
-            "method": "GET",
-            "url": "\"https://api.github.com\" & \"/repos/\" & connection.owner & \"/\" & params.repo",
-            "headers": {
-              "Accept": "\"application/vnd.github+json\"",
-              "X-GitHub-Api-Version": "\"2022-11-28\"",
-              "User-Agent": "\"initiative-github\""
-            },
-            "connection": "workspace"
-          }
+      "request": {
+        "method": "POST",
+        "url": "\"https://api.github.com\" & \"/repos/\" & connections.workspace.owner & \"/\" & params.repo & \"/issues\"",
+        "headers": {
+          "Accept": "\"application/vnd.github+json\"",
+          "X-GitHub-Api-Version": "\"2022-11-28\"",
+          "User-Agent": "\"initiative-github\""
         },
-        {
-          "name": "change",
-          "request": {
-            "method": "POST",
-            "url": "\"https://api.github.com\" & \"/repos/\" & steps.repository.body.full_name & \"/issues\"",
-            "headers": {
-              "Accept": "\"application/vnd.github+json\"",
-              "X-GitHub-Api-Version": "\"2022-11-28\"",
-              "User-Agent": "\"initiative-github\""
-            },
-            "connection": "account",
-            "body": "$merge([\n        {\"title\": params.title},\n        params.body ? {\"body\": params.body},\n        $count(params.labels) ? {\"labels\": [params.labels]},\n        $count(params.assignees) ? {\"assignees\": [params.assignees]}\n      ])"
-          }
-        }
-      ],
+        "connection": "account",
+        "body": "$merge([\n      {\"title\": params.title},\n      params.body ? {\"body\": params.body},\n      $count(params.labels) ? {\"labels\": [params.labels]},\n      $count(params.assignees) ? {\"assignees\": [params.assignees]}\n    ])"
+      },
       "errors": [
         {
           "status": 403,
@@ -3272,7 +3236,7 @@
           "code": "invalid"
         }
       ],
-      "map": "{\n    \"repository\": steps.repository.body.name,\n    \"number\": response.body.number,\n    \"html_url\": response.body.html_url,\n    \"id\": response.body.id\n  }"
+      "map": "{\n    \"repository\": $split(response.body.repository_url, \"/\")[-1],\n    \"number\": response.body.number,\n    \"html_url\": response.body.html_url,\n    \"id\": response.body.id\n  }"
     },
     {
       "id": "app.morelitea.github.comment",
@@ -3374,35 +3338,17 @@
           "number"
         ]
       },
-      "steps": [
-        {
-          "name": "repository",
-          "request": {
-            "method": "GET",
-            "url": "\"https://api.github.com\" & \"/repos/\" & connection.owner & \"/\" & params.repo",
-            "headers": {
-              "Accept": "\"application/vnd.github+json\"",
-              "X-GitHub-Api-Version": "\"2022-11-28\"",
-              "User-Agent": "\"initiative-github\""
-            },
-            "connection": "workspace"
-          }
+      "request": {
+        "method": "POST",
+        "url": "\"https://api.github.com\" & \"/repos/\" & connections.workspace.owner & \"/\" & params.repo & \"/issues/\" & params.number & \"/comments\"",
+        "headers": {
+          "Accept": "\"application/vnd.github+json\"",
+          "X-GitHub-Api-Version": "\"2022-11-28\"",
+          "User-Agent": "\"initiative-github\""
         },
-        {
-          "name": "change",
-          "request": {
-            "method": "POST",
-            "url": "\"https://api.github.com\" & \"/repos/\" & steps.repository.body.full_name & \"/issues/\" & params.number & \"/comments\"",
-            "headers": {
-              "Accept": "\"application/vnd.github+json\"",
-              "X-GitHub-Api-Version": "\"2022-11-28\"",
-              "User-Agent": "\"initiative-github\""
-            },
-            "connection": "account",
-            "body": "{\"body\": params.body}"
-          }
-        }
-      ],
+        "connection": "account",
+        "body": "{\"body\": params.body}"
+      },
       "errors": [
         {
           "status": 403,
@@ -3425,7 +3371,7 @@
           "code": "invalid"
         }
       ],
-      "map": "{\n    \"repository\": steps.repository.body.name,\n    \"number\": params.number,\n    \"id\": response.body.id,\n    \"html_url\": response.body.html_url\n  }"
+      "map": "{\n    \"repository\": $split(response.body.issue_url, \"/\")[-3],\n    \"number\": params.number,\n    \"id\": response.body.id,\n    \"html_url\": response.body.html_url\n  }"
     },
     {
       "id": "app.morelitea.github.close-issue",
@@ -3524,35 +3470,17 @@
           "number"
         ]
       },
-      "steps": [
-        {
-          "name": "repository",
-          "request": {
-            "method": "GET",
-            "url": "\"https://api.github.com\" & \"/repos/\" & connection.owner & \"/\" & params.repo",
-            "headers": {
-              "Accept": "\"application/vnd.github+json\"",
-              "X-GitHub-Api-Version": "\"2022-11-28\"",
-              "User-Agent": "\"initiative-github\""
-            },
-            "connection": "workspace"
-          }
+      "request": {
+        "method": "PATCH",
+        "url": "\"https://api.github.com\" & \"/repos/\" & connections.workspace.owner & \"/\" & params.repo & \"/issues/\" & params.number",
+        "headers": {
+          "Accept": "\"application/vnd.github+json\"",
+          "X-GitHub-Api-Version": "\"2022-11-28\"",
+          "User-Agent": "\"initiative-github\""
         },
-        {
-          "name": "change",
-          "request": {
-            "method": "PATCH",
-            "url": "\"https://api.github.com\" & \"/repos/\" & steps.repository.body.full_name & \"/issues/\" & params.number",
-            "headers": {
-              "Accept": "\"application/vnd.github+json\"",
-              "X-GitHub-Api-Version": "\"2022-11-28\"",
-              "User-Agent": "\"initiative-github\""
-            },
-            "connection": "account",
-            "body": "$merge([{\"state\": \"closed\"}, params.reason in [\"completed\", \"not_planned\"] ? {\"state_reason\": params.reason}])"
-          }
-        }
-      ],
+        "connection": "account",
+        "body": "$merge([{\"state\": \"closed\"}, params.reason in [\"completed\", \"not_planned\"] ? {\"state_reason\": params.reason}])"
+      },
       "errors": [
         {
           "status": 403,
@@ -3575,7 +3503,7 @@
           "code": "invalid"
         }
       ],
-      "map": "{\n      \"repository\": steps.repository.body.name,\n      \"number\": response.body.number,\n      \"state\": response.body.state,\n      \"html_url\": response.body.html_url\n    }"
+      "map": "{\n      \"repository\": $split(response.body.repository_url, \"/\")[-1],\n      \"number\": response.body.number,\n      \"state\": response.body.state,\n      \"html_url\": response.body.html_url\n    }"
     },
     {
       "id": "app.morelitea.github.reopen-issue",
@@ -3660,35 +3588,17 @@
           "number"
         ]
       },
-      "steps": [
-        {
-          "name": "repository",
-          "request": {
-            "method": "GET",
-            "url": "\"https://api.github.com\" & \"/repos/\" & connection.owner & \"/\" & params.repo",
-            "headers": {
-              "Accept": "\"application/vnd.github+json\"",
-              "X-GitHub-Api-Version": "\"2022-11-28\"",
-              "User-Agent": "\"initiative-github\""
-            },
-            "connection": "workspace"
-          }
+      "request": {
+        "method": "PATCH",
+        "url": "\"https://api.github.com\" & \"/repos/\" & connections.workspace.owner & \"/\" & params.repo & \"/issues/\" & params.number",
+        "headers": {
+          "Accept": "\"application/vnd.github+json\"",
+          "X-GitHub-Api-Version": "\"2022-11-28\"",
+          "User-Agent": "\"initiative-github\""
         },
-        {
-          "name": "change",
-          "request": {
-            "method": "PATCH",
-            "url": "\"https://api.github.com\" & \"/repos/\" & steps.repository.body.full_name & \"/issues/\" & params.number",
-            "headers": {
-              "Accept": "\"application/vnd.github+json\"",
-              "X-GitHub-Api-Version": "\"2022-11-28\"",
-              "User-Agent": "\"initiative-github\""
-            },
-            "connection": "account",
-            "body": "{\"state\": \"open\"}"
-          }
-        }
-      ],
+        "connection": "account",
+        "body": "{\"state\": \"open\"}"
+      },
       "errors": [
         {
           "status": 403,
@@ -3711,7 +3621,7 @@
           "code": "invalid"
         }
       ],
-      "map": "{\n      \"repository\": steps.repository.body.name,\n      \"number\": response.body.number,\n      \"state\": response.body.state,\n      \"html_url\": response.body.html_url\n    }"
+      "map": "{\n      \"repository\": $split(response.body.repository_url, \"/\")[-1],\n      \"number\": response.body.number,\n      \"state\": response.body.state,\n      \"html_url\": response.body.html_url\n    }"
     },
     {
       "id": "app.morelitea.github.label",
@@ -3823,7 +3733,7 @@
           "name": "issue",
           "request": {
             "method": "GET",
-            "url": "\"https://api.github.com\" & \"/repos/\" & connection.owner & \"/\" & params.repo & \"/issues/\" & params.number",
+            "url": "\"https://api.github.com\" & \"/repos/\" & connections.workspace.owner & \"/\" & params.repo & \"/issues/\" & params.number",
             "headers": {
               "Accept": "\"application/vnd.github+json\"",
               "X-GitHub-Api-Version": "\"2022-11-28\"",
@@ -3836,7 +3746,7 @@
           "name": "labels",
           "request": {
             "method": "PUT",
-            "url": "\"https://api.github.com\" & \"/repos/\" & $substringAfter(steps.issue.body.repository_url, \"/repos/\") & \"/issues/\" & params.number & \"/labels\"",
+            "url": "\"https://api.github.com\" & \"/repos/\" & connections.workspace.owner & \"/\" & params.repo & \"/issues/\" & params.number & \"/labels\"",
             "headers": {
               "Accept": "\"application/vnd.github+json\"",
               "X-GitHub-Api-Version": "\"2022-11-28\"",
@@ -3984,35 +3894,17 @@
           "number"
         ]
       },
-      "steps": [
-        {
-          "name": "repository",
-          "request": {
-            "method": "GET",
-            "url": "\"https://api.github.com\" & \"/repos/\" & connection.owner & \"/\" & params.repo",
-            "headers": {
-              "Accept": "\"application/vnd.github+json\"",
-              "X-GitHub-Api-Version": "\"2022-11-28\"",
-              "User-Agent": "\"initiative-github\""
-            },
-            "connection": "workspace"
-          }
+      "request": {
+        "method": "POST",
+        "url": "\"https://api.github.com\" & \"/repos/\" & connections.workspace.owner & \"/\" & params.repo & \"/pulls/\" & params.number & \"/requested_reviewers\"",
+        "headers": {
+          "Accept": "\"application/vnd.github+json\"",
+          "X-GitHub-Api-Version": "\"2022-11-28\"",
+          "User-Agent": "\"initiative-github\""
         },
-        {
-          "name": "change",
-          "request": {
-            "method": "POST",
-            "url": "\"https://api.github.com\" & \"/repos/\" & steps.repository.body.full_name & \"/pulls/\" & params.number & \"/requested_reviewers\"",
-            "headers": {
-              "Accept": "\"application/vnd.github+json\"",
-              "X-GitHub-Api-Version": "\"2022-11-28\"",
-              "User-Agent": "\"initiative-github\""
-            },
-            "connection": "account",
-            "body": "$merge([\n        $count(params.reviewers) ? {\"reviewers\": [params.reviewers]},\n        $count(params.team_reviewers) ? {\"team_reviewers\": [params.team_reviewers]}\n      ])"
-          }
-        }
-      ],
+        "connection": "account",
+        "body": "$merge([\n      $count(params.reviewers) ? {\"reviewers\": [params.reviewers]},\n      $count(params.team_reviewers) ? {\"team_reviewers\": [params.team_reviewers]}\n    ])"
+      },
       "errors": [
         {
           "status": 403,
@@ -4035,7 +3927,7 @@
           "code": "invalid"
         }
       ],
-      "map": "{\"repository\": steps.repository.body.name, \"number\": params.number, \"html_url\": response.body.html_url}"
+      "map": "{\"repository\": response.body.base.repo.name, \"number\": params.number, \"html_url\": response.body.html_url}"
     },
     {
       "id": "app.morelitea.github.move-project-item",

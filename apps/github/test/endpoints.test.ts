@@ -12,7 +12,7 @@ import { READ, WRITE } from "../src/vocabulary.js";
 import { recorded } from "./fixtures.js";
 
 const NOW = "2026-10-01T12:00:00Z";
-const ORGANIZATION = { workspace: { owner: "acme", installation_id: 42 } };
+const CONNECTIONS = { workspace: { owner: "acme", installation_id: 42 }, account: {} };
 const API = "https://api.github.com";
 const HEADERS = {
   Accept: "application/vnd.github+json",
@@ -24,14 +24,14 @@ const HEADERS = {
 function call(name: string, params: Record<string, unknown>, ...answers: Array<string | RecordedResponse>) {
   return runEndpoint(app, name, {
     params,
-    connections: ORGANIZATION,
+    connections: CONNECTIONS,
     now: NOW,
     responses: answers.map((answer) => (typeof answer === "string" ? { body: recorded(answer) } : answer)),
   });
 }
 
-const variables = (run: Awaited<ReturnType<typeof call>>, index = 0) =>
-  (run.requests[index].body as { variables: Record<string, unknown> }).variables;
+const variables = (run: Awaited<ReturnType<typeof call>>) =>
+  (run.requests[0].body as { variables: Record<string, unknown> }).variables;
 
 interface ReadCase {
   name: string;
@@ -155,7 +155,7 @@ const READS: ReadCase[] = [
   {
     name: READ.reviewQueue,
     params: { repo: "widgets" },
-    answers: ["rest/repository", "graphql/search"],
+    answers: ["graphql/search"],
     result: { ...ROW, numbers: [9], titles: ["Fix the build"], urls: ["https://github.com/acme/widgets/pull/9"], count: 1, total: 1 },
   },
   {
@@ -320,12 +320,11 @@ describe("reads", () => {
   });
 
   it("asks for the member's review queue as the member, in the repository on the organization", async () => {
-    const run = await call(READ.reviewQueue, { repo: "widgets", labels: ["ui"], limit: 10 }, "rest/repository", "graphql/search");
+    const run = await call(READ.reviewQueue, { repo: "widgets", labels: ["ui"], limit: 10 }, "graphql/search");
     expect(run.requests.map((request) => [request.method, request.url, request.connection])).toEqual([
-      ["GET", `${API}/repos/acme/widgets`, "workspace"],
       ["POST", `${API}/graphql`, "account"],
     ]);
-    expect(variables(run, 1)).toEqual({
+    expect(variables(run)).toEqual({
       query: 'repo:acme/widgets is:pr is:open label:"ui" review-requested:@me sort:created-desc',
       first: 10,
     });
@@ -337,7 +336,7 @@ describe("reads", () => {
     expect(await call(READ.getIssue, { repo: "widgets" }, refused)).toMatchObject({ unavailable: "number-required" });
     expect(await call(READ.listProjectFields, {}, refused)).toMatchObject({ unavailable: "project-required" });
     expect(await call(READ.listProjectOptions, { project_id: "PVT_1" }, refused)).toMatchObject({ unavailable: "field-required" });
-    expect(await call(READ.reviewQueue, {}, { status: 404 })).toMatchObject({ unavailable: "repository-required" });
+    expect(await call(READ.reviewQueue, {}, refused)).toMatchObject({ unavailable: "repository-required" });
   });
 
   it("says a repository, issue or pull request is not there", async () => {
@@ -345,7 +344,6 @@ describe("reads", () => {
       const run = await call(name, { repo: "elsewhere", number: 7, project_id: "PVT_1" }, "graphql/not-found");
       expect(run).toMatchObject({ unavailable: "not-found" });
     }
-    expect(await call(READ.reviewQueue, { repo: "elsewhere" }, { status: 404 })).toMatchObject({ unavailable: "not-found" });
   });
 
   it("reads GitHub's refusal inside a GraphQL answer", async () => {
@@ -430,31 +428,24 @@ describe("writes", () => {
   });
 
   for (const one of WRITES) {
-    it(`${one.name} reads the repository on the installation, then writes as the member`, async () => {
-      const run = await call(one.name, one.params, "rest/repository", one.answer);
+    it(`${one.name} writes as the member, in the repository on the organization`, async () => {
+      const run = await call(one.name, one.params, one.answer);
       const [method, path, body] = one.change;
-      expect(run.requests).toEqual([
-        { method: "GET", url: `${API}/repos/acme/widgets`, headers: HEADERS, connection: "workspace" },
-        { method, url: `${API}${path}`, headers: HEADERS, body, connection: "account" },
-      ]);
+      expect(run.requests).toEqual([{ method, url: `${API}${path}`, headers: HEADERS, body, connection: "account" }]);
       expect(run).toMatchObject({ result: one.result });
     });
   }
 
-  it("writes nothing in a repository the installation does not cover", async () => {
-    const run = await call(WRITE.openIssue, { repo: "elsewhere", title: "x" }, { status: 404, body: { message: "Not Found" } });
-    expect(run.requests).toHaveLength(1);
-    expect(run).toMatchObject({ unavailable: "not-found" });
-  });
-
   it("passes GitHub's refusal of the member through", async () => {
-    const run = await call(WRITE.comment, { repo: "widgets", number: 7, body: "x" }, "rest/repository", {
+    const missing = await call(WRITE.openIssue, { repo: "elsewhere", title: "x" }, { status: 404, body: { message: "Not Found" } });
+    expect(missing).toMatchObject({ unavailable: "not-found" });
+    const run = await call(WRITE.comment, { repo: "widgets", number: 7, body: "x" }, {
       status: 403,
       body: { message: "Must have push access" },
     });
     expect(run).toMatchObject({ unavailable: "not-authorized" });
-    const invalid = await call(WRITE.requestReview, { repo: "widgets", number: 9 }, "rest/repository", { status: 422 });
-    expect(invalid.requests[1].body).toEqual({});
+    const invalid = await call(WRITE.requestReview, { repo: "widgets", number: 9 }, { status: 422 });
+    expect(invalid.requests[0].body).toEqual({});
     expect(invalid).toMatchObject({ unavailable: "invalid" });
   });
 

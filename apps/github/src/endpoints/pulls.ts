@@ -33,18 +33,16 @@ import {
   WORKSPACE,
 } from "../vocabulary.js";
 import {
-  FULL_NAME,
   GITHUB_ERRORS,
   graphql,
   LIMIT,
-  memberSteps,
   needs,
   NEEDS_NUMBER,
   NEEDS_REPO,
   PUBLIC_READ,
   PUBLIC_WRITE,
+  REPO_PATH,
   REPO_VARIABLES,
-  REPOSITORY_STEP,
   rest,
   ROW_FIELDS,
   rows,
@@ -69,12 +67,12 @@ const ORDER_IN = { ...SORT_IN, ...DIRECTION_IN, ...LIMIT_IN };
 const LOGIN = `($login := params.review_requested; $length($login) <= 39 and $contains($login, /^[A-Za-z0-9]+(-[A-Za-z0-9]+)*$/))`;
 
 /**
- * Pull requests in one repository, through GitHub's search: `repository` is
- * its `owner/name`, and `reviewer` the search term for whose review is wanted.
+ * Pull requests in the repository a call names, through GitHub's search:
+ * `reviewer` is the search term for whose review is wanted.
  * Closed means closed without merging, as GitHub's own lists of pull requests
  * mean it. Values are quoted, so a parameter names one value.
  */
-function search(repository: string, reviewer: string, connection: string) {
+function search(reviewer: string, connection: string) {
   return graphql(
     `query Search($query: String!, $first: Int!) {
        search(query: $query, type: ISSUE, first: $first) {
@@ -86,7 +84,7 @@ function search(repository: string, reviewer: string, connection: string) {
       $quoted := function($value) { '"' & $replace($value, '"', '') & '"' };
       {
         "query": $join([
-          "repo:" & ${repository},
+          "repo:" & connections.workspace.owner & "/" & params.repo,
           "is:pr",
           params.state = "closed" ? "is:closed is:unmerged" : params.state = "merged" ? "is:merged" : $not(params.state = "all") ? "is:open",
           params.labels.("label:" & $quoted($)),
@@ -127,11 +125,7 @@ export const findPullRequests = defineEndpoint({
     ...ORDER_IN,
   },
   returns: ROWS_OUT,
-  request: search(
-    `connection.owner & "/" & params.repo`,
-    `params.review_requested and ${LOGIN} ? "review-requested:" & params.review_requested`,
-    WORKSPACE
-  ),
+  request: search(`params.review_requested and ${LOGIN} ? "review-requested:" & params.review_requested`, WORKSPACE),
   ...needs(NEEDS_REPO, [`params.review_requested and $not(${LOGIN})`, "bad-login"]),
   map: FOUND,
 });
@@ -152,12 +146,8 @@ export const reviewQueue = defineEndpoint({
   cache_ttl_seconds: 60,
   params: { ...PULL_PARAMS, ...ORDER_IN },
   returns: ROWS_OUT,
-  // The repository on the organization's installation, then GitHub's search
-  // as the member, for whom `@me` stands.
-  steps: [
-    REPOSITORY_STEP,
-    { name: "search", request: search(FULL_NAME, `"review-requested:@me"`, ACCOUNT) },
-  ],
+  // GitHub's search as the member, for whom `@me` stands.
+  request: search(`"review-requested:@me"`, ACCOUNT),
   ...needs(NEEDS_REPO),
   map: FOUND,
 });
@@ -252,14 +242,13 @@ export const requestReview = defineEndpoint({
   },
   returns: { ...REPO_OUT, ...NUMBER_OUT, ...LINK_OUT },
   identity: ISSUE_IDENTITY,
-  steps: memberSteps(
-    rest("POST", `"/repos/" & ${FULL_NAME} & "/pulls/" & params.number & "/requested_reviewers"`, {
-      body: `$merge([
-        $count(params.reviewers) ? {"reviewers": [params.reviewers]},
-        $count(params.team_reviewers) ? {"team_reviewers": [params.team_reviewers]}
-      ])`,
-    })
-  ),
+  request: rest("POST", `${REPO_PATH} & "/pulls/" & params.number & "/requested_reviewers"`, {
+    connection: ACCOUNT,
+    body: `$merge([
+      $count(params.reviewers) ? {"reviewers": [params.reviewers]},
+      $count(params.team_reviewers) ? {"team_reviewers": [params.team_reviewers]}
+    ])`,
+  }),
   errors: GITHUB_ERRORS,
-  map: `{"repository": steps.repository.body.name, "number": params.number, "html_url": response.body.html_url}`,
+  map: `{"repository": response.body.base.repo.name, "number": params.number, "html_url": response.body.html_url}`,
 });

@@ -409,6 +409,41 @@ def test_a_registration_may_carry_a_compose_snippet(
             world.build()
 
 
+DECLARATIVE = {"kind": "declarative", "scope_ceiling": [], "reference_sectors": []}
+
+
+def test_a_declarative_app_registers_no_image(world: World) -> None:
+    """Initiative runs it from its kit manifest, which names no service."""
+    kit = world.sources / "acme" / APP / "1.0.0" / "manifest.json"
+    document = json.loads(kit.read_text())
+    del document["service"]
+    kit.write_text(json.dumps(document))
+    world.edit_listing(APP, lambda d: d.update(registration=DECLARATIVE))
+    result = world.build()
+    verify(result.out, world.trusted_root, target="public")
+    app = next(listing for listing in result.listings if listing.uid == APP)
+    signed = app.targets[f"publishers/acme/{APP}/listing.json"]
+    assert json.loads(signed.data)["registration"] == DECLARATIVE
+
+
+@pytest.mark.parametrize(
+    ("registration", "match"),
+    [
+        ({**DECLARATIVE, "image": f"ghcr.io/acme/t@sha256:{'0' * 64}"}, "schema"),
+        ({**DECLARATIVE, "compose": COMPOSE}, "schema"),
+        ({"kind": "container", "scope_ceiling": []}, "schema"),
+        (DECLARATIVE, "has no service block"),
+    ],
+    ids=["declarative-image", "declarative-compose", "no-image", "service-block"],
+)
+def test_a_registration_fits_its_kind(
+    world: World, registration: dict, match: str
+) -> None:
+    world.edit_listing(APP, lambda d: d.update(registration=registration))
+    with pytest.raises(RegistryError, match=match):
+        world.build()
+
+
 def test_content_with_registration_is_refused(world: World) -> None:
     registration = json.loads(world.listing(APP).read_text())["registration"]
     world.edit_listing(DASHBOARD, lambda d: d.update(registration=registration))

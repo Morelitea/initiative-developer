@@ -267,7 +267,7 @@
       ],
       "properties": {
         "definition": {
-          "description": "What installs. For an app, its kit manifest, whose service.public_id is the listing's public_id; for a tool's content, that tool's definition.",
+          "description": "What installs. For an app, its kit manifest: a container's names the listing's public_id as its service.public_id, and a declarative app's has no service block. For a tool's content, that tool's definition.",
           "$ref": "#/$defs/document"
         },
         "example": {
@@ -278,19 +278,21 @@
       "unevaluatedProperties": false
     },
     "registration": {
-      "description": "For an app (and allowed for an automation): the container it runs, the most it may ever be granted, and the reference sectors it may learn. Each deployment that runs it gives its location and the keys its copy signs with.",
+      "description": "For an app (and allowed for an automation): what kind it is, the most it may ever be granted, and the reference sectors it may learn. A container names the image each deployment runs, and each deployment gives its location and the keys its copy signs with. A declarative app names no image: Initiative runs it from its manifest.",
       "type": "object",
       "required": [
         "kind",
-        "image",
         "scope_ceiling"
       ],
       "properties": {
         "kind": {
-          "const": "container"
+          "enum": [
+            "container",
+            "declarative"
+          ]
         },
         "image": {
-          "description": "The container image, pinned by digest.",
+          "description": "A container's image, pinned by digest.",
           "type": "string",
           "maxLength": 300,
           "pattern": "^[a-z0-9][a-z0-9._/:-]*@sha256:[0-9a-f]{64}$"
@@ -317,7 +319,35 @@
           "$ref": "#/$defs/compose"
         }
       },
-      "additionalProperties": false
+      "additionalProperties": false,
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "container"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "image"
+        ]
+      },
+      "else": {
+        "not": {
+          "anyOf": [
+            {
+              "required": [
+                "image"
+              ]
+            },
+            {
+              "required": [
+                "compose"
+              ]
+            }
+          ]
+        }
+      }
     },
     "compose": {
       "description": "For a container: its Docker Compose service, as its publisher writes it, for an operator to add beside Initiative's own.",

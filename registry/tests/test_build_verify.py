@@ -361,6 +361,54 @@ def test_a_ceiling_may_name_another_app(
             world.build()
 
 
+COMPOSE = {
+    "service": "tracker:\n  image: ${IMAGE}\n  environment:\n"
+    "    INITIATIVE_URL: ${INITIATIVE_URL}\n    PRICE: $$5\n",
+    "base_url": "http://tracker:8080",
+}
+
+
+@pytest.mark.parametrize(
+    ("change", "accepted"),
+    [
+        ({}, True),
+        ({"service": "tracker:\n  image: ${IMAGES}\n"}, False),
+        ({"service": "tracker:\n  image: ${IMAGE\n"}, False),
+        ({"service": "x" * 4097}, False),
+        ({"base_url": "ftp://tracker"}, False),
+        ({"base_url": "http://tracker:8080/a b"}, False),
+        ({"base_url": f"http://{'t' * 506}"}, False),
+        ({"base_url": None}, False),
+        ({"ports": []}, False),
+    ],
+    ids=[
+        "snippet",
+        "unknown-placeholder",
+        "unclosed-placeholder",
+        "long-service",
+        "not-http",
+        "space",
+        "long-url",
+        "no-url",
+        "unknown-term",
+    ],
+)
+def test_a_registration_may_carry_a_compose_snippet(
+    world: World, change: dict, accepted: bool
+) -> None:
+    compose = {**COMPOSE, **change}
+    compose = {key: value for key, value in compose.items() if value is not None}
+    world.edit_listing(APP, lambda d: d["registration"].update(compose=compose))
+    if accepted:
+        result = world.build()
+        app = next(listing for listing in result.listings if listing.uid == APP)
+        signed = app.targets[f"publishers/acme/{APP}/listing.json"]
+        assert json.loads(signed.data)["registration"]["compose"] == compose
+    else:
+        with pytest.raises(RegistryError, match=r"listing\.schema\.json"):
+            world.build()
+
+
 def test_content_with_registration_is_refused(world: World) -> None:
     registration = json.loads(world.listing(APP).read_text())["registration"]
     world.edit_listing(DASHBOARD, lambda d: d.update(registration=registration))

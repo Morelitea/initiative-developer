@@ -87,6 +87,14 @@ them:
     `apps:<public_id>` for each app it may call. A manifest may ask for less,
     never more.
   - `reference_sectors` lists the reference sectors an app may be granted.
+  - `compose` is optional: the Docker Compose service an operator copies to
+    run the container beside Initiative. `service` is the fragment, as YAML
+    text of at most 4096 characters. It may use two placeholders, which
+    Initiative fills when it shows the snippet: `${IMAGE}`, the image above,
+    and `${INITIATIVE_URL}`, the deployment's public address. Any other `${`
+    is refused. `base_url` is where the service answers on the Compose
+    network, such as `http://tracker:8080`: an `http` or `https` URL of at
+    most 512 characters.
 - **`price`** is `null` for a free listing.
 
 The published entry, `publishers/<prefix>/<uid>/listing.json`, is the same

@@ -312,6 +312,33 @@
             "type": "string",
             "pattern": "^[a-z][a-z0-9_-]{0,63}$"
           }
+        },
+        "compose": {
+          "$ref": "#/$defs/compose"
+        }
+      },
+      "additionalProperties": false
+    },
+    "compose": {
+      "description": "For a container: its Docker Compose service, as its publisher writes it, for an operator to add beside Initiative's own.",
+      "type": "object",
+      "required": [
+        "service",
+        "base_url"
+      ],
+      "properties": {
+        "service": {
+          "description": "A Docker Compose fragment, YAML text. Initiative fills two placeholders when it shows it: '${IMAGE}', the registration's image, and '${INITIATIVE_URL}', the deployment's public address. Any other '${' is refused.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096,
+          "pattern": "^(?:[^$]|\\$(?!\\{)|\\$\\{(?:IMAGE|INITIATIVE_URL)\\})*$"
+        },
+        "base_url": {
+          "description": "Where the service answers on the Compose network, such as 'http://tracker:8080'. Initiative pre-fills the deployment's base URL with it.",
+          "type": "string",
+          "maxLength": 512,
+          "pattern": "^https?://[A-Za-z0-9.-]+(?::[0-9]{1,5})?(?:/[^\\s?#]*)?$"
         }
       },
       "additionalProperties": false

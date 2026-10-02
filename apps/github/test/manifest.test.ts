@@ -127,7 +127,12 @@ describe("manifest", () => {
 
     const account = connection(ACCOUNT);
     expect(account.scope).toBe("interactive");
-    expect(account.flow).toMatchObject({ after_connect: true, revoke: "hook" });
+    // Initiative ends a member's authorization at GitHub with the GitHub App's own values.
+    expect(account.flow).toMatchObject({
+      after_connect: true,
+      revoke: "github_grant",
+      revoke_url: "https://api.github.com/applications/{vendor.client_id}/grant",
+    });
     expect(account.flow!.install_url).toBeUndefined();
     // The tokens Initiative keeps are never declared as fields.
     expect(account.fields).toEqual([]);
@@ -168,6 +173,7 @@ describe("manifest", () => {
     expect(service).toMatch(/^volumes:\n {2}github_data:$/m);
     expect(service).toContain("- github_data:/data");
     expect(service.match(/\$\S*/g)!.sort()).toEqual(["${IMAGE}", "${INITIATIVE_URL}/api/v1"]);
+    expect(service).not.toContain("GITHUB_CLIENT");
   });
 
   it("is listed in the registry, with the ceiling and a registration by container", () => {
@@ -184,8 +190,6 @@ describe("manifest", () => {
 describe("settings", () => {
   const env = {
     INITIATIVE_BASE_URL: "http://initiative:8173/api/v1/",
-    GITHUB_CLIENT_ID: "Iv1.x",
-    GITHUB_CLIENT_SECRET: "s",
   };
   const withKey = {
     ...env,

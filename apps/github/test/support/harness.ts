@@ -16,9 +16,6 @@ import { FakeGitHub, GITHUB_API, GITHUB_WEB } from "./fake-github.js";
 import { FakeInitiative, INITIATIVE_BASE, INITIATIVE_ORIGIN } from "./fake-initiative.js";
 import { appKey } from "./keys.js";
 
-export const CLIENT_ID = "Iv1.testclient";
-export const CLIENT_SECRET = "client-secret-for-tests";
-
 /** How one endpoint call is made: the handles that travel, extra claims, or a token of the test's own. */
 export interface CallOptions {
   connectionRefs?: Record<string, string>;
@@ -82,8 +79,6 @@ export function testConfig(): Config {
     port: 0,
     initiative: { baseUrl: INITIATIVE_BASE, key: { privateKey: appKey.privateKeyPem, kid: appKey.kid } },
     github: {
-      clientId: CLIENT_ID,
-      clientSecret: CLIENT_SECRET,
       apiBase: GITHUB_API,
       webBase: GITHUB_WEB,
     },
@@ -103,7 +98,7 @@ export async function startHarness(): Promise<Harness> {
   const outbound = (async (input: string | URL | Request, init: RequestInit = {}) => {
     const url = new URL(input instanceof Request ? input.url : String(input));
     if (url.origin === INITIATIVE_ORIGIN) return initiative.handle(url, init);
-    if (url.origin === GITHUB_API || url.origin === GITHUB_WEB) return github.handle(url, init);
+    if (url.origin === GITHUB_API) return github.handle(url, init);
     throw new Error(`unexpected call to ${url}`);
   }) as typeof fetch;
 

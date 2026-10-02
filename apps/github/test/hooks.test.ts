@@ -2,15 +2,15 @@
  * The hooks Initiative calls while it runs the GitHub connections: taken only
  * on a lifecycle token for the hook called; `after_connect` checking an
  * organization's installation against the admin's own and naming a member's
- * account; `revoke` ending a member's authorization at GitHub; and `schedule`
- * reporting whether the organization's installation still exists.
+ * account; and `schedule` reporting whether the organization's installation
+ * still exists.
  */
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { DETAILS, UNAVAILABLE_CHECKS } from "../src/hooks.js";
 import { CHECK_INSTALLATION, READ_IDS } from "../src/vocabulary.js";
-import { CLIENT_ID, CLIENT_SECRET, startHarness, type Harness } from "./support/harness.js";
+import { startHarness, type Harness } from "./support/harness.js";
 import { stranger } from "./support/keys.js";
 
 const INSTALLATION = "gapp_one";
@@ -44,7 +44,7 @@ describe("the lifecycle token", () => {
   });
 
   const refusals: Array<[string, (h: Harness) => string]> = [
-    ["a token minted for the other hook", (h) => h.initiative.hookToken(INSTALLATION, "revoke")],
+    ["a token minted for the other hook", (h) => h.initiative.hookToken(INSTALLATION, "webhook")],
     ["an endpoint call's token", (h) => h.initiative.contextToken(INSTALLATION, READ_IDS.listRepositories)],
     ["a token signed by a key the deployment never published", (h) =>
       h.initiative.hookToken(INSTALLATION, "after_connect", { key: stranger.privateKeyPem })],
@@ -119,62 +119,6 @@ describe("after_connect for a member's account", () => {
   it("refuses a connection the app does not declare", async () => {
     const { body } = await h.hook(INSTALLATION, "after_connect", { ...authorized, connection: "billing" });
     expect(body).toEqual({ refuse: true });
-  });
-});
-
-describe("revoke", () => {
-  const basic = `Basic ${Buffer.from(`${CLIENT_ID}:${CLIENT_SECRET}`).toString("base64")}`;
-
-  it("ends the member's authorization at GitHub, as the GitHub App's client", async () => {
-    const { status } = await h.hook(INSTALLATION, "revoke", {
-      connection: "account",
-      access_token: "ghu_alice",
-      refresh_token: "ghr_alice",
-    });
-    expect(status).toBe(204);
-    expect(h.github.revoked).toEqual(["ghu_alice"]);
-    const call = h.github.callsTo("DELETE", `/applications/${CLIENT_ID}/grant`)[0];
-    expect(call.token).toBe(basic);
-    // A live access token needs no refresh first.
-    expect(h.github.exchanges).toHaveLength(0);
-  });
-
-  it("renews a lapsed access token to end the authorization, since GitHub names it by a live one", async () => {
-    h.github.lapsed.add("ghu_old");
-    h.github.refreshes.set("ghr_alice", { access_token: "ghu_new", refresh_token: "ghr_2", expires_in: 28800 });
-    const { status } = await h.hook(INSTALLATION, "revoke", {
-      connection: "account",
-      access_token: "ghu_old",
-      refresh_token: "ghr_alice",
-    });
-    expect(status).toBe(204);
-    expect(h.github.revoked).toEqual(["ghu_new"]);
-    const exchange = h.github.exchanges[0];
-    expect(exchange.get("grant_type")).toBe("refresh_token");
-    expect(exchange.get("client_secret")).toBe(CLIENT_SECRET);
-  });
-
-  it("is done when GitHub recognizes neither token", async () => {
-    h.github.lapsed.add("ghu_old");
-    const { status } = await h.hook(INSTALLATION, "revoke", {
-      connection: "account",
-      access_token: "ghu_old",
-      refresh_token: "ghr_spent",
-    });
-    expect(status).toBe(204);
-    expect(h.github.revoked).toEqual([]);
-  });
-
-  it("fails, so Initiative tries again, when GitHub answers with an error", async () => {
-    h.github.revokeStatus = 502;
-    const { status } = await h.hook(INSTALLATION, "revoke", { connection: "account", access_token: "ghu_alice" });
-    expect(status).toBe(500);
-  });
-
-  it("sends nothing for the organization's connection, whose user token was never kept", async () => {
-    const { status } = await h.hook(INSTALLATION, "revoke", { connection: "workspace", access_token: "ghu_admin" });
-    expect(status).toBe(204);
-    expect(h.github.calls).toHaveLength(0);
   });
 });
 

@@ -1,12 +1,12 @@
 /**
  * The deployment's settings, read once from the environment.
  *
- * Every secret given to this app arrives here: the GitHub App's client secret,
- * and the app's own key for Initiative when one is given. None of them is ever
- * written anywhere else. With no key given, the SDK generates one on first
- * start and keeps it in `INITIATIVE_APP_DATA_DIR`. The GitHub App's private key
- * and webhook secret are not among them: Initiative holds both, mints the
- * organization's installation tokens, and checks GitHub's webhook deliveries.
+ * The one secret this app may be given arrives here: its own key for
+ * Initiative, which is never written anywhere else. With no key given, the SDK
+ * generates one on first start and keeps it in `INITIATIVE_APP_DATA_DIR`. The
+ * GitHub App's values are not given to it: Initiative holds them, mints the
+ * organization's installation tokens, checks GitHub's webhook deliveries and
+ * ends a member's authorization.
  */
 
 export interface Config {
@@ -21,9 +21,6 @@ export interface Config {
     key?: { privateKey: string; kid?: string };
   };
   github: {
-    /** The GitHub App's client ID and secret, for ending a member's authorization. */
-    clientId: string;
-    clientSecret: string;
     apiBase: string;
     webBase: string;
   };
@@ -31,11 +28,7 @@ export interface Config {
 
 /** Every variable, and whether the app refuses to start without it. */
 export const ENVIRONMENT = {
-  required: [
-    "INITIATIVE_BASE_URL",
-    "GITHUB_CLIENT_ID",
-    "GITHUB_CLIENT_SECRET",
-  ],
+  required: ["INITIATIVE_BASE_URL"],
   optional: [
     "PORT",
     "INITIATIVE_APP_PRIVATE_KEY",
@@ -67,8 +60,6 @@ export function loadConfig(env: Env = process.env): Config {
         : undefined,
     },
     github: {
-      clientId: value("GITHUB_CLIENT_ID"),
-      clientSecret: value("GITHUB_CLIENT_SECRET"),
       apiBase: trimSlashes(url(env.GITHUB_API_BASE?.trim() || "https://api.github.com", "GITHUB_API_BASE")),
       webBase: trimSlashes(url(env.GITHUB_WEB_BASE?.trim() || "https://github.com", "GITHUB_WEB_BASE")),
     },

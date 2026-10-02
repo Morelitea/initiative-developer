@@ -5,7 +5,7 @@
  * ships.
  */
 
-import type { LocalizedText, ParamSpec, ParamType, ReturnSpec, ReturnValueType, Scope } from "initiative-app-sdk/manifest";
+import type { LocalizedText, ParamSpec, ParamType, ReturnSpec, ReturnValueType } from "initiative-app-sdk/manifest";
 
 export const PUBLIC_ID = "morelitea.github";
 
@@ -13,23 +13,10 @@ export const PUBLIC_ID = "morelitea.github";
 export const LISTING_UID = "XTEAP993JW1E94";
 export const DASHBOARD_UID = "YB67VZS8NB161S";
 
-/** What the app asks a community to grant. */
-export const SCOPES: readonly Scope[] = [
-  "projects:read",
-  "projects:write",
-  "comments:write",
-  "members:read",
-  "initiatives:read",
-  "tags:read",
-];
-
 /** The community's GitHub installation, which Initiative connects on GitHub's install page. */
 export const WORKSPACE = "workspace";
 /** Each member's own GitHub authorization, which Initiative runs and holds. */
 export const ACCOUNT = "account";
-
-/** The schedule on which Initiative asks whether the organization's installation still exists. */
-export const CHECK_INSTALLATION = "check-installation";
 
 export function declare(name: string): string {
   return `app.${PUBLIC_ID}.${name}`;
@@ -51,6 +38,7 @@ export const READ = {
   findIssues: "find-issues",
   getPullRequest: "get-pull-request",
   findPullRequests: "find-pull-requests",
+  reviewQueue: "review-queue",
   listAlerts: "list-alerts",
   listProjects: "list-projects",
   listProjectFields: "list-project-fields",
@@ -78,8 +66,6 @@ export const EMIT = {
 } as const;
 
 export const READ_IDS = ids(READ);
-export const WRITE_IDS = ids(WRITE);
-export const EMIT_IDS = ids(EMIT);
 
 export function text(en: string, de: string, es: string, fr: string): LocalizedText {
   return { en, de, es, fr };

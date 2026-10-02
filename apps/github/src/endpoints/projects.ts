@@ -1,6 +1,5 @@
 import { defineEndpoint } from "initiative-app-sdk/manifest";
 
-import { graphql } from "../github/http.js";
 import {
   BOARD,
   COUNT_OUT,
@@ -17,36 +16,23 @@ import {
   text,
   TOTAL_OUT,
   UNAVAILABLE,
-  WORKSPACE,
+  ACCOUNT,
 } from "../vocabulary.js";
 import {
-  bad,
-  installationAccess,
-  int,
-  isResult,
-  memberWrite,
-  nodes,
+  GITHUB_ERRORS,
+  graphql,
+  needs,
+  NEEDS_FIELD,
+  NEEDS_NUMBER,
+  NEEDS_PROJECT,
+  NEEDS_REPO,
   PAGE,
   PUBLIC_READ,
   PUBLIC_WRITE,
-  readFailure,
-  repoAccess,
-  text as textParam,
-  unavailable,
-  writeFailure,
-  type Call,
-  type Connection,
-  type Unavailable,
+  REPO_VARIABLES,
 } from "./support.js";
 
 const CARD = text("Card", "Karte", "Tarjeta", "Carte");
-
-interface Board {
-  id?: string;
-  title?: string;
-  number?: number;
-  url?: string;
-}
 
 export const listProjects = defineEndpoint({
   direction: "read",
@@ -69,80 +55,57 @@ export const listProjects = defineEndpoint({
     ...TOTAL_OUT,
     ...UNAVAILABLE,
   },
-  requires: { all_of: [WORKSPACE] },
-
-  async handler(call) {
-    const access = await installationAccess(call);
-    if (isResult(access)) return { actor: "installation", result: access };
-    const answer = await graphql<{ repositoryOwner: { projectsV2: Connection<Board> | null } | null }>(
-      call.context.github.http,
-      access.token,
-      `query Boards($login: String!, $first: Int!) {
-         repositoryOwner(login: $login) {
-           ... on Organization { projectsV2(first: $first) { totalCount nodes { id title number url } } }
-           ... on User { projectsV2(first: $first) { totalCount nodes { id title number url } } }
-         }
-       }`,
-      { login: access.owner, first: PAGE }
-    );
-    if (!answer.ok) return { actor: "installation", result: readFailure(answer.failure) };
-    const found = answer.body.repositoryOwner?.projectsV2;
-    if (!found) return { actor: "installation", result: unavailable("not-found") };
-    const boards = nodes(found).filter((board): board is Board & { id: string } => typeof board.id === "string");
-    return {
-      actor: "installation",
-      result: {
-        ids: boards.map((board) => board.id),
-        titles: boards.map((board) => board.title ?? ""),
-        numbers: boards.map((board) => board.number ?? 0),
-        urls: boards.map((board) => board.url ?? ""),
-        count: boards.length,
-        total: found.totalCount ?? boards.length,
-      },
-    };
-  },
+  request: graphql(
+    `query Boards($login: String!, $first: Int!) {
+       repositoryOwner(login: $login) {
+         ... on Organization { projectsV2(first: $first) { totalCount nodes { id title number url } } }
+         ... on User { projectsV2(first: $first) { totalCount nodes { id title number url } } }
+       }
+     }`,
+    `{"login": connections.workspace.owner, "first": ${PAGE}}`
+  ),
+  errors: GITHUB_ERRORS,
+  map: `(
+    $found := response.body.data.repositoryOwner.projectsV2;
+    $boards := $found.nodes[$type(id) = "string"];
+    $found ? {
+      "ids": [$boards.id],
+      "titles": [$boards.(title ? title : "")],
+      "numbers": [$boards.(number ? number : 0)],
+      "urls": [$boards.(url ? url : "")],
+      "count": $count($boards),
+      "total": $found.totalCount
+    } : {"unavailable": "not-found"}
+  )`,
 });
-
-interface Field {
-  id: string;
-  name?: string;
-  options?: Array<{ id?: string; name?: string }>;
-}
 
 /**
  * One board's single-select fields. A board id names a board anywhere on
- * GitHub, so it must belong to the installation's own account.
+ * GitHub, so it must belong to the organization's own account.
  */
-async function singleSelectFields(call: Call): Promise<{ fields: Field[] } | Unavailable> {
-  const access = await installationAccess(call);
-  if (isResult(access)) return access;
-  const board = textParam(call.params, "project_id");
-  if (!board) return unavailable("project-required");
-
-  const answer = await graphql<{
-    node: { owner?: { login?: string } | null; fields?: Connection<Partial<Field>> } | null;
-  }>(
-    call.context.github.http,
-    access.token,
-    `query Fields($project: ID!, $first: Int!) {
-       node(id: $project) {
-         ... on ProjectV2 {
-           owner { ... on Organization { login } ... on User { login } }
-           fields(first: $first) { nodes { ... on ProjectV2SingleSelectField { id name options { id name } } } }
-         }
+const BOARD_FIELDS = graphql(
+  `query Fields($project: ID!, $first: Int!) {
+     node(id: $project) {
+       ... on ProjectV2 {
+         owner { ... on Organization { login } ... on User { login } }
+         fields(first: $first) { nodes { ... on ProjectV2SingleSelectField { id name options { id name } } } }
        }
-     }`,
-    { project: board, first: PAGE }
-  );
-  if (!answer.ok) return readFailure(answer.failure);
-  const node = answer.body.node;
-  if (!node?.fields) return unavailable("no-such-project");
-  const owner = node.owner?.login;
-  if (typeof owner !== "string" || owner.toLowerCase() !== access.owner.toLowerCase()) {
-    return unavailable("project-not-listed");
-  }
-  return { fields: nodes(node.fields).filter((field): field is Field => typeof field.id === "string") };
+     }
+   }`,
+  `{"project": params.project_id, "first": ${PAGE}}`
+);
+
+/** The board's single-select fields as `$fields`, then `answer`, or why the board cannot be read. */
+function onBoard(answer: string): string {
+  return `(
+    $board := response.body.data.node;
+    $fields := $board.fields.nodes[$type(id) = "string"];
+    $owned := $type($board.owner.login) = "string" and $lowercase($board.owner.login) = $lowercase(connections.workspace.owner);
+    $board.fields ? ($owned ? ${answer} : {"unavailable": "project-not-listed"}) : {"unavailable": "no-such-project"}
+  )`;
 }
+
+const BOARD_CODES = ["no-such-project", "project-not-listed"];
 
 export const listProjectFields = defineEndpoint({
   direction: "read",
@@ -163,20 +126,9 @@ export const listProjectFields = defineEndpoint({
     ...COUNT_OUT,
     ...UNAVAILABLE,
   },
-  requires: { all_of: [WORKSPACE] },
-
-  async handler(call) {
-    const found = await singleSelectFields(call);
-    if (isResult(found)) return { actor: "installation", result: found };
-    return {
-      actor: "installation",
-      result: {
-        ids: found.fields.map((field) => field.id),
-        names: found.fields.map((field) => field.name ?? ""),
-        count: found.fields.length,
-      },
-    };
-  },
+  request: BOARD_FIELDS,
+  ...withCodes(needs(NEEDS_PROJECT), BOARD_CODES),
+  map: onBoard(`{"ids": [$fields.id], "names": [$fields.(name ? name : "")], "count": $count($fields)}`),
 });
 
 export const listProjectOptions = defineEndpoint({
@@ -204,31 +156,20 @@ export const listProjectOptions = defineEndpoint({
     option_names: many(out("string", { label: text("Value names", "Wertnamen", "Nombres de valores", "Noms des valeurs") })),
     ...UNAVAILABLE,
   },
-  requires: { all_of: [WORKSPACE] },
-
-  async handler(call) {
-    const wanted = textParam(call.params, "field");
-    if (!wanted) return { actor: "installation", result: unavailable("field-required") };
-    const found = await singleSelectFields(call);
-    if (isResult(found)) return { actor: "installation", result: found };
-    // By id, or by the name somebody typed.
-    const field = found.fields.find(
-      (candidate) => candidate.id === wanted || (candidate.name ?? "").toLowerCase() === wanted.toLowerCase()
-    );
-    if (!field) return { actor: "installation", result: unavailable("no-such-field") };
-    const options = (field.options ?? []).filter(
-      (option): option is { id: string; name?: string } => typeof option.id === "string"
-    );
-    return {
-      actor: "installation",
-      result: {
-        field_id: field.id,
-        field_name: field.name ?? "",
-        option_ids: options.map((option) => option.id),
-        option_names: options.map((option) => option.name ?? ""),
-      },
-    };
-  },
+  request: BOARD_FIELDS,
+  ...withCodes(needs(NEEDS_FIELD, NEEDS_PROJECT), [...BOARD_CODES, "no-such-field"]),
+  // By id, or by the name somebody typed.
+  map: onBoard(`(
+    $wanted := params.field;
+    $field := $fields[id = $wanted or $lowercase(name) = $lowercase($wanted)][0];
+    $options := $field.options[$type(id) = "string"];
+    $field ? {
+      "field_id": $field.id,
+      "field_name": $field.name ? $field.name : "",
+      "option_ids": [$options.id],
+      "option_names": [$options.(name ? name : "")]
+    } : {"unavailable": "no-such-field"}
+  )`),
 });
 
 export const findProjectItem = defineEndpoint({
@@ -245,44 +186,30 @@ export const findProjectItem = defineEndpoint({
   cache_ttl_seconds: 0,
   params: { ...BOARD, ...REPO, ...NUMBER },
   returns: { item_id: out("string", { label: CARD }), ...REPO_OUT, ...OWNER_OUT, ...NUMBER_OUT, ...UNAVAILABLE },
-  requires: { all_of: [WORKSPACE] },
-
-  async handler(call) {
-    const access = await repoAccess(call);
-    if (isResult(access)) return { actor: "installation", result: access };
-    const board = textParam(call.params, "project_id");
-    if (!board) return { actor: "installation", result: unavailable("project-required") };
-    const number = int(call.params, "number");
-    if (number === undefined) return { actor: "installation", result: unavailable("number-required") };
-
-    const cards = "projectItems(first: $first) { nodes { id project { id } } }";
-    const answer = await graphql<{
-      repository: {
-        issueOrPullRequest: { projectItems?: Connection<{ id?: string; project?: { id?: string } }> } | null;
-      } | null;
-    }>(
-      call.context.github.http,
-      access.token,
-      `query Card($owner: String!, $repo: String!, $number: Int!, $first: Int!) {
-         repository(owner: $owner, name: $repo) {
-           issueOrPullRequest(number: $number) {
-             ... on Issue { ${cards} }
-             ... on PullRequest { ${cards} }
-           }
+  request: graphql(
+    `query Card($owner: String!, $repo: String!, $number: Int!, $first: Int!) {
+       repository(owner: $owner, name: $repo) {
+         name
+         owner { login }
+         issueOrPullRequest(number: $number) {
+           ... on Issue { projectItems(first: $first) { nodes { id project { id } } } }
+           ... on PullRequest { projectItems(first: $first) { nodes { id project { id } } } }
          }
-       }`,
-      { owner: access.owner, repo: access.repo, number, first: PAGE }
-    );
-    if (!answer.ok) return { actor: "installation", result: readFailure(answer.failure) };
-    const item = answer.body.repository?.issueOrPullRequest;
-    if (!item) return { actor: "installation", result: unavailable("not-found") };
-    const card = nodes(item.projectItems).find((one) => typeof one.id === "string" && one.project?.id === board);
-    if (!card) return { actor: "installation", result: unavailable("not-on-that-board") };
-    return {
-      actor: "installation",
-      result: { item_id: card.id, repository: access.repo, owner: access.owner, number },
-    };
-  },
+       }
+     }`,
+    `{${REPO_VARIABLES}, "number": params.number, "first": ${PAGE}}`
+  ),
+  ...withCodes(needs(NEEDS_REPO, NEEDS_PROJECT, NEEDS_NUMBER), ["not-on-that-board"]),
+  map: `(
+    $repository := response.body.data.repository;
+    $item := $repository.issueOrPullRequest;
+    $wanted := params.project_id;
+    $card := $item.projectItems.nodes[$type(id) = "string" and project.id = $wanted][0];
+    $item ? (
+      $card ? {"item_id": $card.id, "repository": $repository.name, "owner": $repository.owner.login, "number": params.number}
+      : {"unavailable": "not-on-that-board"}
+    ) : {"unavailable": "not-found"}
+  )`,
 });
 
 // A board belongs to an organization or to a repository, and either
@@ -313,27 +240,24 @@ export const moveProjectItem = defineEndpoint({
   },
   returns: { item_id: out("string", { label: CARD }) },
   identity: { kind: "project_card", key: ["item_id"] },
-
-  handler: memberWrite(async (call, token) => {
-    const project = textParam(call.params, "project_id");
-    const item = textParam(call.params, "item_id");
-    const field = textParam(call.params, "field_id");
-    const option = textParam(call.params, "option_id");
-    if (!project || !item || !field || !option) {
-      return bad("project_id, item_id, field_id and option_id are all required");
-    }
-    const answer = await graphql<{ updateProjectV2ItemFieldValue?: { projectV2Item?: { id?: string } } }>(
-      call.context.github.http,
-      token,
-      `mutation Move($project: ID!, $item: ID!, $field: ID!, $option: String!) {
-         updateProjectV2ItemFieldValue(input: {
-           projectId: $project, itemId: $item, fieldId: $field,
-           value: { singleSelectOptionId: $option }
-         }) { projectV2Item { id } }
-       }`,
-      { project, item, field, option }
-    );
-    if (!answer.ok) return writeFailure(answer.failure, answer.message);
-    return { ok: true, result: { item_id: answer.body.updateProjectV2ItemFieldValue?.projectV2Item?.id ?? item } };
-  }),
+  request: graphql(
+    `mutation Move($project: ID!, $item: ID!, $field: ID!, $option: String!) {
+       updateProjectV2ItemFieldValue(input: {
+         projectId: $project, itemId: $item, fieldId: $field,
+         value: { singleSelectOptionId: $option }
+       }) { projectV2Item { id } }
+     }`,
+    `{"project": params.project_id, "item": params.item_id, "field": params.field_id, "option": params.option_id}`,
+    ACCOUNT
+  ),
+  errors: GITHUB_ERRORS,
+  map: `(
+    $moved := response.body.data.updateProjectV2ItemFieldValue.projectV2Item.id;
+    {"item_id": $moved ? $moved : params.item_id}
+  )`,
 });
+
+/** A read's refusals, with the codes its map answers besides. */
+function withCodes(refusals: ReturnType<typeof needs>, codes: string[]): ReturnType<typeof needs> {
+  return { ...refusals, unavailable: [...refusals.unavailable, ...codes] };
+}

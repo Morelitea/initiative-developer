@@ -1,0 +1,29 @@
+{
+  "data": {
+    "repository": {
+      "issues": {
+        "totalCount": 40,
+        "nodes": [
+          {
+            "number": 7,
+            "title": "Broken build",
+            "url": "https://github.com/acme/widgets/issues/7",
+            "state": "OPEN",
+            "createdAt": "2026-09-01T00:00:00Z",
+            "updatedAt": "2026-09-02T00:00:00Z",
+            "closedAt": null
+          },
+          {
+            "number": 8,
+            "title": "Slow tests",
+            "url": "https://github.com/acme/widgets/issues/7",
+            "state": "CLOSED",
+            "createdAt": "2026-09-01T00:00:00Z",
+            "updatedAt": "2026-09-02T00:00:00Z",
+            "closedAt": "2026-09-03T00:00:00Z"
+          }
+        ]
+      }
+    }
+  }
+}

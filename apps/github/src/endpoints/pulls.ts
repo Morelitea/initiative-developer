@@ -1,7 +1,5 @@
 import { defineEndpoint } from "initiative-app-sdk/manifest";
 
-import { callerToken } from "../credentials.js";
-import { graphql, rest } from "../github/http.js";
 import {
   ACCOUNT,
   ASSIGNEES_OUT,
@@ -34,100 +32,78 @@ import {
   URL_OUT,
   WORKSPACE,
 } from "../vocabulary.js";
-import { writePlace } from "./issues.js";
 import {
-  bad,
-  choice,
-  int,
-  isResult,
-  limit,
-  list,
-  memberWrite,
-  nodes,
-  ordering,
-  orNull,
-  pick,
+  GITHUB_ERRORS,
+  graphql,
+  LIMIT,
+  needs,
+  NEEDS_NUMBER,
+  NEEDS_REPO,
   PUBLIC_READ,
   PUBLIC_WRITE,
-  readFailure,
-  repoAccess,
+  REPO_PATH,
+  REPO_VARIABLES,
+  rest,
   ROW_FIELDS,
   rows,
-  states,
   subject,
   SUBJECT_FIELDS,
-  text as textParam,
-  unavailable,
-  writeFailure,
-  type Call,
-  type Connection,
-  type ReadOutcome,
-  type Row,
-  type SubjectNode,
 } from "./support.js";
 
 const PULL_STATES = ["open", "closed", "merged", "all"] as const;
 
-/** A GitHub login, or `@me`. Letters, digits and single inner hyphens, at most 39. */
-export function isLogin(value: string): boolean {
-  if (value === "@me") return true;
-  if (!value || value.length > 39 || value.startsWith("-") || value.endsWith("-")) return false;
-  let previous = "";
-  for (const character of value) {
-    const alphanumeric =
-      (character >= "a" && character <= "z") ||
-      (character >= "A" && character <= "Z") ||
-      (character >= "0" && character <= "9");
-    if (!alphanumeric && character !== "-") return false;
-    if (character === "-" && previous === "-") return false;
-    previous = character;
-  }
-  return true;
-}
+/** What both searches for pull requests take: everything but whose review is wanted. */
+const PULL_PARAMS = {
+  ...REPO,
+  state: param("select", text("State", "Status", "Estado", "État"), { options: [...PULL_STATES] }),
+  ...LABELS_IN,
+  base_ref: param("string", text("Into branch", "Nach Branch", "Hacia la rama", "Vers la branche")),
+  head_ref: param("string", text("From branch", "Von Branch", "Desde la rama", "Depuis la branche")),
+};
+
+const ORDER_IN = { ...SORT_IN, ...DIRECTION_IN, ...LIMIT_IN };
+
+/** A GitHub login: letters, digits and single inner hyphens, at most 39. */
+const LOGIN = `($login := params.review_requested; $length($login) <= 39 and $contains($login, /^[A-Za-z0-9]+(-[A-Za-z0-9]+)*$/))`;
 
 /**
- * Pull requests waiting on one reviewer, through GitHub's search. `@me` means
- * the member the call is for, so it runs on the member's own credential.
+ * Pull requests in the repository a call names, through GitHub's search:
+ * `reviewer` is the search term for whose review is wanted.
+ * Closed means closed without merging, as GitHub's own lists of pull requests
+ * mean it. Values are quoted, so a parameter names one value.
  */
-async function waitingOn(call: Call, reviewer: string): Promise<ReadOutcome> {
-  const actor = reviewer === "@me" ? "member" : "installation";
-  if (!isLogin(reviewer)) return { actor, result: unavailable("bad-login") };
-  if (list(call.params, "labels").length || textParam(call.params, "base_ref") || textParam(call.params, "head_ref")) {
-    return { actor, result: unavailable("unsupported-combination") };
-  }
-
-  const access = await repoAccess(call);
-  if (isResult(access)) return { actor, result: access };
-
-  let token = access.token;
-  if (reviewer === "@me") {
-    // A call made as the community names no member for `@me` to mean.
-    const own = await callerToken(call);
-    if (!own.ok) {
-      const reason = own.reason === "no-member" ? "member-required" : own.reason === "not-connected" ? "not-connected" : "vendor-error";
-      return { actor, result: unavailable(reason) };
-    }
-    token = own.token;
-  }
-
-  const qualifiers = [`repo:${access.owner}/${access.repo}`, "is:pr", `review-requested:${reviewer}`];
-  const state = choice(call.params, "state", PULL_STATES, "open");
-  if (state !== "all") qualifiers.push(`is:${state}`);
-
-  const answer = await graphql<{ search: Connection<Row> & { issueCount?: number } }>(
-    call.context.github.http,
-    token,
-    `query ReviewRequested($query: String!, $first: Int!) {
+function search(reviewer: string, connection: string) {
+  return graphql(
+    `query Search($query: String!, $first: Int!) {
        search(query: $query, type: ISSUE, first: $first) {
          issueCount
          nodes { ... on PullRequest { ${ROW_FIELDS} } }
        }
      }`,
-    { query: qualifiers.join(" "), first: limit(call.params) }
+    `(
+      $quoted := function($value) { '"' & $replace($value, '"', '') & '"' };
+      {
+        "query": $join([
+          "repo:" & connections.workspace.owner & "/" & params.repo,
+          "is:pr",
+          params.state = "closed" ? "is:closed is:unmerged" : params.state = "merged" ? "is:merged" : $not(params.state = "all") ? "is:open",
+          params.labels.("label:" & $quoted($)),
+          params.base_ref ? "base:" & $quoted(params.base_ref),
+          params.head_ref ? "head:" & $quoted(params.head_ref),
+          ${reviewer},
+          "sort:" & (params.sort ? params.sort : "created") & "-" & (params.direction = "asc" ? "asc" : "desc")
+        ], " "),
+        "first": ${LIMIT}
+      }
+    )`,
+    connection
   );
-  if (!answer.ok) return { actor, result: readFailure(answer.failure) };
-  return { actor, result: rows(nodes(answer.body.search), answer.body.search.issueCount) };
 }
+
+const FOUND = `(
+  $search := response.body.data.search;
+  ${rows("$search.nodes", "$search.issueCount")}
+)`;
 
 export const findPullRequests = defineEndpoint({
   direction: "read",
@@ -139,74 +115,42 @@ export const findPullRequests = defineEndpoint({
     "Les pull requests correspondant à une question, y compris celles en attente de revue."
   ),
   group: "reviews",
-  // `@me` is the member the call is for; everything else runs on the installation.
   ...PUBLIC_READ,
   cache_ttl_seconds: 60,
   params: {
-    ...REPO,
-    state: param("select", text("State", "Status", "Estado", "État"), { options: [...PULL_STATES] }),
-    ...LABELS_IN,
-    base_ref: param("string", text("Into branch", "Nach Branch", "Hacia la rama", "Vers la branche")),
-    head_ref: param("string", text("From branch", "Von Branch", "Desde la rama", "Depuis la branche")),
+    ...PULL_PARAMS,
     review_requested: param("string", text("Waiting on", "Wartet auf", "Esperando a", "En attente de"), {
       options_from: PEOPLE_OF,
     }),
-    ...SORT_IN,
-    ...DIRECTION_IN,
-    ...LIMIT_IN,
+    ...ORDER_IN,
   },
   returns: ROWS_OUT,
-  // Either is enough to be called: the member's account travels when they
-  // have connected one, and `@me` needs it.
-  requires: { any_of: [WORKSPACE, ACCOUNT] },
-
-  async handler(call) {
-    const reviewer = textParam(call.params, "review_requested");
-    if (reviewer !== undefined) return waitingOn(call, reviewer);
-
-    const access = await repoAccess(call);
-    if (isResult(access)) return { actor: "installation", result: access };
-    const labels = list(call.params, "labels");
-    const answer = await graphql<{ repository: { pullRequests: Connection<Row> } | null }>(
-      call.context.github.http,
-      access.token,
-      `query Pulls($owner: String!, $repo: String!, $first: Int!, $states: [PullRequestState!],
-                   $labels: [String!], $base: String, $head: String, $order: IssueOrder!) {
-         repository(owner: $owner, name: $repo) {
-           pullRequests(first: $first, states: $states, labels: $labels,
-                        baseRefName: $base, headRefName: $head, orderBy: $order) {
-             totalCount
-             nodes { ${ROW_FIELDS} }
-           }
-         }
-       }`,
-      {
-        owner: access.owner,
-        repo: access.repo,
-        first: limit(call.params),
-        order: ordering(call.params),
-        states: states(choice(call.params, "state", PULL_STATES, "open")),
-        labels: labels.length ? labels : null,
-        base: textParam(call.params, "base_ref") ?? null,
-        head: textParam(call.params, "head_ref") ?? null,
-      }
-    );
-    if (!answer.ok) return { actor: "installation", result: readFailure(answer.failure) };
-    const pulls = answer.body.repository?.pullRequests;
-    if (!pulls) return { actor: "installation", result: unavailable("not-found") };
-    return { actor: "installation", result: rows(nodes(pulls), pulls.totalCount) };
-  },
+  request: search(`params.review_requested and ${LOGIN} ? "review-requested:" & params.review_requested`, WORKSPACE),
+  ...needs(NEEDS_REPO, [`params.review_requested and $not(${LOGIN})`, "bad-login"]),
+  map: FOUND,
 });
 
-interface PullNode extends SubjectNode {
-  isDraft?: boolean;
-  merged?: boolean;
-  mergedAt?: string | null;
-  headRefName?: string;
-  baseRefName?: string;
-  changedFiles?: number;
-  commits?: { totalCount?: number };
-}
+export const reviewQueue = defineEndpoint({
+  direction: "read",
+  label: text("Waiting on your review", "Wartet auf deine Review", "Esperando tu revisión", "En attente de votre revue"),
+  description: text(
+    "The pull requests in a repository that asked for the member's review.",
+    "Die Pull Requests eines Repositories, die die Review des Mitglieds angefragt haben.",
+    "Las pull requests de un repositorio que pidieron la revisión del miembro.",
+    "Les pull requests d'un dépôt qui ont demandé la revue du membre."
+  ),
+  group: "reviews",
+  public: true,
+  actors: ["member"],
+  requires: { all_of: [WORKSPACE, ACCOUNT] },
+  cache_ttl_seconds: 60,
+  params: { ...PULL_PARAMS, ...ORDER_IN },
+  returns: ROWS_OUT,
+  // GitHub's search as the member, for whom `@me` stands.
+  request: search(`"review-requested:@me"`, ACCOUNT),
+  ...needs(NEEDS_REPO),
+  map: FOUND,
+});
 
 export const getPullRequest = defineEndpoint({
   direction: "read",
@@ -245,45 +189,33 @@ export const getPullRequest = defineEndpoint({
     merged_at: out("string"),
     ...UNAVAILABLE,
   },
-  requires: { all_of: [WORKSPACE] },
-
-  async handler(call) {
-    const access = await repoAccess(call);
-    if (isResult(access)) return { actor: "installation", result: access };
-    const number = int(call.params, "number");
-    if (number === undefined) return { actor: "installation", result: unavailable("number-required") };
-
-    const answer = await graphql<{ repository: { pullRequest: PullNode | null } | null }>(
-      call.context.github.http,
-      access.token,
-      `query Pull($owner: String!, $repo: String!, $number: Int!) {
-         repository(owner: $owner, name: $repo) {
-           pullRequest(number: $number) {
-             ${SUBJECT_FIELDS}
-             isDraft merged mergedAt headRefName baseRefName changedFiles
-             commits { totalCount }
-           }
+  request: graphql(
+    `query Pull($owner: String!, $repo: String!, $number: Int!) {
+       repository(owner: $owner, name: $repo) {
+         name
+         owner { login }
+         pullRequest(number: $number) {
+           ${SUBJECT_FIELDS}
+           isDraft merged mergedAt headRefName baseRefName changedFiles
+           commits { totalCount }
          }
-       }`,
-      { owner: access.owner, repo: access.repo, number }
-    );
-    if (!answer.ok) return { actor: "installation", result: readFailure(answer.failure) };
-    const node = answer.body.repository?.pullRequest;
-    if (!node) return { actor: "installation", result: unavailable("not-found") };
-    return {
-      actor: "installation",
-      result: {
-        ...subject(node, access.owner, access.repo),
-        merged: Boolean(node.merged),
-        draft: Boolean(node.isDraft),
-        head_ref: orNull(node.headRefName),
-        base_ref: orNull(node.baseRefName),
-        commits: node.commits?.totalCount ?? 0,
-        changed_files: node.changedFiles ?? 0,
-        merged_at: orNull(node.mergedAt),
-      },
-    };
-  },
+       }
+     }`,
+    `{${REPO_VARIABLES}, "number": params.number}`
+  ),
+  ...needs(NEEDS_REPO, NEEDS_NUMBER),
+  map: subject(
+    "pullRequest",
+    `{
+      "merged": $node.merged = true,
+      "draft": $node.isDraft = true,
+      "head_ref": $text($node.headRefName),
+      "base_ref": $text($node.baseRefName),
+      "commits": $node.commits.totalCount ? $node.commits.totalCount : 0,
+      "changed_files": $node.changedFiles ? $node.changedFiles : 0,
+      "merged_at": $text($node.mergedAt)
+    }`
+  ),
 });
 
 export const requestReview = defineEndpoint({
@@ -310,24 +242,13 @@ export const requestReview = defineEndpoint({
   },
   returns: { ...REPO_OUT, ...NUMBER_OUT, ...LINK_OUT },
   identity: ISSUE_IDENTITY,
-
-  handler: memberWrite(async (call, token, place) => {
-    const where = await writePlace(call, place);
-    if ("ok" in where) return where;
-    const number = int(call.params, "number");
-    if (number === undefined) return bad("number is required");
-    const reviewers = list(call.params, "reviewers");
-    const teams = list(call.params, "team_reviewers");
-    if (!reviewers.length && !teams.length) return bad("name a reviewer or a team");
-
-    const answer = await rest(
-      call.context.github.http,
-      token,
-      "POST",
-      `/repos/${place.owner}/${where.repo}/pulls/${number}/requested_reviewers`,
-      { ...(reviewers.length ? { reviewers } : {}), ...(teams.length ? { team_reviewers: teams } : {}) }
-    );
-    if (!answer.ok) return writeFailure(answer.failure, answer.message);
-    return { ok: true, result: { repository: where.repo, number, ...pick(answer.body, ["html_url"]) } };
+  request: rest("POST", `${REPO_PATH} & "/pulls/" & params.number & "/requested_reviewers"`, {
+    connection: ACCOUNT,
+    body: `$merge([
+      $count(params.reviewers) ? {"reviewers": [params.reviewers]},
+      $count(params.team_reviewers) ? {"team_reviewers": [params.team_reviewers]}
+    ])`,
   }),
+  errors: GITHUB_ERRORS,
+  map: `{"repository": response.body.base.repo.name, "number": params.number, "html_url": response.body.html_url}`,
 });

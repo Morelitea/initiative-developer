@@ -1,0 +1,12 @@
+{
+  "action": "deleted",
+  "installation": {
+    "id": 42,
+    "account": {
+      "login": "acme"
+    }
+  },
+  "sender": {
+    "login": "acme-admin"
+  }
+}

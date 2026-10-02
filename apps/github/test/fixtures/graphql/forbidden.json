@@ -1,0 +1,21 @@
+{
+  "data": {
+    "repository": {
+      "name": "widgets",
+      "owner": {
+        "login": "acme"
+      },
+      "vulnerabilityAlerts": null
+    }
+  },
+  "errors": [
+    {
+      "type": "FORBIDDEN",
+      "path": [
+        "repository",
+        "vulnerabilityAlerts"
+      ],
+      "message": "Resource not accessible by integration"
+    }
+  ]
+}

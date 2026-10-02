@@ -7,14 +7,8 @@ import type { Scene } from "initiative-app-sdk/widget";
 
 const WHY: Record<string, string> = {
   "repository-required": "Choose a repository for this tile",
-  "repository-not-listed": "This tile names a repository the installation does not cover",
-  "not-configured": "No GitHub organization is connected yet",
-  "installation-unavailable": "GitHub would not let the app into the organization",
-  "not-connected": "Connect your GitHub account to see this",
   "not-found": "That repository is not there, or not visible to the app",
-  forbidden: "The organization has not granted the app this",
-  "vendor-error": "GitHub did not answer",
-  "rate-limited": "GitHub is limiting requests; this tile will fill in shortly",
+  "not-authorized": "The organization has not granted the app this",
 };
 
 /** The empty tile saying why there is nothing, or null when there is an answer. */

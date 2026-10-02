@@ -1,0 +1,52 @@
+{
+  "data": {
+    "repository": {
+      "name": "widgets",
+      "owner": {
+        "login": "acme"
+      },
+      "pullRequest": {
+        "__typename": "PullRequest",
+        "number": 9,
+        "title": "Fix the build",
+        "url": "https://github.com/acme/widgets/pull/9",
+        "state": "MERGED",
+        "createdAt": "2026-09-01T00:00:00Z",
+        "updatedAt": "2026-09-02T00:00:00Z",
+        "closedAt": "2026-09-03T00:00:00Z",
+        "author": {
+          "login": "bob"
+        },
+        "milestone": {
+          "title": "1.0"
+        },
+        "comments": {
+          "totalCount": 2
+        },
+        "labels": {
+          "nodes": [
+            {
+              "name": "bug"
+            }
+          ]
+        },
+        "assignees": {
+          "nodes": [
+            {
+              "login": "alice"
+            }
+          ]
+        },
+        "isDraft": false,
+        "merged": true,
+        "mergedAt": "2026-09-03T00:00:00Z",
+        "headRefName": "fix",
+        "baseRefName": "main",
+        "changedFiles": 3,
+        "commits": {
+          "totalCount": 2
+        }
+      }
+    }
+  }
+}

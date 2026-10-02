@@ -1,0 +1,25 @@
+{
+  "id": 999,
+  "number": 7,
+  "title": "Broken build",
+  "state": "closed",
+  "url": "https://api.github.com/repos/acme/widgets/issues/7",
+  "repository_url": "https://api.github.com/repos/acme/widgets",
+  "html_url": "https://github.com/acme/widgets/issues/7",
+  "user": {
+    "login": "bob"
+  },
+  "labels": [
+    {
+      "id": 1,
+      "name": "bug",
+      "color": "d73a4a"
+    },
+    {
+      "id": 2,
+      "name": "Wontfix",
+      "color": "ffffff"
+    }
+  ],
+  "state_reason": "not_planned"
+}

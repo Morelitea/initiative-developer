@@ -1,7 +1,7 @@
 import { defineEndpoint } from "initiative-app-sdk/manifest";
 
-import { graphql, rest } from "../github/http.js";
 import {
+  ACCOUNT,
   ASSIGNEES_OUT,
   AUTHOR_OUT,
   CLOSED_OUT,
@@ -36,41 +36,27 @@ import {
   UNAVAILABLE,
   UPDATED_OUT,
   URL_OUT,
-  WORKSPACE,
 } from "../vocabulary.js";
 import {
-  bad,
-  choice,
-  int,
-  isResult,
-  limit,
-  list,
-  lower,
-  memberWrite,
-  nodes,
-  ordering,
+  GITHUB_ERRORS,
+  graphql,
+  LIMIT,
+  needs,
+  NEEDS_NUMBER,
+  NEEDS_REPO,
+  ORDERING,
   PAGE,
-  pick,
   PUBLIC_READ,
   PUBLIC_WRITE,
-  readFailure,
-  repoAccess,
-  repository,
+  REPO_PATH,
+  REPO_VARIABLES,
+  repositoryList,
+  rest,
   ROW_FIELDS,
   rows,
-  since,
-  states,
+  SINCE,
   subject,
   SUBJECT_FIELDS,
-  text as textParam,
-  unavailable,
-  writeFailure,
-  type Call,
-  type Connection,
-  type Place,
-  type Row,
-  type SubjectNode,
-  type WriteOutcome,
 } from "./support.js";
 
 export const listLabels = defineEndpoint({
@@ -92,28 +78,14 @@ export const listLabels = defineEndpoint({
     ...TOTAL_OUT,
     ...UNAVAILABLE,
   },
-  requires: { all_of: [WORKSPACE] },
-
-  async handler(call) {
-    const access = await repoAccess(call);
-    if (isResult(access)) return { actor: "installation", result: access };
-    const answer = await graphql<{ repository: { labels: Connection<{ name?: string }> } | null }>(
-      call.context.github.http,
-      access.token,
-      `query Labels($owner: String!, $repo: String!, $first: Int!) {
-         repository(owner: $owner, name: $repo) { labels(first: $first) { totalCount nodes { name } } }
-       }`,
-      { owner: access.owner, repo: access.repo, first: PAGE }
-    );
-    if (!answer.ok) return { actor: "installation", result: readFailure(answer.failure) };
-    const labels = answer.body.repository?.labels;
-    if (!labels) return { actor: "installation", result: unavailable("not-found") };
-    const names = nodes(labels).map((label) => label.name).filter((name): name is string => !!name);
-    return {
-      actor: "installation",
-      result: { names, count: names.length, total: labels.totalCount ?? names.length },
-    };
-  },
+  request: graphql(
+    `query Labels($owner: String!, $repo: String!, $first: Int!) {
+       repository(owner: $owner, name: $repo) { labels(first: $first) { totalCount nodes { name } } }
+     }`,
+    `{${REPO_VARIABLES}, "first": ${PAGE}}`
+  ),
+  ...needs(NEEDS_REPO),
+  map: repositoryList("labels", "names", "name"),
 });
 
 export const listMilestones = defineEndpoint({
@@ -136,43 +108,29 @@ export const listMilestones = defineEndpoint({
     ...TOTAL_OUT,
     ...UNAVAILABLE,
   },
-  requires: { all_of: [WORKSPACE] },
-
-  async handler(call) {
-    const access = await repoAccess(call);
-    if (isResult(access)) return { actor: "installation", result: access };
-    // Open ones, soonest due first: what somebody is planning against.
-    const answer = await graphql<{
-      repository: { milestones: Connection<{ number?: number; title?: string }> } | null;
-    }>(
-      call.context.github.http,
-      access.token,
-      `query Milestones($owner: String!, $repo: String!, $first: Int!) {
-         repository(owner: $owner, name: $repo) {
-           milestones(first: $first, states: [OPEN], orderBy: { field: DUE_DATE, direction: ASC }) {
-             totalCount
-             nodes { number title }
-           }
+  // Open ones, soonest due first: what somebody is planning against.
+  request: graphql(
+    `query Milestones($owner: String!, $repo: String!, $first: Int!) {
+       repository(owner: $owner, name: $repo) {
+         milestones(first: $first, states: [OPEN], orderBy: { field: DUE_DATE, direction: ASC }) {
+           totalCount
+           nodes { number title }
          }
-       }`,
-      { owner: access.owner, repo: access.repo, first: PAGE }
-    );
-    if (!answer.ok) return { actor: "installation", result: readFailure(answer.failure) };
-    const milestones = answer.body.repository?.milestones;
-    if (!milestones) return { actor: "installation", result: unavailable("not-found") };
-    const found = nodes(milestones).filter(
-      (milestone): milestone is { number: number; title?: string } => typeof milestone.number === "number"
-    );
-    return {
-      actor: "installation",
-      result: {
-        numbers: found.map((milestone) => milestone.number),
-        titles: found.map((milestone) => milestone.title ?? ""),
-        count: found.length,
-        total: milestones.totalCount ?? found.length,
-      },
-    };
-  },
+       }
+     }`,
+    `{${REPO_VARIABLES}, "first": ${PAGE}}`
+  ),
+  ...needs(NEEDS_REPO),
+  map: `(
+    $list := response.body.data.repository.milestones;
+    $found := $list.nodes[$type(number) = "number"];
+    $list ? {
+      "numbers": [$found.number],
+      "titles": [$found.(title ? title : "")],
+      "count": $count($found),
+      "total": $list.totalCount
+    } : {"unavailable": "not-found"}
+  )`,
 });
 
 export const getIssue = defineEndpoint({
@@ -209,40 +167,28 @@ export const getIssue = defineEndpoint({
     ...CLOSED_OUT,
     ...UNAVAILABLE,
   },
-  requires: { all_of: [WORKSPACE] },
-
-  async handler(call) {
-    const access = await repoAccess(call);
-    if (isResult(access)) return { actor: "installation", result: access };
-    const number = int(call.params, "number");
-    if (number === undefined) return { actor: "installation", result: unavailable("number-required") };
-
-    const answer = await graphql<{ repository: { issueOrPullRequest: SubjectNode | null } | null }>(
-      call.context.github.http,
-      access.token,
-      `query Subject($owner: String!, $repo: String!, $number: Int!) {
-         repository(owner: $owner, name: $repo) {
-           issueOrPullRequest(number: $number) {
-             __typename
-             ... on Issue { ${SUBJECT_FIELDS} stateReason }
-             ... on PullRequest { ${SUBJECT_FIELDS} }
-           }
+  request: graphql(
+    `query Subject($owner: String!, $repo: String!, $number: Int!) {
+       repository(owner: $owner, name: $repo) {
+         name
+         owner { login }
+         issueOrPullRequest(number: $number) {
+           __typename
+           ... on Issue { ${SUBJECT_FIELDS} stateReason }
+           ... on PullRequest { ${SUBJECT_FIELDS} }
          }
-       }`,
-      { owner: access.owner, repo: access.repo, number }
-    );
-    if (!answer.ok) return { actor: "installation", result: readFailure(answer.failure) };
-    const node = answer.body.repository?.issueOrPullRequest;
-    if (!node) return { actor: "installation", result: unavailable("not-found") };
-    return {
-      actor: "installation",
-      result: {
-        ...subject(node, access.owner, access.repo),
-        state_reason: lower(node.stateReason),
-        is_pull_request: node.__typename === "PullRequest",
-      },
-    };
-  },
+       }
+     }`,
+    `{${REPO_VARIABLES}, "number": params.number}`
+  ),
+  ...needs(NEEDS_REPO, NEEDS_NUMBER),
+  map: subject(
+    "issueOrPullRequest",
+    `{
+      "state_reason": $node.stateReason ? $lowercase($node.stateReason) : null,
+      "is_pull_request": $node.__typename = "PullRequest"
+    }`
+  ),
 });
 
 const ISSUE_STATES = ["open", "closed", "all"] as const;
@@ -274,68 +220,49 @@ export const findIssues = defineEndpoint({
     ...LIMIT_IN,
   },
   returns: ROWS_OUT,
-  requires: { all_of: [WORKSPACE] },
-
-  async handler(call) {
-    const access = await repoAccess(call);
-    if (isResult(access)) return { actor: "installation", result: access };
-    const labels = list(call.params, "labels");
-    const assignee = textParam(call.params, "assignee");
-    const milestone = textParam(call.params, "milestone");
-    const after = since(call.params, call.context.now());
-
-    const answer = await graphql<{ repository: { issues: Connection<Row> } | null }>(
-      call.context.github.http,
-      access.token,
-      `query Issues($owner: String!, $repo: String!, $first: Int!, $filter: IssueFilters, $order: IssueOrder!) {
-         repository(owner: $owner, name: $repo) {
-           issues(first: $first, filterBy: $filter, orderBy: $order) { totalCount nodes { ${ROW_FIELDS} } }
-         }
-       }`,
-      {
-        owner: access.owner,
-        repo: access.repo,
-        first: limit(call.params),
-        order: ordering(call.params),
-        filter: {
-          states: states(choice(call.params, "state", ISSUE_STATES, "open")),
-          ...(labels.length ? { labels } : {}),
-          ...(assignee ? { assignee } : {}),
-          ...(milestone ? { milestoneNumber: milestone } : {}),
-          ...(after ? { since: after } : {}),
-        },
-      }
-    );
-    if (!answer.ok) return { actor: "installation", result: readFailure(answer.failure) };
-    const issues = answer.body.repository?.issues;
-    if (!issues) return { actor: "installation", result: unavailable("not-found") };
-    return { actor: "installation", result: rows(nodes(issues), issues.totalCount) };
-  },
+  request: graphql(
+    `query Issues($owner: String!, $repo: String!, $first: Int!, $filter: IssueFilters, $order: IssueOrder!) {
+       repository(owner: $owner, name: $repo) {
+         issues(first: $first, filterBy: $filter, orderBy: $order) { totalCount nodes { ${ROW_FIELDS} } }
+       }
+     }`,
+    `{
+      ${REPO_VARIABLES},
+      "first": ${LIMIT},
+      "order": ${ORDERING},
+      "filter": $merge([
+        {"states": params.state = "all" ? null : params.state = "closed" ? ["CLOSED"] : ["OPEN"]},
+        $count(params.labels) ? {"labels": [params.labels]},
+        params.assignee ? {"assignee": params.assignee},
+        $exists(params.milestone) ? {"milestoneNumber": $string(params.milestone)},
+        ($since := ${SINCE}; $since ? {"since": $since})
+      ])
+    }`
+  ),
+  ...needs(NEEDS_REPO),
+  map: `(
+    $issues := response.body.data.repository.issues;
+    $issues ? ${rows("$issues.nodes", "$issues.totalCount")} : {"unavailable": "not-found"}
+  )`,
 });
 
-/** The repository a write names, checked against what the installation covers. */
-export async function writePlace(call: Call, place: Place): Promise<{ repo: string } | WriteOutcome> {
-  const chosen = await repository(call, place);
-  if ("unavailable" in chosen) {
-    const status = chosen.unavailable === "repository-required" ? 400 : chosen.unavailable === "repository-not-listed" ? 404 : 502;
-    return { ok: false, status, error: chosen.unavailable };
-  }
-  return chosen;
-}
-
-async function setState(call: Call, token: string, place: Place, closing: boolean): Promise<WriteOutcome> {
-  const where = await writePlace(call, place);
-  if ("ok" in where) return where;
-  const number = int(call.params, "number");
-  if (number === undefined) return bad("number is required");
-  const reason = textParam(call.params, "reason");
-
-  const answer = await rest(call.context.github.http, token, "PATCH", `/repos/${place.owner}/${where.repo}/issues/${number}`, {
-    state: closing ? "closed" : "open",
-    ...(closing && (reason === "completed" || reason === "not_planned") ? { state_reason: reason } : {}),
-  });
-  if (!answer.ok) return writeFailure(answer.failure, answer.message);
-  return { ok: true, result: { repository: where.repo, ...pick(answer.body, ["number", "state", "html_url"]) } };
+/** An issue's state changed as the member, with GitHub's reason when it closes. */
+function setState(closing: boolean) {
+  return {
+    request: rest("PATCH", `${REPO_PATH} & "/issues/" & params.number`, {
+      connection: ACCOUNT,
+      body: closing
+        ? `$merge([{"state": "closed"}, params.reason in ["completed", "not_planned"] ? {"state_reason": params.reason}])`
+        : `{"state": "open"}`,
+    }),
+    errors: GITHUB_ERRORS,
+    map: `{
+      "repository": $split(response.body.repository_url, "/")[-1],
+      "number": response.body.number,
+      "state": response.body.state,
+      "html_url": response.body.html_url
+    }`,
+  };
 }
 
 export const openIssue = defineEndpoint({
@@ -366,25 +293,22 @@ export const openIssue = defineEndpoint({
     id: out("int", { label: text("GitHub id", "GitHub-ID", "ID de GitHub", "Identifiant GitHub") }),
   },
   identity: ISSUE_IDENTITY,
-
-  handler: memberWrite(async (call, token, place) => {
-    const where = await writePlace(call, place);
-    if ("ok" in where) return where;
-    const title = textParam(call.params, "title");
-    if (!title) return bad("title is required");
-    const body = textParam(call.params, "body");
-    const labels = list(call.params, "labels");
-    const assignees = list(call.params, "assignees");
-
-    const answer = await rest(call.context.github.http, token, "POST", `/repos/${place.owner}/${where.repo}/issues`, {
-      title,
-      ...(body ? { body } : {}),
-      ...(labels.length ? { labels } : {}),
-      ...(assignees.length ? { assignees } : {}),
-    });
-    if (!answer.ok) return writeFailure(answer.failure, answer.message);
-    return { ok: true, result: { repository: where.repo, ...pick(answer.body, ["number", "html_url", "id"]) } };
+  request: rest("POST", `${REPO_PATH} & "/issues"`, {
+    connection: ACCOUNT,
+    body: `$merge([
+      {"title": params.title},
+      params.body ? {"body": params.body},
+      $count(params.labels) ? {"labels": [params.labels]},
+      $count(params.assignees) ? {"assignees": [params.assignees]}
+    ])`,
   }),
+  errors: GITHUB_ERRORS,
+  map: `{
+    "repository": $split(response.body.repository_url, "/")[-1],
+    "number": response.body.number,
+    "html_url": response.body.html_url,
+    "id": response.body.id
+  }`,
 });
 
 export const comment = defineEndpoint({
@@ -408,25 +332,17 @@ export const comment = defineEndpoint({
     ...LINK_OUT,
   },
   identity: ISSUE_IDENTITY,
-
-  handler: memberWrite(async (call, token, place) => {
-    const where = await writePlace(call, place);
-    if ("ok" in where) return where;
-    const number = int(call.params, "number");
-    const body = textParam(call.params, "body");
-    if (number === undefined) return bad("number is required");
-    if (!body) return bad("body is required");
-
-    const answer = await rest(
-      call.context.github.http,
-      token,
-      "POST",
-      `/repos/${place.owner}/${where.repo}/issues/${number}/comments`,
-      { body }
-    );
-    if (!answer.ok) return writeFailure(answer.failure, answer.message);
-    return { ok: true, result: { repository: where.repo, number, ...pick(answer.body, ["id", "html_url"]) } };
+  request: rest("POST", `${REPO_PATH} & "/issues/" & params.number & "/comments"`, {
+    connection: ACCOUNT,
+    body: `{"body": params.body}`,
   }),
+  errors: GITHUB_ERRORS,
+  map: `{
+    "repository": $split(response.body.issue_url, "/")[-3],
+    "number": params.number,
+    "id": response.body.id,
+    "html_url": response.body.html_url
+  }`,
 });
 
 const STATE_RETURNS = { ...REPO_OUT, ...NUMBER_OUT, state: out("string"), ...LINK_OUT };
@@ -449,8 +365,7 @@ export const closeIssue = defineEndpoint({
   },
   returns: STATE_RETURNS,
   identity: ISSUE_IDENTITY,
-
-  handler: memberWrite((call, token, place) => setState(call, token, place, true)),
+  ...setState(true),
 });
 
 export const reopenIssue = defineEndpoint({
@@ -467,8 +382,7 @@ export const reopenIssue = defineEndpoint({
   params: { ...REPO, ...NUMBER },
   returns: STATE_RETURNS,
   identity: ISSUE_IDENTITY,
-
-  handler: memberWrite((call, token, place) => setState(call, token, place, false)),
+  ...setState(false),
 });
 
 export const label = defineEndpoint({
@@ -489,27 +403,23 @@ export const label = defineEndpoint({
     remove: { ...LABELS_IN.labels, label: text("Labels to remove", "Zu entfernende Labels", "Etiquetas a quitar", "Étiquettes à retirer") }},
   returns: { ...REPO_OUT, ...NUMBER_OUT },
   identity: ISSUE_IDENTITY,
-
-  handler: memberWrite(async (call, token, place) => {
-    const where = await writePlace(call, place);
-    if ("ok" in where) return where;
-    const number = int(call.params, "number");
-    if (number === undefined) return bad("number is required");
-    const add = list(call.params, "add");
-    const remove = list(call.params, "remove");
-    if (!add.length && !remove.length) return bad("name a label to add or to remove");
-    const base = `/repos/${place.owner}/${where.repo}/issues/${number}/labels`;
-
-    // Removals first, so naming a label in both ends with it present. A label
-    // that was not there is already the state asked for.
-    for (const name of remove) {
-      const answer = await rest(call.context.github.http, token, "DELETE", `${base}/${encodeURIComponent(name)}`);
-      if (!answer.ok && answer.failure !== "not-found") return writeFailure(answer.failure, answer.message);
-    }
-    if (add.length) {
-      const answer = await rest(call.context.github.http, token, "POST", base, { labels: add });
-      if (!answer.ok) return writeFailure(answer.failure, answer.message);
-    }
-    return { ok: true, result: { repository: where.repo, number } };
-  }),
+  // The issue's labels now, read on the installation, then the whole set
+  // written as the member. Naming a label in both lists ends with it present;
+  // GitHub matches label names without regard to case.
+  steps: [
+    { name: "issue", request: rest("GET", `${REPO_PATH} & "/issues/" & params.number`) },
+    {
+      name: "labels",
+      request: rest("PUT", `${REPO_PATH} & "/issues/" & params.number & "/labels"`, {
+        connection: ACCOUNT,
+        body: `(
+          $add := [params.add];
+          $gone := [params.remove.$lowercase($), $add.$lowercase($)];
+          {"labels": [steps.issue.body.labels.name[$not($lowercase($) in $gone)], $distinct($add)]}
+        )`,
+      }),
+    },
+  ],
+  errors: [{ status: "2xx", when: "$count(params.add) + $count(params.remove) = 0", code: "invalid" }, ...GITHUB_ERRORS],
+  map: `{"repository": $split(steps.issue.body.repository_url, "/")[-1], "number": params.number}`,
 });

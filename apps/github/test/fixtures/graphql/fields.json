@@ -1,0 +1,28 @@
+{
+  "data": {
+    "node": {
+      "owner": {
+        "login": "ACME"
+      },
+      "fields": {
+        "nodes": [
+          {
+            "id": "F_1",
+            "name": "Status",
+            "options": [
+              {
+                "id": "O_1",
+                "name": "Todo"
+              },
+              {
+                "id": "O_2",
+                "name": "Done"
+              }
+            ]
+          },
+          {}
+        ]
+      }
+    }
+  }
+}

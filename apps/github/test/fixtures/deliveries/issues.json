@@ -1,0 +1,32 @@
+{
+  "action": "opened",
+  "installation": {
+    "id": 42
+  },
+  "repository": {
+    "id": 1001,
+    "name": "widgets",
+    "full_name": "acme/widgets",
+    "owner": {
+      "login": "acme"
+    },
+    "html_url": "https://github.com/acme/widgets"
+  },
+  "sender": {
+    "login": "bob"
+  },
+  "issue": {
+    "number": 7,
+    "title": "Broken build",
+    "html_url": "https://github.com/acme/widgets/issues/7",
+    "user": {
+      "login": "bob"
+    },
+    "state": "open",
+    "labels": [
+      {
+        "name": "bug"
+      }
+    ]
+  }
+}

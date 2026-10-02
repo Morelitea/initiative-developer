@@ -1,6 +1,6 @@
 /**
- * The manifest `initiative-app build` wrote from the app's definition, the
- * registry listing, and the settings the app starts with.
+ * The manifest `initiative-app build` wrote from the app's definition, and the
+ * registry listing.
  */
 
 import { readFileSync } from "node:fs";
@@ -10,14 +10,15 @@ import { fileURLToPath } from "node:url";
 import { validateManifest, type Manifest } from "initiative-app-sdk/manifest";
 import { describe, expect, it } from "vitest";
 
-import app from "../src/app.js";
-import { ConfigError, ENVIRONMENT, loadConfig } from "../src/config.js";
-import { ACCOUNT, LISTING_UID, SCOPES, WORKSPACE } from "../src/vocabulary.js";
-import { appKey } from "./support/keys.js";
+import { ACCOUNT, LISTING_UID, READ_IDS, WORKSPACE } from "../src/vocabulary.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
-const packageVersion = (JSON.parse(readFileSync(join(root, "package.json"), "utf-8")) as { version: string }).version;
-const manifest = JSON.parse(readFileSync(join(root, "manifest.json"), "utf-8")) as Manifest;
+const source = join(root, "..", "..", "registry", "sources", "morelitea", LISTING_UID);
+const read = <T>(path: string) => JSON.parse(readFileSync(path, "utf-8")) as T;
+const packageVersion = read<{ version: string }>(join(root, "package.json")).version;
+const manifest = read<Manifest>(join(root, "manifest.json"));
+/** The last version that ran as a service beside Initiative. */
+const service = read<Manifest>(join(source, "2.6.0", "manifest.json"));
 
 /** Whether one dotted version is later than another. */
 function later(a: string, b: string): boolean {
@@ -35,21 +36,33 @@ describe("manifest", () => {
     expect(validateManifest(manifest)).toEqual([]);
   });
 
-  it("declares fourteen reads, seven writes and six announcements", () => {
+  it("declares fifteen reads, seven writes and six announcements", () => {
     const counts: Record<string, number> = {};
     for (const endpoint of manifest.endpoints ?? []) counts[endpoint.direction] = (counts[endpoint.direction] ?? 0) + 1;
-    expect(counts).toEqual({ read: 14, write: 7, emit: 6 });
+    expect(counts).toEqual({ read: 15, write: 7, emit: 6 });
   });
 
-  it("asks for exactly the scopes it was cleared for", () => {
-    expect(manifest.service.scopes).toEqual([
-      "projects:read",
-      "projects:write",
-      "comments:write",
-      "members:read",
-      "initiatives:read",
-      "tags:read",
-    ]);
+  it("is declarative: Initiative calls GitHub itself, and runs no service", () => {
+    expect(manifest.hosts).toEqual(["api.github.com"]);
+    expect(Object.keys(manifest).sort()).toEqual(
+      [...Object.keys(service).filter((key) => key !== "service" && key !== "schedules"), "hosts"].sort()
+    );
+  });
+
+  it("keeps every endpoint 2.6.0 had as it was, and adds the review queue", () => {
+    const terms = ({ id, direction, params, returns, public: open, actors, identity }: NonNullable<Manifest["endpoints"]>[number]) =>
+      ({ id, direction, params, returns, public: open, actors, identity });
+    const before = service.endpoints!.map(terms);
+    const after = manifest.endpoints!.map(terms);
+    expect(after.filter((endpoint) => endpoint.id !== READ_IDS.reviewQueue)).toEqual(before);
+    expect(after.find((endpoint) => endpoint.id === READ_IDS.reviewQueue)).toEqual({
+      ...before.find((endpoint) => endpoint.id === READ_IDS.findPullRequests),
+      id: READ_IDS.reviewQueue,
+      params: before
+        .find((endpoint) => endpoint.id === READ_IDS.findPullRequests)!
+        .params!.filter((param) => param.key !== "review_requested"),
+      actors: ["member"],
+    });
   });
 
   it("names every endpoint, widget and connection in four languages", () => {
@@ -81,7 +94,10 @@ describe("manifest", () => {
       }
       expect(endpoint.public).toBe(true);
       expect(endpoint.admin_only).toBeUndefined();
-      if (endpoint.direction === "read") expect(endpoint.actors).toEqual(["installation", "member"]);
+      if (endpoint.direction === "read" && endpoint.id !== READ_IDS.reviewQueue) {
+        expect(endpoint.actors).toEqual(["installation", "member"]);
+        expect(endpoint.requires).toEqual({ all_of: ["workspace"] });
+      }
     }
   });
 
@@ -104,7 +120,12 @@ describe("manifest", () => {
       },
       dedup: "X-GitHub-Delivery",
       route: { path: "installation.id", connection: WORKSPACE, field: "installation_id" },
+      events: expect.any(Array),
+      status: expect.any(Array),
     });
+    expect(manifest.webhooks!.events!.map((event) => event.emit)).toEqual(
+      manifest.endpoints!.filter((endpoint) => endpoint.direction === "emit").map((endpoint) => endpoint.id)
+    );
 
     const workspace = connection(WORKSPACE);
     expect(workspace.scope).toBe("static");
@@ -112,7 +133,7 @@ describe("manifest", () => {
       client_id: "{vendor.client_id}",
       client_secret: "{vendor.client_secret}",
       install_url: "https://github.com/apps/{vendor.app_slug}/installations/new",
-      after_connect: true,
+      after_connect: { code: "installation-not-held" },
     });
     expect(workspace.flow!.revoke).toBeUndefined();
     expect(workspace.token).toEqual({
@@ -124,12 +145,13 @@ describe("manifest", () => {
       lifetime: 540,
     });
     expect(workspace.fields.every((field) => field.managed)).toBe(true);
+    expect(workspace.health).toMatchObject({ every: "15m" });
 
     const account = connection(ACCOUNT);
     expect(account.scope).toBe("interactive");
     // Initiative ends a member's authorization at GitHub with the GitHub App's own values.
     expect(account.flow).toMatchObject({
-      after_connect: true,
+      after_connect: { map: expect.stringContaining("account_label") },
       revoke: "github_grant",
       revoke_url: "https://api.github.com/applications/{vendor.client_id}/grant",
     });
@@ -166,64 +188,11 @@ describe("manifest", () => {
     });
   });
 
-  it("lists a Compose service that carries only Initiative's two placeholders", () => {
-    const { service, baseUrl } = app.listing!.compose!;
-    expect(baseUrl).toBe("http://github:8080");
-    expect(service).toMatch(/^ {2}github:$/m);
-    expect(service).toMatch(/^volumes:\n {2}github_data:$/m);
-    expect(service).toContain("- github_data:/data");
-    expect(service.match(/\$\S*/g)!.sort()).toEqual(["${IMAGE}", "${INITIATIVE_URL}/api/v1"]);
-    expect(service).not.toContain("GITHUB_CLIENT");
-  });
-
-  it("is listed in the registry, with the ceiling and a registration by container", () => {
-    const source = join(root, "..", "..", "registry", "sources", "morelitea", LISTING_UID);
-    const listing = JSON.parse(readFileSync(join(source, "listing.json"), "utf-8"));
-    expect(listing).toMatchObject({ uid: LISTING_UID, public_id: "morelitea.github", publisher: app.listing!.publisher });
-    expect(listing.registration).toMatchObject({ kind: "container", scope_ceiling: [...SCOPES], reference_sectors: [] });
-    expect(listing.registration).not.toHaveProperty("jwks");
+  it("is listed in the registry, with a registration by declaration", () => {
+    const listing = read<Record<string, any>>(join(source, "listing.json"));
+    expect(listing).toMatchObject({ uid: LISTING_UID, public_id: "morelitea.github", publisher: "morelitea" });
+    expect(listing.registration).toEqual({ kind: "declarative", scope_ceiling: [], reference_sectors: [] });
     // Between releases the app runs ahead of what the listing publishes, never behind it.
     expect(packageVersion === listing.versions[0].version || later(packageVersion, listing.versions[0].version)).toBe(true);
-  });
-});
-
-describe("settings", () => {
-  const env = {
-    INITIATIVE_BASE_URL: "http://initiative:8173/api/v1/",
-  };
-  const withKey = {
-    ...env,
-    INITIATIVE_APP_PRIVATE_KEY: Buffer.from(appKey.privateKeyPem).toString("base64"),
-    INITIATIVE_APP_KEY_ID: "app-1",
-  };
-
-  it("reads every required setting, and leaves the key to the SDK when none is given", () => {
-    const config = loadConfig(env);
-    expect(config.initiative.baseUrl).toBe("http://initiative:8173/api/v1");
-    expect(config.initiative.key).toBeUndefined();
-    expect(config.github.apiBase).toBe("https://api.github.com");
-    expect(config.port).toBe(8080);
-  });
-
-  it("reads a given key as PEM, escaped PEM or base64", () => {
-    const { key } = loadConfig(withKey).initiative;
-    expect(key?.privateKey).toContain("-----BEGIN PRIVATE KEY-----");
-    expect(key?.kid).toBe("app-1");
-    expect(loadConfig({ ...env, INITIATIVE_APP_PRIVATE_KEY: appKey.privateKeyPem.replaceAll("\n", "\\n") }).initiative.key).toEqual({
-      privateKey: appKey.privateKeyPem,
-      kid: undefined,
-    });
-  });
-
-  it("refuses to start without one, naming it", () => {
-    for (const name of ENVIRONMENT.required) {
-      const partial: Record<string, string> = { ...env };
-      delete partial[name];
-      expect(() => loadConfig(partial)).toThrow(new ConfigError(`missing required settings: ${name}`));
-    }
-  });
-
-  it("refuses a key that is not a PEM private key", () => {
-    expect(() => loadConfig({ ...env, INITIATIVE_APP_PRIVATE_KEY: "not a key" })).toThrow(/not a PEM private key/);
   });
 });

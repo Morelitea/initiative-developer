@@ -1,0 +1,14 @@
+{
+  "data": {
+    "node": null
+  },
+  "errors": [
+    {
+      "type": "NOT_FOUND",
+      "path": [
+        "node"
+      ],
+      "message": "Could not resolve to a node with the global id of 'PVT_gone'"
+    }
+  ]
+}

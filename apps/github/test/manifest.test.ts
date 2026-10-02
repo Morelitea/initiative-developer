@@ -133,6 +133,43 @@ describe("manifest", () => {
     expect(account.fields).toEqual([]);
   });
 
+  it("lets Initiative create the GitHub App the README registers, filling all six values", () => {
+    expect(manifest.vendor!.setup).toEqual({
+      kind: "github_app_manifest",
+      app: {
+        name: "Initiative",
+        url: "https://github.com/Morelitea/initiative-developer/tree/main/apps/github",
+        public: false,
+        default_permissions: {
+          issues: "write",
+          pull_requests: "write",
+          contents: "read",
+          vulnerability_alerts: "read",
+          organization_projects: "write",
+          metadata: "read",
+        },
+        default_events: ["issues", "pull_request", "release", "create"],
+      },
+      values: {
+        client_id: "client_id",
+        client_secret: "client_secret",
+        app_slug: "slug",
+        app_id: "id",
+        private_key: "pem",
+        webhook_secret: "webhook_secret",
+      },
+    });
+  });
+
+  it("lists a Compose service that carries only Initiative's two placeholders", () => {
+    const { service, baseUrl } = app.listing!.compose!;
+    expect(baseUrl).toBe("http://github:8080");
+    expect(service).toMatch(/^ {2}github:$/m);
+    expect(service).toMatch(/^volumes:\n {2}github_data:$/m);
+    expect(service).toContain("- github_data:/data");
+    expect(service.match(/\$\S*/g)!.sort()).toEqual(["${IMAGE}", "${INITIATIVE_URL}/api/v1"]);
+  });
+
   it("is listed in the registry, with the ceiling and a registration by container", () => {
     const source = join(root, "..", "..", "registry", "sources", "morelitea", LISTING_UID);
     const listing = JSON.parse(readFileSync(join(source, "listing.json"), "utf-8"));

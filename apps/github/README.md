@@ -55,9 +55,52 @@ nobody has to authorize again when it is turned back on.
 
 ## Installing it
 
-### 1. Register a GitHub App
+### 1. Set it up for the deployment
 
-Once per deployment, on GitHub under *Settings → Developer settings → GitHub
+Once per deployment, in Initiative under **Settings → Platform → Integrations →
+App services**, on the GitHub app's registration:
+
+1. **Copy the Compose service** shown there into the `docker-compose.yml` that
+   runs Initiative, so the app joins its network. It runs the listed image and
+   keeps the app's key on a volume, and the registration's address is filled in
+   as `http://github:8080`.
+2. **Press Create the GitHub App.** GitHub shows the app it is about to create,
+   with the permissions and events in the table below and Initiative's
+   addresses already set. Confirm it there, and GitHub sends you back to
+   Initiative with the app's six values entered for you.
+3. On the new GitHub App's page on GitHub, copy its client ID and generate a
+   client secret, and set them as `GITHUB_CLIENT_ID` and
+   `GITHUB_CLIENT_SECRET` in the service: ending a member's authorization at
+   GitHub is authenticated as the GitHub App's client. Then
+   `docker compose up -d`.
+4. Press **Connect** on the registration. The app proves who it is to
+   Initiative with its own key: on first start it generates one, keeps it in
+   `/data`, serves the public half at `/.well-known/jwks.json`, and logs its
+   fingerprint at every start:
+
+   ```text
+   app key fingerprint: <thumbprint> (kid <kid>)
+   ```
+
+   The fingerprint Initiative shows when it connects is the one in the log.
+
+To give the app a key instead, generate one and set
+`INITIATIVE_APP_PRIVATE_KEY` and `INITIATIVE_APP_KEY_ID` (the volume is then
+not needed):
+
+```sh
+npx -p initiative-app-sdk initiative-app keygen --alg ES256 --out ./secrets
+```
+
+`secrets/private-key.pem` is the key and the printed `kid` its id. Keep
+`secrets/` out of any repository.
+
+#### By hand
+
+An Initiative that shows no Compose service or **Create the GitHub App** takes
+the same steps by hand.
+
+Register the GitHub App on GitHub under *Settings → Developer settings → GitHub
 Apps → New GitHub App*. `{APP_URL}` stands for Initiative's own public address:
 
 | Setting | Value |
@@ -72,68 +115,40 @@ Apps → New GitHub App*. `{APP_URL}` stands for Initiative's own public address
 | Organization permissions | Projects: read and write |
 | Events | Issues · Pull request · Release · Create |
 
-Then generate a private key and a client secret on the app's page.
+Then generate a private key and a client secret on the app's page, and enter
+the GitHub App's client ID, client secret, slug (the name in its address,
+`github.com/apps/<slug>`), app ID, private key and webhook secret on the
+GitHub app's registration in Initiative. The app is not live until all six are
+set.
 
-- **Initiative** gets the GitHub App's values: its client ID, client secret,
-  slug (the name in its address, `github.com/apps/<slug>`), app ID, private
-  key and webhook secret. An operator enters them in **Settings → Platform →
-  Integrations → App services**, on the GitHub app's registration. The app is
-  not live until all six are set.
-- **The app** gets the client ID and client secret too, as `GITHUB_CLIENT_ID`
-  and `GITHUB_CLIENT_SECRET`: ending a member's authorization at GitHub is
-  authenticated as the GitHub App's client, and Initiative's revoke hook call
-  carries the tokens but not those. It never needs the private key or the
-  webhook secret.
-
-### 2. Run the app
-
-Add it to the `docker-compose.yml` that runs Initiative, so the two share a
-network:
+Add the app to the `docker-compose.yml` that runs Initiative:
 
 ```yaml
-  initiative-github:
+services:
+  github:
     image: ghcr.io/morelitea/initiative-github@sha256:<digest>
-    container_name: initiative-github
     restart: unless-stopped
     environment:
       INITIATIVE_BASE_URL: http://initiative:8173/api/v1
       GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID}
       GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET}
     volumes:
-      - initiative_github_data:/data
+      - github_data:/data
+
+volumes:
+  github_data:
 ```
 
-and `initiative_github_data:` under `volumes:`. Then `docker compose up -d`.
+Then `docker compose up -d`, and register the app under **App services** at
+`http://github:8080`, checking its key's fingerprint as in step 4.
 
-The app proves who it is to Initiative with its own key. On first start it
-generates one, keeps it in `/data`, and serves the public half at
-`/.well-known/jwks.json`. At every start it logs the key's fingerprint:
-
-```text
-app key fingerprint: <thumbprint> (kid <kid>)
-```
-
-Register the app in Initiative under **Settings → Platform → Integrations →
-App services**: its address, `http://initiative-github:8080`, and its key set.
-The fingerprint Initiative shows for that key set is the one in the log.
-
-To give it a key instead, generate one and set `INITIATIVE_APP_PRIVATE_KEY`
-and `INITIATIVE_APP_KEY_ID` (the volume is then not needed):
-
-```sh
-npx -p initiative-app-sdk initiative-app keygen --alg ES256 --out ./secrets
-```
-
-`secrets/private-key.pem` is the key and the printed `kid` its id. Keep
-`secrets/` out of any repository.
-
-### 3. In Initiative
+### 2. In a community
 
 1. A community superadmin installs **GitHub** from the marketplace and
    confirms what it may reach.
 2. In the app's settings, they press **Connect** on *GitHub organization*.
 
-### 4. On GitHub
+### 3. On GitHub
 
 3. GitHub's install page opens. Choose the account and the repositories the
    app may see. Only an owner of that account can finish; anyone else sends a

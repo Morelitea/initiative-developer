@@ -405,7 +405,7 @@ export default defineApp({
     minAppVersion: "0.75.0",
     releaseNotes:
       "Initiative can create the GitHub App for you from the app's registration, with one button, and shows the Compose service to run beside it. Initiative now ends a member's GitHub authorization itself, so the app no longer needs the GitHub App's client ID and secret. Needs Initiative 0.75.0.",
-    image: "ghcr.io/morelitea/initiative-github@sha256:e616af78d1b5bd17cbe344de1904d52c664533d8b0b7e831f26ddca236324ebb",
+    image: "ghcr.io/morelitea/initiative-github@sha256:982108176bf5a4bc509dde4f084b41e9ceb292f7b62a16634ad1988daf009b85",
     compose: {
       service: COMPOSE_SERVICE,
       baseUrl: "http://github:8080",

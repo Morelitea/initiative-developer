@@ -1,5 +1,29 @@
 # Changelog
 
+## [2.5.0]
+
+The app keeps its own key.
+
+### Changed
+
+- With no `INITIATIVE_APP_PRIVATE_KEY`, the app makes a signing key on first
+  start and keeps it in `/data` (`INITIATIVE_APP_DATA_DIR`). Mount a volume
+  there so the key survives a restart.
+- Every start logs `app key fingerprint: <thumbprint> (kid <kid>)`, to check
+  against the fingerprint Initiative shows when it pins the app's keys.
+
+### Upgrading
+
+- Nothing to do: a key given in the environment is used as before.
+
+## [2.4.0]
+
+Rebuilt on the Initiative app SDK, with no change to what it does.
+
+### Upgrading
+
+- Needs an Initiative that types the tokens it sends apps.
+
 ## [2.3.0]
 
 Initiative runs the organization check.

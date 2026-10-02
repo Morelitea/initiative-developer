@@ -358,14 +358,14 @@ export default defineApp({
       "Members who connect their own GitHub account get their own review queue, and automations can open, comment on, close, label and move issues as them.",
     ].join("\n"),
     avatar: "assets/avatar.png",
-    version: "2.4.0",
+    version: "2.5.0",
     // The oldest Initiative that runs this app's connections. Development
     // builds report the last release until the next one, and no release before
     // the next one follows the registry, so this admits development builds and
     // every later release.
     minAppVersion: "0.72.0",
     releaseNotes:
-      "Rebuilt on the Initiative app SDK, with no change to what it does. It needs an Initiative that types the tokens it sends apps.",
+      "Makes and keeps its own signing key when none is given, on a volume at /data, and logs the key's fingerprint at every start so it can be checked against the one Initiative shows. A key given in the environment is used as before.",
     image: "ghcr.io/morelitea/initiative-github@sha256:ec966af338fef63213bfa6b37e6d1392a39374001e78a15ed07db2a8847e56c5",
   },
 });

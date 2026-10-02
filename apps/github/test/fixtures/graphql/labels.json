@@ -1,0 +1,17 @@
+{
+  "data": {
+    "repository": {
+      "labels": {
+        "totalCount": 2,
+        "nodes": [
+          {
+            "name": "bug"
+          },
+          {
+            "name": "docs"
+          }
+        ]
+      }
+    }
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "data": {
+    "search": {
+      "issueCount": 1,
+      "nodes": [
+        {
+          "number": 9,
+          "title": "Fix the build",
+          "url": "https://github.com/acme/widgets/pull/9",
+          "state": "OPEN",
+          "createdAt": "2026-09-01T00:00:00Z",
+          "updatedAt": "2026-09-02T00:00:00Z",
+          "closedAt": null
+        }
+      ]
+    }
+  }
+}

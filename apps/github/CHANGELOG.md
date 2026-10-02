@@ -1,5 +1,32 @@
 # Changelog
 
+## [3.0.0]
+
+The app runs inside Initiative.
+
+### Changed
+
+- Initiative makes every call to GitHub itself, from what the manifest
+  declares, and reshapes GitHub's answers. There is no image, Compose service,
+  key or Connect step: set it up by creating the GitHub App, then install it.
+- Initiative turns GitHub's deliveries into the six announcements itself, and
+  checks every 15 minutes that each organization's installation still exists.
+- Pull requests waiting on your review have their own endpoint,
+  `review-queue`, which asks GitHub as you. `find-pull-requests` searches as
+  the organization and takes a reviewer's login, not `@me`.
+- A read of a repository the installation does not cover answers GitHub's own
+  `not-found`. A refusal answers `not-authorized`, and GitHub limiting
+  requests is a failure to retry rather than an answer.
+- `label` sets the issue's whole set of labels in one change.
+
+### Upgrading
+
+- Needs Initiative 0.75.0 or later.
+- After upgrading, stop and remove the old `github` service and its
+  `github_data` volume.
+- Move dashboards and automations that pass `review_requested: "@me"` to
+  `find-pull-requests` over to `review-queue`.
+
 ## [2.6.0]
 
 Initiative can set the app up, and ends a member's authorization itself.

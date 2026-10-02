@@ -1,0 +1,33 @@
+{
+  "data": {
+    "repository": {
+      "name": "widgets",
+      "owner": {
+        "login": "acme"
+      },
+      "vulnerabilityAlerts": {
+        "totalCount": 2,
+        "nodes": [
+          {
+            "number": 1,
+            "securityVulnerability": {
+              "severity": "CRITICAL",
+              "package": {
+                "name": "left-pad"
+              }
+            }
+          },
+          {
+            "number": 2,
+            "securityVulnerability": {
+              "severity": "MODERATE",
+              "package": {
+                "name": "qs"
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}

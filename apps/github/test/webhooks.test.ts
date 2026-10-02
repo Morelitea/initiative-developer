@@ -1,232 +1,165 @@
 /**
- * GitHub's deliveries, as Initiative forwards them to the `webhook` hook for
- * the community they were routed to, turned into the six announcements.
+ * GitHub's deliveries, as Initiative maps them once it has checked and routed
+ * one to a community: the six announcements, and the organization's
+ * installation being removed, suspended or restored.
  */
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { runWebhook } from "initiative-app-sdk/testing";
+import { describe, expect, it } from "vitest";
 
-import { EMIT_IDS } from "../src/vocabulary.js";
-import { startHarness, type Harness } from "./support/harness.js";
+import app from "../src/app.js";
+import { EMIT } from "../src/vocabulary.js";
+import { recorded } from "./fixtures.js";
 
-let h: Harness;
-
-beforeEach(async () => {
-  h = await startHarness();
-  h.initiative.install("gapp_one");
-  h.initiative.install("gapp_other", { workspace: { owner: "other", installation_id: 77 } });
-});
-
-afterEach(() => h.close());
-
-async function deliver(event: string, payload: unknown, installation = "gapp_one") {
-  return h.hook(installation, "webhook", {
-    connection: "workspace",
-    headers: { "x-github-event": event, "x-github-delivery": "delivery-1" },
-    body: JSON.stringify(payload),
+function deliver(event: string, payload: unknown) {
+  return runWebhook(app, {
+    headers: { "X-GitHub-Event": event, "X-GitHub-Delivery": "delivery-1" },
+    payload,
+    connection: { owner: "acme", installation_id: 42 },
   });
 }
 
-const events = (installation = "gapp_one") => h.initiative.installs.get(installation)!.events;
-
-const repository = { name: "widgets", owner: { login: "acme" } };
-const issue = {
-  number: 7,
-  title: "Broken build",
-  html_url: "https://github.test/acme/widgets/issues/7",
-  user: { login: "bob" },
-  labels: [{ name: "bug" }],
+/** A recorded delivery with some of its fields changed. */
+const changed = (name: string, change: (payload: any) => void) => {
+  const payload = recorded(name);
+  change(payload);
+  return payload;
 };
 
 describe("announcements", () => {
-  it("emits issue-opened in the community the delivery was routed to", async () => {
-    const { status } = await deliver("issues", { action: "opened", installation: { id: 42 }, repository, issue });
-    expect(status).toBe(204);
-    expect(events()).toEqual([
-      {
-        event_type: EMIT_IDS.issueOpened,
+  it("announces an opened issue", async () => {
+    expect(await deliver("issues", recorded("deliveries/issues"))).toEqual({
+      event: {
+        emit: EMIT.issueOpened,
         payload: {
           repository: "widgets",
           owner: "acme",
           number: 7,
           title: "Broken build",
-          url: "https://github.test/acme/widgets/issues/7",
+          url: "https://github.com/acme/widgets/issues/7",
           author: "bob",
           labels: ["bug"],
         },
       },
-    ]);
-    expect(events("gapp_other")).toHaveLength(0);
-  });
-
-  it("emits issue-closed", async () => {
-    const site = { name: "site", owner: { login: "other" } };
-    await deliver("issues", { action: "closed", installation: { id: 77 }, repository: site, issue }, "gapp_other");
-    expect(events("gapp_other")).toHaveLength(1);
-    expect(events("gapp_other")[0]).toMatchObject({ event_type: EMIT_IDS.issueClosed, payload: { repository: "site", number: 7 } });
-  });
-
-  it("emits review-requested, naming the reviewer or the team", async () => {
-    const pull = { number: 9, title: "Fix", html_url: "https://github.test/acme/widgets/pull/9", user: { login: "carol" } };
-    await deliver("pull_request", {
-      action: "review_requested",
-      installation: { id: 42 },
-      repository,
-      pull_request: pull,
-      requested_reviewer: { login: "dave" },
     });
-    await deliver("pull_request", {
-      action: "review_requested",
-      installation: { id: 42 },
-      repository,
-      pull_request: pull,
-      requested_team: { slug: "core" },
-    });
-    expect(events().map((event) => [event.event_type, event.payload.reviewer])).toEqual([
-      [EMIT_IDS.reviewRequested, "dave"],
-      [EMIT_IDS.reviewRequested, "core"],
-    ]);
-    expect(events()[0].payload).toMatchObject({ number: 9, author: "carol", repository: "widgets" });
   });
 
-  const release = {
-    tag_name: "v1.2.0",
-    name: "Spring",
-    target_commitish: "main",
-    html_url: "https://github.test/acme/widgets/releases/tag/v1.2.0",
-    author: { login: "erin" },
-    prerelease: false,
-  };
+  it("announces a closed issue", async () => {
+    const closed = changed("deliveries/issues", (payload) => {
+      payload.action = "closed";
+      payload.issue.labels = [];
+    });
+    expect(await deliver("issues", closed)).toMatchObject({
+      event: { emit: EMIT.issueClosed, payload: { repository: "widgets", number: 7, labels: [] } },
+    });
+  });
 
-  it("emits release-published for a full release", async () => {
-    await deliver("release", { action: "released", installation: { id: 42 }, repository, release });
-    expect(events()).toEqual([
-      {
-        event_type: EMIT_IDS.releasePublished,
+  it("announces a review request, naming the reviewer or the team", async () => {
+    expect(await deliver("pull_request", recorded("deliveries/pull_request"))).toEqual({
+      event: {
+        emit: EMIT.reviewRequested,
+        payload: {
+          repository: "widgets",
+          owner: "acme",
+          number: 9,
+          title: "Fix",
+          url: "https://github.com/acme/widgets/pull/9",
+          author: "carol",
+          reviewer: "dave",
+        },
+      },
+    });
+    const team = changed("deliveries/pull_request", (payload) => {
+      delete payload.requested_reviewer;
+      payload.requested_team = { slug: "core" };
+    });
+    expect(await deliver("pull_request", team)).toMatchObject({ event: { payload: { reviewer: "core" } } });
+  });
+
+  it("announces a full release", async () => {
+    expect(await deliver("release", recorded("deliveries/release"))).toEqual({
+      event: {
+        emit: EMIT.releasePublished,
         payload: {
           repository: "widgets",
           owner: "acme",
           tag: "v1.2.0",
           name: "Spring",
           branch: "main",
-          url: "https://github.test/acme/widgets/releases/tag/v1.2.0",
+          url: "https://github.com/acme/widgets/releases/tag/v1.2.0",
           author: "erin",
         },
       },
-    ]);
-  });
-
-  it("emits prerelease-published for a pre-release, and not release-published", async () => {
-    await deliver("release", {
-      action: "prereleased",
-      installation: { id: 42 },
-      repository,
-      release: { ...release, tag_name: "v1.3.0-rc.1", name: null, prerelease: true },
-    });
-    expect(events()).toHaveLength(1);
-    expect(events()[0]).toEqual({
-      event_type: EMIT_IDS.prereleasePublished,
-      payload: {
-        repository: "widgets",
-        owner: "acme",
-        tag: "v1.3.0-rc.1",
-        name: null,
-        branch: "main",
-        url: "https://github.test/acme/widgets/releases/tag/v1.2.0",
-        author: "erin",
-      },
     });
   });
 
-  it("emits release-published when a pre-release is promoted to a full release", async () => {
-    const candidate = { ...release, tag_name: "v1.3.0", name: "Summer" };
-    await deliver("release", {
-      action: "prereleased",
-      installation: { id: 42 },
-      repository,
-      release: { ...candidate, prerelease: true },
+  it("announces a pre-release as one, and its untitled name as null", async () => {
+    const prerelease = changed("deliveries/release", (payload) => {
+      payload.action = "prereleased";
+      payload.release.name = null;
+      payload.release.prerelease = true;
     });
-    await deliver("release", { action: "released", installation: { id: 42 }, repository, release: candidate });
-    expect(events().map((event) => [event.event_type, event.payload.tag])).toEqual([
-      [EMIT_IDS.prereleasePublished, "v1.3.0"],
-      [EMIT_IDS.releasePublished, "v1.3.0"],
-    ]);
+    expect(await deliver("release", prerelease)).toMatchObject({
+      event: { emit: EMIT.prereleasePublished, payload: { tag: "v1.2.0", name: null } },
+    });
   });
 
-  it("says nothing of other release actions, or a release with no tag", async () => {
-    for (const action of ["published", "created", "edited", "deleted"]) {
-      await deliver("release", { action, installation: { id: 42 }, repository, release });
-    }
-    await deliver("release", {
-      action: "released",
-      installation: { id: 42 },
-      repository,
-      release: { ...release, tag_name: "" },
-    });
-    expect(events()).toHaveLength(0);
-  });
-
-  it("emits tag-created for a tag, with its page and who pushed it", async () => {
-    await deliver("create", {
-      ref: "release/1.0",
-      ref_type: "tag",
-      master_branch: "main",
-      installation: { id: 42 },
-      repository: { ...repository, html_url: "https://github.test/acme/widgets" },
-      sender: { login: "frank" },
-    });
-    expect(events()).toEqual([
-      {
-        event_type: EMIT_IDS.tagCreated,
+  it("announces a tag, with its page and who pushed it", async () => {
+    expect(await deliver("create", recorded("deliveries/create"))).toEqual({
+      event: {
+        emit: EMIT.tagCreated,
         payload: {
           repository: "widgets",
           owner: "acme",
           tag: "release/1.0",
-          url: "https://github.test/acme/widgets/tree/release/1.0",
+          url: "https://github.com/acme/widgets/tree/release/1.0",
           author: "frank",
         },
       },
-    ]);
-  });
-
-  it("says nothing of a new branch", async () => {
-    await deliver("create", {
-      ref: "feature",
-      ref_type: "branch",
-      installation: { id: 42 },
-      repository,
-      sender: { login: "frank" },
     });
-    expect(events()).toHaveLength(0);
-  });
-
-  it("accepts events it does not announce, and emits nothing", async () => {
-    expect((await deliver("issues", { action: "edited", installation: { id: 42 }, repository, issue })).status).toBe(204);
-    expect((await deliver("push", { installation: { id: 42 }, repository })).status).toBe(204);
-    expect(events()).toHaveLength(0);
-  });
-
-  it("does not announce a pull request as an issue", async () => {
-    await deliver("issues", {
-      action: "opened",
-      installation: { id: 42 },
-      repository,
-      issue: { ...issue, pull_request: { url: "x" } },
+    const spaced = changed("deliveries/create", (payload) => {
+      payload.ref = "v1 beta";
     });
-    expect(events()).toHaveLength(0);
-  });
-
-  it("fails, so GitHub delivers it again, when Initiative will not take the announcement", async () => {
-    h.initiative.listed = [];
-    const { status } = await deliver("issues", { action: "opened", installation: { id: 42 }, repository, issue });
-    expect(status).toBe(500);
-  });
-
-  it("tells the community's admins when GitHub removes its installation", async () => {
-    const { status } = await deliver("installation", { action: "deleted", installation: { id: 42 } });
-    expect(status).toBe(204);
-    expect(h.initiative.installs.get("gapp_one")!.statuses.at(-1)).toEqual({
-      state: "invalid",
-      detail: "github_installation_removed",
+    expect(await deliver("create", spaced)).toMatchObject({
+      event: { payload: { url: "https://github.com/acme/widgets/tree/v1%20beta" } },
     });
+  });
+
+  it("says nothing of a delivery whose subject GitHub did not name", async () => {
+    const quiet = [
+      ["issues", changed("deliveries/issues", (payload) => (payload.issue.pull_request = { url: "x" }))],
+      ["issues", changed("deliveries/issues", (payload) => delete payload.issue.number)],
+      ["issues", changed("deliveries/issues", (payload) => (payload.repository.name = ""))],
+      ["pull_request", changed("deliveries/pull_request", (payload) => delete payload.repository)],
+      ["release", changed("deliveries/release", (payload) => (payload.release.tag_name = ""))],
+      ["create", changed("deliveries/create", (payload) => delete payload.ref)],
+    ] as const;
+    for (const [event, payload] of quiet) expect(await deliver(event, payload)).toEqual({});
+  });
+
+  it("says nothing of other actions and events", async () => {
+    for (const action of ["edited", "labeled", "reopened"]) {
+      expect(await deliver("issues", changed("deliveries/issues", (payload) => (payload.action = action)))).toEqual({});
+    }
+    for (const action of ["published", "created", "edited", "deleted"]) {
+      expect(await deliver("release", changed("deliveries/release", (payload) => (payload.action = action)))).toEqual({});
+    }
+    expect(await deliver("create", changed("deliveries/create", (payload) => (payload.ref_type = "branch")))).toEqual({});
+    expect(await deliver("push", { ref: "refs/heads/main", installation: { id: 42 }, repository: recorded("deliveries/issues").repository })).toEqual({});
+  });
+});
+
+describe("the organization's installation", () => {
+  const status = (action: string) => deliver("installation", changed("deliveries/installation", (payload) => (payload.action = action)));
+
+  it("is removed, suspended and restored as GitHub says", async () => {
+    expect(await status("deleted")).toEqual({ status: { connection: "workspace", state: "removed" } });
+    expect(await status("suspend")).toEqual({ status: { connection: "workspace", state: "suspended" } });
+    expect(await status("unsuspend")).toEqual({ status: { connection: "workspace", state: "ok" } });
+  });
+
+  it("is not changed by anything else", async () => {
+    expect(await status("new_permissions_accepted")).toEqual({});
+    expect(await deliver("installation_repositories", { action: "added", installation: { id: 42 } })).toEqual({});
   });
 });

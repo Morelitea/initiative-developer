@@ -1,23 +1,14 @@
 {
   "app_kind": "service",
-  "service": {
-    "public_id": "morelitea.github",
-    "protocol": 1,
-    "scopes": [
-      "projects:read",
-      "projects:write",
-      "comments:write",
-      "members:read",
-      "initiatives:read",
-      "tags:read"
-    ]
-  },
   "features": [
     "dashboards",
     "endpoints",
     "widgets"
   ],
   "default_name": "GitHub",
+  "hosts": [
+    "api.github.com"
+  ],
   "vendor": {
     "label": {
       "en": "GitHub App",
@@ -168,7 +159,29 @@
         "client_secret": "{vendor.client_secret}",
         "pkce": true,
         "install_url": "https://github.com/apps/{vendor.app_slug}/installations/new",
-        "after_connect": true
+        "after_connect": {
+          "request": {
+            "method": "GET",
+            "url": "\"https://api.github.com\" & \"/user/installations\"",
+            "headers": {
+              "Accept": "\"application/vnd.github+json\"",
+              "X-GitHub-Api-Version": "\"2022-11-28\"",
+              "User-Agent": "\"initiative-github\""
+            },
+            "paging": {
+              "kind": "page_number",
+              "page_param": "page",
+              "per_page_param": "per_page",
+              "per_page": 100,
+              "items": "response.body.installations",
+              "max_pages": 10,
+              "on_limit": "truncate"
+            }
+          },
+          "map": "(\n            $claimed := params.installation_id;\n            $held := response.body[$string(id) = $claimed][0];\n            {\"values\": {\"owner\": $held.account.login, \"installation_id\": $held.id}, \"account_label\": $held.account.login}\n          )",
+          "refuse_when": "$not($exists(result.values.owner) and $exists(result.values.installation_id))",
+          "code": "installation-not-held"
+        }
       },
       "token": {
         "type": "jwt_bearer",
@@ -177,6 +190,32 @@
         "key": "{vendor.private_key}",
         "alg": "RS256",
         "lifetime": 540
+      },
+      "health": {
+        "request": {
+          "method": "GET",
+          "url": "\"https://api.github.com\" & \"/installation/repositories\"",
+          "headers": {
+            "Accept": "\"application/vnd.github+json\"",
+            "X-GitHub-Api-Version": "\"2022-11-28\"",
+            "User-Agent": "\"initiative-github\""
+          },
+          "query": {
+            "per_page": "\"1\""
+          }
+        },
+        "every": "15m",
+        "states": [
+          {
+            "status": 401,
+            "state": "removed"
+          },
+          {
+            "status": 403,
+            "when": "$contains(response.body.message, /suspended/i)",
+            "state": "suspended"
+          }
+        ]
       }
     },
     {
@@ -196,7 +235,18 @@
         "client_id": "{vendor.client_id}",
         "client_secret": "{vendor.client_secret}",
         "pkce": true,
-        "after_connect": true,
+        "after_connect": {
+          "request": {
+            "method": "GET",
+            "url": "\"https://api.github.com\" & \"/user\"",
+            "headers": {
+              "Accept": "\"application/vnd.github+json\"",
+              "X-GitHub-Api-Version": "\"2022-11-28\"",
+              "User-Agent": "\"initiative-github\""
+            }
+          },
+          "map": "{\"account_label\": response.body.login}"
+        },
         "revoke": "github_grant",
         "revoke_url": "https://api.github.com/applications/{vendor.client_id}/grant"
       },
@@ -226,14 +276,57 @@
       "path": "installation.id",
       "connection": "workspace",
       "field": "installation_id"
-    }
+    },
+    "events": [
+      {
+        "when": "headers.\"x-github-event\" = \"issues\" and payload.action = \"opened\" and $not($exists(payload.issue.pull_request)) and $type(payload.issue.number) = \"number\" and ($type(payload.repository.name) = \"string\" and payload.repository.name != \"\")",
+        "emit": "app.morelitea.github.issue-opened",
+        "map": "(\n    $text := function($value) { $type($value) = \"string\" ? $value : null };\n    {\n      \"repository\": payload.repository.name, \"owner\": $text(payload.repository.owner.login),\n      \"number\": payload.issue.number,\n      \"title\": $text(payload.issue.title),\n      \"url\": $text(payload.issue.html_url),\n      \"author\": $text(payload.issue.user.login),\n      \"labels\": [payload.issue.labels.name[$type($) = \"string\" and $ != \"\"]]\n    }\n  )"
+      },
+      {
+        "when": "headers.\"x-github-event\" = \"issues\" and payload.action = \"closed\" and $not($exists(payload.issue.pull_request)) and $type(payload.issue.number) = \"number\" and ($type(payload.repository.name) = \"string\" and payload.repository.name != \"\")",
+        "emit": "app.morelitea.github.issue-closed",
+        "map": "(\n    $text := function($value) { $type($value) = \"string\" ? $value : null };\n    {\n      \"repository\": payload.repository.name, \"owner\": $text(payload.repository.owner.login),\n      \"number\": payload.issue.number,\n      \"title\": $text(payload.issue.title),\n      \"url\": $text(payload.issue.html_url),\n      \"author\": $text(payload.issue.user.login),\n      \"labels\": [payload.issue.labels.name[$type($) = \"string\" and $ != \"\"]]\n    }\n  )"
+      },
+      {
+        "when": "headers.\"x-github-event\" = \"pull_request\" and payload.action = \"review_requested\" and $type(payload.pull_request.number) = \"number\" and ($type(payload.repository.name) = \"string\" and payload.repository.name != \"\")",
+        "emit": "app.morelitea.github.review-requested",
+        "map": "(\n    $text := function($value) { $type($value) = \"string\" ? $value : null };\n    {\n      \"repository\": payload.repository.name, \"owner\": $text(payload.repository.owner.login),\n      \"number\": payload.pull_request.number,\n      \"title\": $text(payload.pull_request.title),\n      \"url\": $text(payload.pull_request.html_url),\n      \"author\": $text(payload.pull_request.user.login),\n      \"reviewer\": $type(payload.requested_reviewer.login) = \"string\"\n        ? payload.requested_reviewer.login\n        : $text(payload.requested_team.slug)\n    }\n  )"
+      },
+      {
+        "when": "headers.\"x-github-event\" = \"release\" and payload.action = \"released\" and ($type(payload.repository.name) = \"string\" and payload.repository.name != \"\") and ($type(payload.release.tag_name) = \"string\" and payload.release.tag_name != \"\")",
+        "emit": "app.morelitea.github.release-published",
+        "map": "(\n    $text := function($value) { $type($value) = \"string\" ? $value : null };\n    {\n      \"repository\": payload.repository.name, \"owner\": $text(payload.repository.owner.login),\n      \"tag\": payload.release.tag_name,\n      \"name\": $text(payload.release.name),\n      \"branch\": $text(payload.release.target_commitish),\n      \"url\": $text(payload.release.html_url),\n      \"author\": $text(payload.release.author.login)\n    }\n  )"
+      },
+      {
+        "when": "headers.\"x-github-event\" = \"release\" and payload.action = \"prereleased\" and ($type(payload.repository.name) = \"string\" and payload.repository.name != \"\") and ($type(payload.release.tag_name) = \"string\" and payload.release.tag_name != \"\")",
+        "emit": "app.morelitea.github.prerelease-published",
+        "map": "(\n    $text := function($value) { $type($value) = \"string\" ? $value : null };\n    {\n      \"repository\": payload.repository.name, \"owner\": $text(payload.repository.owner.login),\n      \"tag\": payload.release.tag_name,\n      \"name\": $text(payload.release.name),\n      \"branch\": $text(payload.release.target_commitish),\n      \"url\": $text(payload.release.html_url),\n      \"author\": $text(payload.release.author.login)\n    }\n  )"
+      },
+      {
+        "when": "headers.\"x-github-event\" = \"create\" and payload.ref_type = \"tag\" and ($type(payload.repository.name) = \"string\" and payload.repository.name != \"\") and ($type(payload.ref) = \"string\" and payload.ref != \"\")",
+        "emit": "app.morelitea.github.tag-created",
+        "map": "(\n      $text := function($value) { $type($value) = \"string\" ? $value : null };\n      $home := payload.repository.html_url;\n      {\n        \"repository\": payload.repository.name, \"owner\": $text(payload.repository.owner.login),\n        \"tag\": payload.ref,\n        \"url\": ($type($home) = \"string\" and $home != \"\") ? $encodeUrl($home & \"/tree/\" & payload.ref) : null,\n        \"author\": $text(payload.sender.login)\n      }\n    )"
+      }
+    ],
+    "status": [
+      {
+        "when": "headers.\"x-github-event\" = \"installation\" and payload.action = \"deleted\"",
+        "connection": "workspace",
+        "state": "removed"
+      },
+      {
+        "when": "headers.\"x-github-event\" = \"installation\" and payload.action = \"suspend\"",
+        "connection": "workspace",
+        "state": "suspended"
+      },
+      {
+        "when": "headers.\"x-github-event\" = \"installation\" and payload.action = \"unsuspend\"",
+        "connection": "workspace",
+        "state": "ok"
+      }
+    ]
   },
-  "schedules": [
-    {
-      "id": "check-installation",
-      "every": "15m"
-    }
-  ],
   "endpoints": [
     {
       "id": "app.morelitea.github.list-repositories",
@@ -256,6 +349,11 @@
         "installation",
         "member"
       ],
+      "requires": {
+        "all_of": [
+          "workspace"
+        ]
+      },
       "cache_ttl_seconds": 300,
       "returns": [
         {
@@ -294,11 +392,48 @@
           }
         }
       ],
-      "requires": {
-        "all_of": [
-          "workspace"
-        ]
-      }
+      "request": {
+        "method": "GET",
+        "url": "\"https://api.github.com\" & \"/installation/repositories\"",
+        "headers": {
+          "Accept": "\"application/vnd.github+json\"",
+          "X-GitHub-Api-Version": "\"2022-11-28\"",
+          "User-Agent": "\"initiative-github\""
+        },
+        "connection": "workspace",
+        "paging": {
+          "kind": "page_number",
+          "page_param": "page",
+          "per_page_param": "per_page",
+          "per_page": 100,
+          "items": "response.body.repositories",
+          "max_pages": 5,
+          "on_limit": "truncate"
+        }
+      },
+      "errors": [
+        {
+          "status": 403,
+          "when": "$exists(response.headers.\"retry-after\") or response.headers.\"x-ratelimit-remaining\" = \"0\"",
+          "code": "transient"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors[type = \"RATE_LIMITED\"]",
+          "code": "transient"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors[type in [\"FORBIDDEN\", \"INSUFFICIENT_SCOPES\"]]",
+          "code": "not-authorized"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors and $not($exists(response.body.data) and $boolean(response.body.data))",
+          "code": "invalid"
+        }
+      ],
+      "map": "(\n    $names := [response.body.name];\n    {\"names\": $names, \"owner\": connection.owner, \"count\": $count($names)}\n  )"
     },
     {
       "id": "app.morelitea.github.list-assignees",
@@ -321,6 +456,11 @@
         "installation",
         "member"
       ],
+      "requires": {
+        "all_of": [
+          "workspace"
+        ]
+      },
       "cache_ttl_seconds": 300,
       "params": [
         {
@@ -381,11 +521,56 @@
           }
         }
       ],
-      "requires": {
-        "all_of": [
-          "workspace"
-        ]
-      }
+      "request": {
+        "method": "POST",
+        "url": "\"https://api.github.com/graphql\"",
+        "headers": {
+          "Accept": "\"application/vnd.github+json\"",
+          "X-GitHub-Api-Version": "\"2022-11-28\"",
+          "User-Agent": "\"initiative-github\""
+        },
+        "graphql": {
+          "query": "query Assignees($owner: String!, $repo: String!, $first: Int!) { repository(owner: $owner, name: $repo) { assignableUsers(first: $first) { totalCount nodes { login } } } }",
+          "variables": "{\"owner\": connection.owner, \"repo\": params.repo, \"first\": 100}"
+        },
+        "connection": "workspace"
+      },
+      "unavailable": [
+        "repository-required"
+      ],
+      "errors": [
+        {
+          "status": "2xx",
+          "when": "$not($exists(params.repo)) or params.repo = \"\"",
+          "code": "repository-required"
+        },
+        {
+          "status": "4xx",
+          "when": "$not($exists(params.repo)) or params.repo = \"\"",
+          "code": "repository-required"
+        },
+        {
+          "status": 403,
+          "when": "$exists(response.headers.\"retry-after\") or response.headers.\"x-ratelimit-remaining\" = \"0\"",
+          "code": "transient"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors[type = \"RATE_LIMITED\"]",
+          "code": "transient"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors[type in [\"FORBIDDEN\", \"INSUFFICIENT_SCOPES\"]]",
+          "code": "not-authorized"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors and $not($exists(response.body.data) and $boolean(response.body.data))",
+          "code": "invalid"
+        }
+      ],
+      "map": "(\n    $list := response.body.data.repository.assignableUsers;\n    $list ? (\n      $found := [$list.nodes.login];\n      {\"logins\": $found, \"count\": $count($found), \"total\": $list.totalCount}\n    ) : {\"unavailable\": \"not-found\"}\n  )"
     },
     {
       "id": "app.morelitea.github.list-branches",
@@ -408,6 +593,11 @@
         "installation",
         "member"
       ],
+      "requires": {
+        "all_of": [
+          "workspace"
+        ]
+      },
       "cache_ttl_seconds": 300,
       "params": [
         {
@@ -468,11 +658,56 @@
           }
         }
       ],
-      "requires": {
-        "all_of": [
-          "workspace"
-        ]
-      }
+      "request": {
+        "method": "POST",
+        "url": "\"https://api.github.com/graphql\"",
+        "headers": {
+          "Accept": "\"application/vnd.github+json\"",
+          "X-GitHub-Api-Version": "\"2022-11-28\"",
+          "User-Agent": "\"initiative-github\""
+        },
+        "graphql": {
+          "query": "query Branches($owner: String!, $repo: String!, $first: Int!) { repository(owner: $owner, name: $repo) { refs(refPrefix: \"refs/heads/\", first: $first, orderBy: { field: ALPHABETICAL, direction: ASC }) { totalCount nodes { name } } } }",
+          "variables": "{\"owner\": connection.owner, \"repo\": params.repo, \"first\": 100}"
+        },
+        "connection": "workspace"
+      },
+      "unavailable": [
+        "repository-required"
+      ],
+      "errors": [
+        {
+          "status": "2xx",
+          "when": "$not($exists(params.repo)) or params.repo = \"\"",
+          "code": "repository-required"
+        },
+        {
+          "status": "4xx",
+          "when": "$not($exists(params.repo)) or params.repo = \"\"",
+          "code": "repository-required"
+        },
+        {
+          "status": 403,
+          "when": "$exists(response.headers.\"retry-after\") or response.headers.\"x-ratelimit-remaining\" = \"0\"",
+          "code": "transient"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors[type = \"RATE_LIMITED\"]",
+          "code": "transient"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors[type in [\"FORBIDDEN\", \"INSUFFICIENT_SCOPES\"]]",
+          "code": "not-authorized"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors and $not($exists(response.body.data) and $boolean(response.body.data))",
+          "code": "invalid"
+        }
+      ],
+      "map": "(\n    $list := response.body.data.repository.refs;\n    $list ? (\n      $found := [$list.nodes.name];\n      {\"names\": $found, \"count\": $count($found), \"total\": $list.totalCount}\n    ) : {\"unavailable\": \"not-found\"}\n  )"
     },
     {
       "id": "app.morelitea.github.list-labels",
@@ -495,6 +730,11 @@
         "installation",
         "member"
       ],
+      "requires": {
+        "all_of": [
+          "workspace"
+        ]
+      },
       "cache_ttl_seconds": 300,
       "params": [
         {
@@ -555,11 +795,56 @@
           }
         }
       ],
-      "requires": {
-        "all_of": [
-          "workspace"
-        ]
-      }
+      "request": {
+        "method": "POST",
+        "url": "\"https://api.github.com/graphql\"",
+        "headers": {
+          "Accept": "\"application/vnd.github+json\"",
+          "X-GitHub-Api-Version": "\"2022-11-28\"",
+          "User-Agent": "\"initiative-github\""
+        },
+        "graphql": {
+          "query": "query Labels($owner: String!, $repo: String!, $first: Int!) { repository(owner: $owner, name: $repo) { labels(first: $first) { totalCount nodes { name } } } }",
+          "variables": "{\"owner\": connection.owner, \"repo\": params.repo, \"first\": 100}"
+        },
+        "connection": "workspace"
+      },
+      "unavailable": [
+        "repository-required"
+      ],
+      "errors": [
+        {
+          "status": "2xx",
+          "when": "$not($exists(params.repo)) or params.repo = \"\"",
+          "code": "repository-required"
+        },
+        {
+          "status": "4xx",
+          "when": "$not($exists(params.repo)) or params.repo = \"\"",
+          "code": "repository-required"
+        },
+        {
+          "status": 403,
+          "when": "$exists(response.headers.\"retry-after\") or response.headers.\"x-ratelimit-remaining\" = \"0\"",
+          "code": "transient"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors[type = \"RATE_LIMITED\"]",
+          "code": "transient"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors[type in [\"FORBIDDEN\", \"INSUFFICIENT_SCOPES\"]]",
+          "code": "not-authorized"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors and $not($exists(response.body.data) and $boolean(response.body.data))",
+          "code": "invalid"
+        }
+      ],
+      "map": "(\n    $list := response.body.data.repository.labels;\n    $list ? (\n      $found := [$list.nodes.name];\n      {\"names\": $found, \"count\": $count($found), \"total\": $list.totalCount}\n    ) : {\"unavailable\": \"not-found\"}\n  )"
     },
     {
       "id": "app.morelitea.github.list-milestones",
@@ -582,6 +867,11 @@
         "installation",
         "member"
       ],
+      "requires": {
+        "all_of": [
+          "workspace"
+        ]
+      },
       "cache_ttl_seconds": 300,
       "params": [
         {
@@ -653,11 +943,56 @@
           }
         }
       ],
-      "requires": {
-        "all_of": [
-          "workspace"
-        ]
-      }
+      "request": {
+        "method": "POST",
+        "url": "\"https://api.github.com/graphql\"",
+        "headers": {
+          "Accept": "\"application/vnd.github+json\"",
+          "X-GitHub-Api-Version": "\"2022-11-28\"",
+          "User-Agent": "\"initiative-github\""
+        },
+        "graphql": {
+          "query": "query Milestones($owner: String!, $repo: String!, $first: Int!) { repository(owner: $owner, name: $repo) { milestones(first: $first, states: [OPEN], orderBy: { field: DUE_DATE, direction: ASC }) { totalCount nodes { number title } } } }",
+          "variables": "{\"owner\": connection.owner, \"repo\": params.repo, \"first\": 100}"
+        },
+        "connection": "workspace"
+      },
+      "unavailable": [
+        "repository-required"
+      ],
+      "errors": [
+        {
+          "status": "2xx",
+          "when": "$not($exists(params.repo)) or params.repo = \"\"",
+          "code": "repository-required"
+        },
+        {
+          "status": "4xx",
+          "when": "$not($exists(params.repo)) or params.repo = \"\"",
+          "code": "repository-required"
+        },
+        {
+          "status": 403,
+          "when": "$exists(response.headers.\"retry-after\") or response.headers.\"x-ratelimit-remaining\" = \"0\"",
+          "code": "transient"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors[type = \"RATE_LIMITED\"]",
+          "code": "transient"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors[type in [\"FORBIDDEN\", \"INSUFFICIENT_SCOPES\"]]",
+          "code": "not-authorized"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors and $not($exists(response.body.data) and $boolean(response.body.data))",
+          "code": "invalid"
+        }
+      ],
+      "map": "(\n    $list := response.body.data.repository.milestones;\n    $found := $list.nodes[$type(number) = \"number\"];\n    $list ? {\n      \"numbers\": [$found.number],\n      \"titles\": [$found.(title ? title : \"\")],\n      \"count\": $count($found),\n      \"total\": $list.totalCount\n    } : {\"unavailable\": \"not-found\"}\n  )"
     },
     {
       "id": "app.morelitea.github.get-issue",
@@ -680,6 +1015,11 @@
         "installation",
         "member"
       ],
+      "requires": {
+        "all_of": [
+          "workspace"
+        ]
+      },
       "cache_ttl_seconds": 0,
       "params": [
         {
@@ -803,11 +1143,67 @@
           }
         }
       ],
-      "requires": {
-        "all_of": [
-          "workspace"
-        ]
-      }
+      "request": {
+        "method": "POST",
+        "url": "\"https://api.github.com/graphql\"",
+        "headers": {
+          "Accept": "\"application/vnd.github+json\"",
+          "X-GitHub-Api-Version": "\"2022-11-28\"",
+          "User-Agent": "\"initiative-github\""
+        },
+        "graphql": {
+          "query": "query Subject($owner: String!, $repo: String!, $number: Int!) { repository(owner: $owner, name: $repo) { name owner { login } issueOrPullRequest(number: $number) { __typename ... on Issue { number title url state createdAt updatedAt closedAt author { login } milestone { title } comments { totalCount } labels(first: 50) { nodes { name } } assignees(first: 20) { nodes { login } } stateReason } ... on PullRequest { number title url state createdAt updatedAt closedAt author { login } milestone { title } comments { totalCount } labels(first: 50) { nodes { name } } assignees(first: 20) { nodes { login } } } } } }",
+          "variables": "{\"owner\": connection.owner, \"repo\": params.repo, \"number\": params.number}"
+        },
+        "connection": "workspace"
+      },
+      "unavailable": [
+        "repository-required",
+        "number-required"
+      ],
+      "errors": [
+        {
+          "status": "2xx",
+          "when": "$not($exists(params.repo)) or params.repo = \"\"",
+          "code": "repository-required"
+        },
+        {
+          "status": "4xx",
+          "when": "$not($exists(params.repo)) or params.repo = \"\"",
+          "code": "repository-required"
+        },
+        {
+          "status": "2xx",
+          "when": "$not($exists(params.number)) or params.number = \"\"",
+          "code": "number-required"
+        },
+        {
+          "status": "4xx",
+          "when": "$not($exists(params.number)) or params.number = \"\"",
+          "code": "number-required"
+        },
+        {
+          "status": 403,
+          "when": "$exists(response.headers.\"retry-after\") or response.headers.\"x-ratelimit-remaining\" = \"0\"",
+          "code": "transient"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors[type = \"RATE_LIMITED\"]",
+          "code": "transient"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors[type in [\"FORBIDDEN\", \"INSUFFICIENT_SCOPES\"]]",
+          "code": "not-authorized"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors and $not($exists(response.body.data) and $boolean(response.body.data))",
+          "code": "invalid"
+        }
+      ],
+      "map": "(\n    $text := function($value) { $type($value) = \"string\" ? $value : null };\n    $repository := response.body.data.repository;\n    $node := $repository.issueOrPullRequest;\n    $node ? $merge([\n      {\n        \"repository\": $repository.name,\n        \"owner\": $repository.owner.login,\n        \"number\": $node.number,\n        \"title\": $text($node.title),\n        \"state\": $node.state ? $lowercase($node.state) : null,\n        \"url\": $text($node.url),\n        \"author\": $text($node.author.login),\n        \"labels\": [$node.labels.nodes.name],\n        \"assignees\": [$node.assignees.nodes.login],\n        \"milestone\": $text($node.milestone.title),\n        \"comments\": $node.comments.totalCount ? $node.comments.totalCount : 0,\n        \"created_at\": $text($node.createdAt),\n        \"updated_at\": $text($node.updatedAt),\n        \"closed_at\": $text($node.closedAt)\n      },\n      {\n      \"state_reason\": $node.stateReason ? $lowercase($node.stateReason) : null,\n      \"is_pull_request\": $node.__typename = \"PullRequest\"\n    }\n    ]) : {\"unavailable\": \"not-found\"}\n  )"
     },
     {
       "id": "app.morelitea.github.find-issues",
@@ -830,6 +1226,11 @@
         "installation",
         "member"
       ],
+      "requires": {
+        "all_of": [
+          "workspace"
+        ]
+      },
       "cache_ttl_seconds": 60,
       "params": [
         {
@@ -1053,11 +1454,56 @@
           }
         }
       ],
-      "requires": {
-        "all_of": [
-          "workspace"
-        ]
-      }
+      "request": {
+        "method": "POST",
+        "url": "\"https://api.github.com/graphql\"",
+        "headers": {
+          "Accept": "\"application/vnd.github+json\"",
+          "X-GitHub-Api-Version": "\"2022-11-28\"",
+          "User-Agent": "\"initiative-github\""
+        },
+        "graphql": {
+          "query": "query Issues($owner: String!, $repo: String!, $first: Int!, $filter: IssueFilters, $order: IssueOrder!) { repository(owner: $owner, name: $repo) { issues(first: $first, filterBy: $filter, orderBy: $order) { totalCount nodes { number title url state createdAt updatedAt closedAt } } } }",
+          "variables": "{\n      \"owner\": connection.owner, \"repo\": params.repo,\n      \"first\": ($exists(params.limit) ? $min([$max([params.limit, 1]), 100]) : 30),\n      \"order\": {\n  \"field\": params.sort = \"updated\" ? \"UPDATED_AT\" : params.sort = \"comments\" ? \"COMMENTS\" : \"CREATED_AT\",\n  \"direction\": params.direction = \"asc\" ? \"ASC\" : \"DESC\"\n},\n      \"filter\": $merge([\n        {\"states\": params.state = \"all\" ? null : params.state = \"closed\" ? [\"CLOSED\"] : [\"OPEN\"]},\n        $count(params.labels) ? {\"labels\": [params.labels]},\n        params.assignee ? {\"assignee\": params.assignee},\n        $exists(params.milestone) ? {\"milestoneNumber\": $string(params.milestone)},\n        ($since := (\n  params.since ? $fromMillis($toMillis(params.since))\n  : params.since_days > 0 ? $fromMillis($millis() - params.since_days * 86400000)\n); $since ? {\"since\": $since})\n      ])\n    }"
+        },
+        "connection": "workspace"
+      },
+      "unavailable": [
+        "repository-required"
+      ],
+      "errors": [
+        {
+          "status": "2xx",
+          "when": "$not($exists(params.repo)) or params.repo = \"\"",
+          "code": "repository-required"
+        },
+        {
+          "status": "4xx",
+          "when": "$not($exists(params.repo)) or params.repo = \"\"",
+          "code": "repository-required"
+        },
+        {
+          "status": 403,
+          "when": "$exists(response.headers.\"retry-after\") or response.headers.\"x-ratelimit-remaining\" = \"0\"",
+          "code": "transient"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors[type = \"RATE_LIMITED\"]",
+          "code": "transient"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors[type in [\"FORBIDDEN\", \"INSUFFICIENT_SCOPES\"]]",
+          "code": "not-authorized"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors and $not($exists(response.body.data) and $boolean(response.body.data))",
+          "code": "invalid"
+        }
+      ],
+      "map": "(\n    $issues := response.body.data.repository.issues;\n    $issues ? (\n    $rows := $issues.nodes[$type($) = \"object\"];\n    {\n      \"numbers\": [$rows.(number ? number : 0)],\n      \"titles\": [$rows.(title ? title : \"\")],\n      \"urls\": [$rows.(url ? url : \"\")],\n      \"states\": [$rows.(state ? $lowercase(state) : \"\")],\n      \"created_at\": [$rows.(createdAt ? createdAt : \"\")],\n      \"updated_at\": [$rows.(updatedAt ? updatedAt : \"\")],\n      \"closed_at\": [$rows.(closedAt ? closedAt : \"\")],\n      \"count\": $count($rows),\n      \"total\": $issues.totalCount\n    }\n  ) : {\"unavailable\": \"not-found\"}\n  )"
     },
     {
       "id": "app.morelitea.github.get-pull-request",
@@ -1080,6 +1526,11 @@
         "installation",
         "member"
       ],
+      "requires": {
+        "all_of": [
+          "workspace"
+        ]
+      },
       "cache_ttl_seconds": 0,
       "params": [
         {
@@ -1229,11 +1680,67 @@
           }
         }
       ],
-      "requires": {
-        "all_of": [
-          "workspace"
-        ]
-      }
+      "request": {
+        "method": "POST",
+        "url": "\"https://api.github.com/graphql\"",
+        "headers": {
+          "Accept": "\"application/vnd.github+json\"",
+          "X-GitHub-Api-Version": "\"2022-11-28\"",
+          "User-Agent": "\"initiative-github\""
+        },
+        "graphql": {
+          "query": "query Pull($owner: String!, $repo: String!, $number: Int!) { repository(owner: $owner, name: $repo) { name owner { login } pullRequest(number: $number) { number title url state createdAt updatedAt closedAt author { login } milestone { title } comments { totalCount } labels(first: 50) { nodes { name } } assignees(first: 20) { nodes { login } } isDraft merged mergedAt headRefName baseRefName changedFiles commits { totalCount } } } }",
+          "variables": "{\"owner\": connection.owner, \"repo\": params.repo, \"number\": params.number}"
+        },
+        "connection": "workspace"
+      },
+      "unavailable": [
+        "repository-required",
+        "number-required"
+      ],
+      "errors": [
+        {
+          "status": "2xx",
+          "when": "$not($exists(params.repo)) or params.repo = \"\"",
+          "code": "repository-required"
+        },
+        {
+          "status": "4xx",
+          "when": "$not($exists(params.repo)) or params.repo = \"\"",
+          "code": "repository-required"
+        },
+        {
+          "status": "2xx",
+          "when": "$not($exists(params.number)) or params.number = \"\"",
+          "code": "number-required"
+        },
+        {
+          "status": "4xx",
+          "when": "$not($exists(params.number)) or params.number = \"\"",
+          "code": "number-required"
+        },
+        {
+          "status": 403,
+          "when": "$exists(response.headers.\"retry-after\") or response.headers.\"x-ratelimit-remaining\" = \"0\"",
+          "code": "transient"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors[type = \"RATE_LIMITED\"]",
+          "code": "transient"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors[type in [\"FORBIDDEN\", \"INSUFFICIENT_SCOPES\"]]",
+          "code": "not-authorized"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors and $not($exists(response.body.data) and $boolean(response.body.data))",
+          "code": "invalid"
+        }
+      ],
+      "map": "(\n    $text := function($value) { $type($value) = \"string\" ? $value : null };\n    $repository := response.body.data.repository;\n    $node := $repository.pullRequest;\n    $node ? $merge([\n      {\n        \"repository\": $repository.name,\n        \"owner\": $repository.owner.login,\n        \"number\": $node.number,\n        \"title\": $text($node.title),\n        \"state\": $node.state ? $lowercase($node.state) : null,\n        \"url\": $text($node.url),\n        \"author\": $text($node.author.login),\n        \"labels\": [$node.labels.nodes.name],\n        \"assignees\": [$node.assignees.nodes.login],\n        \"milestone\": $text($node.milestone.title),\n        \"comments\": $node.comments.totalCount ? $node.comments.totalCount : 0,\n        \"created_at\": $text($node.createdAt),\n        \"updated_at\": $text($node.updatedAt),\n        \"closed_at\": $text($node.closedAt)\n      },\n      {\n      \"merged\": $node.merged = true,\n      \"draft\": $node.isDraft = true,\n      \"head_ref\": $text($node.headRefName),\n      \"base_ref\": $text($node.baseRefName),\n      \"commits\": $node.commits.totalCount ? $node.commits.totalCount : 0,\n      \"changed_files\": $node.changedFiles ? $node.changedFiles : 0,\n      \"merged_at\": $text($node.mergedAt)\n    }\n    ]) : {\"unavailable\": \"not-found\"}\n  )"
     },
     {
       "id": "app.morelitea.github.find-pull-requests",
@@ -1256,6 +1763,11 @@
         "installation",
         "member"
       ],
+      "requires": {
+        "all_of": [
+          "workspace"
+        ]
+      },
       "cache_ttl_seconds": 60,
       "params": [
         {
@@ -1462,12 +1974,351 @@
           }
         }
       ],
+      "request": {
+        "method": "POST",
+        "url": "\"https://api.github.com/graphql\"",
+        "headers": {
+          "Accept": "\"application/vnd.github+json\"",
+          "X-GitHub-Api-Version": "\"2022-11-28\"",
+          "User-Agent": "\"initiative-github\""
+        },
+        "graphql": {
+          "query": "query Search($query: String!, $first: Int!) { search(query: $query, type: ISSUE, first: $first) { issueCount nodes { ... on PullRequest { number title url state createdAt updatedAt closedAt } } } }",
+          "variables": "(\n      $quoted := function($value) { '\"' & $replace($value, '\"', '') & '\"' };\n      {\n        \"query\": $join([\n          \"repo:\" & connection.owner & \"/\" & params.repo,\n          \"is:pr\",\n          params.state = \"closed\" ? \"is:closed is:unmerged\" : params.state = \"merged\" ? \"is:merged\" : $not(params.state = \"all\") ? \"is:open\",\n          params.labels.(\"label:\" & $quoted($)),\n          params.base_ref ? \"base:\" & $quoted(params.base_ref),\n          params.head_ref ? \"head:\" & $quoted(params.head_ref),\n          params.review_requested and ($login := params.review_requested; $length($login) <= 39 and $contains($login, /^[A-Za-z0-9]+(-[A-Za-z0-9]+)*$/)) ? \"review-requested:\" & params.review_requested,\n          \"sort:\" & (params.sort ? params.sort : \"created\") & \"-\" & (params.direction = \"asc\" ? \"asc\" : \"desc\")\n        ], \" \"),\n        \"first\": ($exists(params.limit) ? $min([$max([params.limit, 1]), 100]) : 30)\n      }\n    )"
+        },
+        "connection": "workspace"
+      },
+      "unavailable": [
+        "repository-required",
+        "bad-login"
+      ],
+      "errors": [
+        {
+          "status": "2xx",
+          "when": "$not($exists(params.repo)) or params.repo = \"\"",
+          "code": "repository-required"
+        },
+        {
+          "status": "4xx",
+          "when": "$not($exists(params.repo)) or params.repo = \"\"",
+          "code": "repository-required"
+        },
+        {
+          "status": "2xx",
+          "when": "params.review_requested and $not(($login := params.review_requested; $length($login) <= 39 and $contains($login, /^[A-Za-z0-9]+(-[A-Za-z0-9]+)*$/)))",
+          "code": "bad-login"
+        },
+        {
+          "status": "4xx",
+          "when": "params.review_requested and $not(($login := params.review_requested; $length($login) <= 39 and $contains($login, /^[A-Za-z0-9]+(-[A-Za-z0-9]+)*$/)))",
+          "code": "bad-login"
+        },
+        {
+          "status": 403,
+          "when": "$exists(response.headers.\"retry-after\") or response.headers.\"x-ratelimit-remaining\" = \"0\"",
+          "code": "transient"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors[type = \"RATE_LIMITED\"]",
+          "code": "transient"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors[type in [\"FORBIDDEN\", \"INSUFFICIENT_SCOPES\"]]",
+          "code": "not-authorized"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors and $not($exists(response.body.data) and $boolean(response.body.data))",
+          "code": "invalid"
+        }
+      ],
+      "map": "(\n  $search := response.body.data.search;\n  (\n    $rows := $search.nodes[$type($) = \"object\"];\n    {\n      \"numbers\": [$rows.(number ? number : 0)],\n      \"titles\": [$rows.(title ? title : \"\")],\n      \"urls\": [$rows.(url ? url : \"\")],\n      \"states\": [$rows.(state ? $lowercase(state) : \"\")],\n      \"created_at\": [$rows.(createdAt ? createdAt : \"\")],\n      \"updated_at\": [$rows.(updatedAt ? updatedAt : \"\")],\n      \"closed_at\": [$rows.(closedAt ? closedAt : \"\")],\n      \"count\": $count($rows),\n      \"total\": $search.issueCount\n    }\n  )\n)"
+    },
+    {
+      "id": "app.morelitea.github.review-queue",
+      "direction": "read",
+      "label": {
+        "en": "Waiting on your review",
+        "de": "Wartet auf deine Review",
+        "es": "Esperando tu revisión",
+        "fr": "En attente de votre revue"
+      },
+      "description": {
+        "en": "The pull requests in a repository that asked for the member's review.",
+        "de": "Die Pull Requests eines Repositories, die die Review des Mitglieds angefragt haben.",
+        "es": "Las pull requests de un repositorio que pidieron la revisión del miembro.",
+        "fr": "Les pull requests d'un dépôt qui ont demandé la revue du membre."
+      },
+      "group": "reviews",
+      "public": true,
+      "actors": [
+        "member"
+      ],
       "requires": {
-        "any_of": [
+        "all_of": [
           "workspace",
           "account"
         ]
-      }
+      },
+      "cache_ttl_seconds": 60,
+      "params": [
+        {
+          "key": "repo",
+          "type": "string",
+          "label": {
+            "en": "Repository",
+            "de": "Repository",
+            "es": "Repositorio",
+            "fr": "Dépôt"
+          },
+          "options_from": {
+            "endpoint": "app.morelitea.github.list-repositories",
+            "key": "names"
+          }
+        },
+        {
+          "key": "state",
+          "type": "select",
+          "label": {
+            "en": "State",
+            "de": "Status",
+            "es": "Estado",
+            "fr": "État"
+          },
+          "options": [
+            "open",
+            "closed",
+            "merged",
+            "all"
+          ]
+        },
+        {
+          "key": "labels",
+          "type": "string",
+          "label": {
+            "en": "Labels",
+            "de": "Labels",
+            "es": "Etiquetas",
+            "fr": "Étiquettes"
+          },
+          "list": true,
+          "options_from": {
+            "endpoint": "app.morelitea.github.list-labels",
+            "key": "names",
+            "needs": {
+              "repo": "repo"
+            }
+          }
+        },
+        {
+          "key": "base_ref",
+          "type": "string",
+          "label": {
+            "en": "Into branch",
+            "de": "Nach Branch",
+            "es": "Hacia la rama",
+            "fr": "Vers la branche"
+          }
+        },
+        {
+          "key": "head_ref",
+          "type": "string",
+          "label": {
+            "en": "From branch",
+            "de": "Von Branch",
+            "es": "Desde la rama",
+            "fr": "Depuis la branche"
+          }
+        },
+        {
+          "key": "sort",
+          "type": "select",
+          "label": {
+            "en": "Order by",
+            "de": "Sortieren nach",
+            "es": "Ordenar por",
+            "fr": "Trier par"
+          },
+          "options": [
+            "created",
+            "updated",
+            "comments"
+          ]
+        },
+        {
+          "key": "direction",
+          "type": "select",
+          "label": {
+            "en": "Order",
+            "de": "Reihenfolge",
+            "es": "Orden",
+            "fr": "Ordre"
+          },
+          "options": [
+            "desc",
+            "asc"
+          ]
+        },
+        {
+          "key": "limit",
+          "type": "int",
+          "label": {
+            "en": "How many",
+            "de": "Wie viele",
+            "es": "Cuántos",
+            "fr": "Combien"
+          }
+        }
+      ],
+      "returns": [
+        {
+          "key": "numbers",
+          "type": "int",
+          "list": true
+        },
+        {
+          "key": "titles",
+          "type": "string",
+          "list": true
+        },
+        {
+          "key": "urls",
+          "type": "url",
+          "list": true
+        },
+        {
+          "key": "states",
+          "type": "string",
+          "list": true
+        },
+        {
+          "key": "created_at",
+          "type": "string",
+          "label": {
+            "en": "Opened",
+            "de": "Geöffnet",
+            "es": "Abierta",
+            "fr": "Ouvert"
+          },
+          "list": true
+        },
+        {
+          "key": "updated_at",
+          "type": "string",
+          "label": {
+            "en": "Last updated",
+            "de": "Zuletzt aktualisiert",
+            "es": "Última actualización",
+            "fr": "Dernière mise à jour"
+          },
+          "list": true
+        },
+        {
+          "key": "closed_at",
+          "type": "string",
+          "list": true
+        },
+        {
+          "key": "count",
+          "type": "int",
+          "label": {
+            "en": "How many",
+            "de": "Wie viele",
+            "es": "Cuántos",
+            "fr": "Combien"
+          }
+        },
+        {
+          "key": "total",
+          "type": "int",
+          "label": {
+            "en": "How many in all",
+            "de": "Wie viele insgesamt",
+            "es": "Cuántos en total",
+            "fr": "Combien en tout"
+          }
+        },
+        {
+          "key": "unavailable",
+          "type": "string",
+          "label": {
+            "en": "Why there is no answer",
+            "de": "Warum es keine Antwort gibt",
+            "es": "Por qué no hay respuesta",
+            "fr": "Pourquoi il n'y a pas de réponse"
+          }
+        }
+      ],
+      "steps": [
+        {
+          "name": "repository",
+          "request": {
+            "method": "GET",
+            "url": "\"https://api.github.com\" & \"/repos/\" & connection.owner & \"/\" & params.repo",
+            "headers": {
+              "Accept": "\"application/vnd.github+json\"",
+              "X-GitHub-Api-Version": "\"2022-11-28\"",
+              "User-Agent": "\"initiative-github\""
+            },
+            "connection": "workspace"
+          }
+        },
+        {
+          "name": "search",
+          "request": {
+            "method": "POST",
+            "url": "\"https://api.github.com/graphql\"",
+            "headers": {
+              "Accept": "\"application/vnd.github+json\"",
+              "X-GitHub-Api-Version": "\"2022-11-28\"",
+              "User-Agent": "\"initiative-github\""
+            },
+            "graphql": {
+              "query": "query Search($query: String!, $first: Int!) { search(query: $query, type: ISSUE, first: $first) { issueCount nodes { ... on PullRequest { number title url state createdAt updatedAt closedAt } } } }",
+              "variables": "(\n      $quoted := function($value) { '\"' & $replace($value, '\"', '') & '\"' };\n      {\n        \"query\": $join([\n          \"repo:\" & steps.repository.body.full_name,\n          \"is:pr\",\n          params.state = \"closed\" ? \"is:closed is:unmerged\" : params.state = \"merged\" ? \"is:merged\" : $not(params.state = \"all\") ? \"is:open\",\n          params.labels.(\"label:\" & $quoted($)),\n          params.base_ref ? \"base:\" & $quoted(params.base_ref),\n          params.head_ref ? \"head:\" & $quoted(params.head_ref),\n          \"review-requested:@me\",\n          \"sort:\" & (params.sort ? params.sort : \"created\") & \"-\" & (params.direction = \"asc\" ? \"asc\" : \"desc\")\n        ], \" \"),\n        \"first\": ($exists(params.limit) ? $min([$max([params.limit, 1]), 100]) : 30)\n      }\n    )"
+            },
+            "connection": "account"
+          }
+        }
+      ],
+      "unavailable": [
+        "repository-required"
+      ],
+      "errors": [
+        {
+          "status": "2xx",
+          "when": "$not($exists(params.repo)) or params.repo = \"\"",
+          "code": "repository-required"
+        },
+        {
+          "status": "4xx",
+          "when": "$not($exists(params.repo)) or params.repo = \"\"",
+          "code": "repository-required"
+        },
+        {
+          "status": 403,
+          "when": "$exists(response.headers.\"retry-after\") or response.headers.\"x-ratelimit-remaining\" = \"0\"",
+          "code": "transient"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors[type = \"RATE_LIMITED\"]",
+          "code": "transient"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors[type in [\"FORBIDDEN\", \"INSUFFICIENT_SCOPES\"]]",
+          "code": "not-authorized"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors and $not($exists(response.body.data) and $boolean(response.body.data))",
+          "code": "invalid"
+        }
+      ],
+      "map": "(\n  $search := response.body.data.search;\n  (\n    $rows := $search.nodes[$type($) = \"object\"];\n    {\n      \"numbers\": [$rows.(number ? number : 0)],\n      \"titles\": [$rows.(title ? title : \"\")],\n      \"urls\": [$rows.(url ? url : \"\")],\n      \"states\": [$rows.(state ? $lowercase(state) : \"\")],\n      \"created_at\": [$rows.(createdAt ? createdAt : \"\")],\n      \"updated_at\": [$rows.(updatedAt ? updatedAt : \"\")],\n      \"closed_at\": [$rows.(closedAt ? closedAt : \"\")],\n      \"count\": $count($rows),\n      \"total\": $search.issueCount\n    }\n  )\n)"
     },
     {
       "id": "app.morelitea.github.list-alerts",
@@ -1490,6 +2341,11 @@
         "installation",
         "member"
       ],
+      "requires": {
+        "all_of": [
+          "workspace"
+        ]
+      },
       "cache_ttl_seconds": 300,
       "params": [
         {
@@ -1569,11 +2425,56 @@
           }
         }
       ],
-      "requires": {
-        "all_of": [
-          "workspace"
-        ]
-      }
+      "request": {
+        "method": "POST",
+        "url": "\"https://api.github.com/graphql\"",
+        "headers": {
+          "Accept": "\"application/vnd.github+json\"",
+          "X-GitHub-Api-Version": "\"2022-11-28\"",
+          "User-Agent": "\"initiative-github\""
+        },
+        "graphql": {
+          "query": "query Alerts($owner: String!, $repo: String!, $first: Int!) { repository(owner: $owner, name: $repo) { name owner { login } vulnerabilityAlerts(first: $first, states: [OPEN]) { totalCount nodes { number securityVulnerability { severity package { name } } } } } }",
+          "variables": "{\"owner\": connection.owner, \"repo\": params.repo, \"first\": 100}"
+        },
+        "connection": "workspace"
+      },
+      "unavailable": [
+        "repository-required"
+      ],
+      "errors": [
+        {
+          "status": "2xx",
+          "when": "$not($exists(params.repo)) or params.repo = \"\"",
+          "code": "repository-required"
+        },
+        {
+          "status": "4xx",
+          "when": "$not($exists(params.repo)) or params.repo = \"\"",
+          "code": "repository-required"
+        },
+        {
+          "status": 403,
+          "when": "$exists(response.headers.\"retry-after\") or response.headers.\"x-ratelimit-remaining\" = \"0\"",
+          "code": "transient"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors[type = \"RATE_LIMITED\"]",
+          "code": "transient"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors[type in [\"FORBIDDEN\", \"INSUFFICIENT_SCOPES\"]]",
+          "code": "not-authorized"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors and $not($exists(response.body.data) and $boolean(response.body.data))",
+          "code": "invalid"
+        }
+      ],
+      "map": "(\n    $repository := response.body.data.repository;\n    $found := $repository.vulnerabilityAlerts;\n    $page := \"https://github.com/\" & $repository.owner.login & \"/\" & $repository.name & \"/security/dependabot\";\n    $alerts := $found.nodes[$type($) = \"object\"];\n    $found ? {\n      \"numbers\": [$alerts.(number ? number : 0)],\n      \"severities\": [$alerts.(\n        $severity := securityVulnerability.severity ? $lowercase(securityVulnerability.severity) : \"\";\n        $severity = \"moderate\" ? \"medium\" : $severity\n      )],\n      \"packages\": [$alerts.(securityVulnerability.package.name ? securityVulnerability.package.name : \"\")],\n      \"urls\": [$alerts.($page & \"/\" & (number ? number : \"\"))],\n      \"count\": $count($alerts),\n      \"total\": $found.totalCount,\n      \"url\": $page\n    } : {\"unavailable\": \"not-found\"}\n  )"
     },
     {
       "id": "app.morelitea.github.list-projects",
@@ -1596,6 +2497,11 @@
         "installation",
         "member"
       ],
+      "requires": {
+        "all_of": [
+          "workspace"
+        ]
+      },
       "cache_ttl_seconds": 300,
       "returns": [
         {
@@ -1655,11 +2561,43 @@
           }
         }
       ],
-      "requires": {
-        "all_of": [
-          "workspace"
-        ]
-      }
+      "request": {
+        "method": "POST",
+        "url": "\"https://api.github.com/graphql\"",
+        "headers": {
+          "Accept": "\"application/vnd.github+json\"",
+          "X-GitHub-Api-Version": "\"2022-11-28\"",
+          "User-Agent": "\"initiative-github\""
+        },
+        "graphql": {
+          "query": "query Boards($login: String!, $first: Int!) { repositoryOwner(login: $login) { ... on Organization { projectsV2(first: $first) { totalCount nodes { id title number url } } } ... on User { projectsV2(first: $first) { totalCount nodes { id title number url } } } } }",
+          "variables": "{\"login\": connection.owner, \"first\": 100}"
+        },
+        "connection": "workspace"
+      },
+      "errors": [
+        {
+          "status": 403,
+          "when": "$exists(response.headers.\"retry-after\") or response.headers.\"x-ratelimit-remaining\" = \"0\"",
+          "code": "transient"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors[type = \"RATE_LIMITED\"]",
+          "code": "transient"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors[type in [\"FORBIDDEN\", \"INSUFFICIENT_SCOPES\"]]",
+          "code": "not-authorized"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors and $not($exists(response.body.data) and $boolean(response.body.data))",
+          "code": "invalid"
+        }
+      ],
+      "map": "(\n    $found := response.body.data.repositoryOwner.projectsV2;\n    $boards := $found.nodes[$type(id) = \"string\"];\n    $found ? {\n      \"ids\": [$boards.id],\n      \"titles\": [$boards.(title ? title : \"\")],\n      \"numbers\": [$boards.(number ? number : 0)],\n      \"urls\": [$boards.(url ? url : \"\")],\n      \"count\": $count($boards),\n      \"total\": $found.totalCount\n    } : {\"unavailable\": \"not-found\"}\n  )"
     },
     {
       "id": "app.morelitea.github.list-project-fields",
@@ -1682,6 +2620,11 @@
         "installation",
         "member"
       ],
+      "requires": {
+        "all_of": [
+          "workspace"
+        ]
+      },
       "cache_ttl_seconds": 300,
       "params": [
         {
@@ -1744,11 +2687,58 @@
           }
         }
       ],
-      "requires": {
-        "all_of": [
-          "workspace"
-        ]
-      }
+      "request": {
+        "method": "POST",
+        "url": "\"https://api.github.com/graphql\"",
+        "headers": {
+          "Accept": "\"application/vnd.github+json\"",
+          "X-GitHub-Api-Version": "\"2022-11-28\"",
+          "User-Agent": "\"initiative-github\""
+        },
+        "graphql": {
+          "query": "query Fields($project: ID!, $first: Int!) { node(id: $project) { ... on ProjectV2 { owner { ... on Organization { login } ... on User { login } } fields(first: $first) { nodes { ... on ProjectV2SingleSelectField { id name options { id name } } } } } } }",
+          "variables": "{\"project\": params.project_id, \"first\": 100}"
+        },
+        "connection": "workspace"
+      },
+      "unavailable": [
+        "project-required",
+        "no-such-project",
+        "project-not-listed"
+      ],
+      "errors": [
+        {
+          "status": "2xx",
+          "when": "$not($exists(params.project_id)) or params.project_id = \"\"",
+          "code": "project-required"
+        },
+        {
+          "status": "4xx",
+          "when": "$not($exists(params.project_id)) or params.project_id = \"\"",
+          "code": "project-required"
+        },
+        {
+          "status": 403,
+          "when": "$exists(response.headers.\"retry-after\") or response.headers.\"x-ratelimit-remaining\" = \"0\"",
+          "code": "transient"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors[type = \"RATE_LIMITED\"]",
+          "code": "transient"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors[type in [\"FORBIDDEN\", \"INSUFFICIENT_SCOPES\"]]",
+          "code": "not-authorized"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors and $not($exists(response.body.data) and $boolean(response.body.data))",
+          "code": "invalid"
+        }
+      ],
+      "map": "(\n    $board := response.body.data.node;\n    $fields := $board.fields.nodes[$type(id) = \"string\"];\n    $owned := $type($board.owner.login) = \"string\" and $lowercase($board.owner.login) = $lowercase(connection.owner);\n    $board.fields ? ($owned ? {\"ids\": [$fields.id], \"names\": [$fields.(name ? name : \"\")], \"count\": $count($fields)} : {\"unavailable\": \"project-not-listed\"}) : {\"unavailable\": \"no-such-project\"}\n  )"
     },
     {
       "id": "app.morelitea.github.list-project-options",
@@ -1771,6 +2761,11 @@
         "installation",
         "member"
       ],
+      "requires": {
+        "all_of": [
+          "workspace"
+        ]
+      },
       "cache_ttl_seconds": 300,
       "params": [
         {
@@ -1849,11 +2844,70 @@
           }
         }
       ],
-      "requires": {
-        "all_of": [
-          "workspace"
-        ]
-      }
+      "request": {
+        "method": "POST",
+        "url": "\"https://api.github.com/graphql\"",
+        "headers": {
+          "Accept": "\"application/vnd.github+json\"",
+          "X-GitHub-Api-Version": "\"2022-11-28\"",
+          "User-Agent": "\"initiative-github\""
+        },
+        "graphql": {
+          "query": "query Fields($project: ID!, $first: Int!) { node(id: $project) { ... on ProjectV2 { owner { ... on Organization { login } ... on User { login } } fields(first: $first) { nodes { ... on ProjectV2SingleSelectField { id name options { id name } } } } } } }",
+          "variables": "{\"project\": params.project_id, \"first\": 100}"
+        },
+        "connection": "workspace"
+      },
+      "unavailable": [
+        "field-required",
+        "project-required",
+        "no-such-project",
+        "project-not-listed",
+        "no-such-field"
+      ],
+      "errors": [
+        {
+          "status": "2xx",
+          "when": "$not($exists(params.field)) or params.field = \"\"",
+          "code": "field-required"
+        },
+        {
+          "status": "4xx",
+          "when": "$not($exists(params.field)) or params.field = \"\"",
+          "code": "field-required"
+        },
+        {
+          "status": "2xx",
+          "when": "$not($exists(params.project_id)) or params.project_id = \"\"",
+          "code": "project-required"
+        },
+        {
+          "status": "4xx",
+          "when": "$not($exists(params.project_id)) or params.project_id = \"\"",
+          "code": "project-required"
+        },
+        {
+          "status": 403,
+          "when": "$exists(response.headers.\"retry-after\") or response.headers.\"x-ratelimit-remaining\" = \"0\"",
+          "code": "transient"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors[type = \"RATE_LIMITED\"]",
+          "code": "transient"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors[type in [\"FORBIDDEN\", \"INSUFFICIENT_SCOPES\"]]",
+          "code": "not-authorized"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors and $not($exists(response.body.data) and $boolean(response.body.data))",
+          "code": "invalid"
+        }
+      ],
+      "map": "(\n    $board := response.body.data.node;\n    $fields := $board.fields.nodes[$type(id) = \"string\"];\n    $owned := $type($board.owner.login) = \"string\" and $lowercase($board.owner.login) = $lowercase(connection.owner);\n    $board.fields ? ($owned ? (\n    $wanted := params.field;\n    $field := $fields[id = $wanted or $lowercase(name) = $lowercase($wanted)][0];\n    $options := $field.options[$type(id) = \"string\"];\n    $field ? {\n      \"field_id\": $field.id,\n      \"field_name\": $field.name ? $field.name : \"\",\n      \"option_ids\": [$options.id],\n      \"option_names\": [$options.(name ? name : \"\")]\n    } : {\"unavailable\": \"no-such-field\"}\n  ) : {\"unavailable\": \"project-not-listed\"}) : {\"unavailable\": \"no-such-project\"}\n  )"
     },
     {
       "id": "app.morelitea.github.find-project-item",
@@ -1876,6 +2930,11 @@
         "installation",
         "member"
       ],
+      "requires": {
+        "all_of": [
+          "workspace"
+        ]
+      },
       "cache_ttl_seconds": 0,
       "params": [
         {
@@ -1952,11 +3011,79 @@
           }
         }
       ],
-      "requires": {
-        "all_of": [
-          "workspace"
-        ]
-      }
+      "request": {
+        "method": "POST",
+        "url": "\"https://api.github.com/graphql\"",
+        "headers": {
+          "Accept": "\"application/vnd.github+json\"",
+          "X-GitHub-Api-Version": "\"2022-11-28\"",
+          "User-Agent": "\"initiative-github\""
+        },
+        "graphql": {
+          "query": "query Card($owner: String!, $repo: String!, $number: Int!, $first: Int!) { repository(owner: $owner, name: $repo) { name owner { login } issueOrPullRequest(number: $number) { ... on Issue { projectItems(first: $first) { nodes { id project { id } } } } ... on PullRequest { projectItems(first: $first) { nodes { id project { id } } } } } } }",
+          "variables": "{\"owner\": connection.owner, \"repo\": params.repo, \"number\": params.number, \"first\": 100}"
+        },
+        "connection": "workspace"
+      },
+      "unavailable": [
+        "repository-required",
+        "project-required",
+        "number-required",
+        "not-on-that-board"
+      ],
+      "errors": [
+        {
+          "status": "2xx",
+          "when": "$not($exists(params.repo)) or params.repo = \"\"",
+          "code": "repository-required"
+        },
+        {
+          "status": "4xx",
+          "when": "$not($exists(params.repo)) or params.repo = \"\"",
+          "code": "repository-required"
+        },
+        {
+          "status": "2xx",
+          "when": "$not($exists(params.project_id)) or params.project_id = \"\"",
+          "code": "project-required"
+        },
+        {
+          "status": "4xx",
+          "when": "$not($exists(params.project_id)) or params.project_id = \"\"",
+          "code": "project-required"
+        },
+        {
+          "status": "2xx",
+          "when": "$not($exists(params.number)) or params.number = \"\"",
+          "code": "number-required"
+        },
+        {
+          "status": "4xx",
+          "when": "$not($exists(params.number)) or params.number = \"\"",
+          "code": "number-required"
+        },
+        {
+          "status": 403,
+          "when": "$exists(response.headers.\"retry-after\") or response.headers.\"x-ratelimit-remaining\" = \"0\"",
+          "code": "transient"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors[type = \"RATE_LIMITED\"]",
+          "code": "transient"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors[type in [\"FORBIDDEN\", \"INSUFFICIENT_SCOPES\"]]",
+          "code": "not-authorized"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors and $not($exists(response.body.data) and $boolean(response.body.data))",
+          "code": "invalid"
+        }
+      ],
+      "map": "(\n    $repository := response.body.data.repository;\n    $item := $repository.issueOrPullRequest;\n    $wanted := params.project_id;\n    $card := $item.projectItems.nodes[$type(id) = \"string\" and project.id = $wanted][0];\n    $item ? (\n      $card ? {\"item_id\": $card.id, \"repository\": $repository.name, \"owner\": $repository.owner.login, \"number\": params.number}\n      : {\"unavailable\": \"not-on-that-board\"}\n    ) : {\"unavailable\": \"not-found\"}\n  )"
     },
     {
       "id": "app.morelitea.github.open-issue",
@@ -2093,7 +3220,59 @@
           "repository",
           "number"
         ]
-      }
+      },
+      "steps": [
+        {
+          "name": "repository",
+          "request": {
+            "method": "GET",
+            "url": "\"https://api.github.com\" & \"/repos/\" & connection.owner & \"/\" & params.repo",
+            "headers": {
+              "Accept": "\"application/vnd.github+json\"",
+              "X-GitHub-Api-Version": "\"2022-11-28\"",
+              "User-Agent": "\"initiative-github\""
+            },
+            "connection": "workspace"
+          }
+        },
+        {
+          "name": "change",
+          "request": {
+            "method": "POST",
+            "url": "\"https://api.github.com\" & \"/repos/\" & steps.repository.body.full_name & \"/issues\"",
+            "headers": {
+              "Accept": "\"application/vnd.github+json\"",
+              "X-GitHub-Api-Version": "\"2022-11-28\"",
+              "User-Agent": "\"initiative-github\""
+            },
+            "connection": "account",
+            "body": "$merge([\n        {\"title\": params.title},\n        params.body ? {\"body\": params.body},\n        $count(params.labels) ? {\"labels\": [params.labels]},\n        $count(params.assignees) ? {\"assignees\": [params.assignees]}\n      ])"
+          }
+        }
+      ],
+      "errors": [
+        {
+          "status": 403,
+          "when": "$exists(response.headers.\"retry-after\") or response.headers.\"x-ratelimit-remaining\" = \"0\"",
+          "code": "transient"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors[type = \"RATE_LIMITED\"]",
+          "code": "transient"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors[type in [\"FORBIDDEN\", \"INSUFFICIENT_SCOPES\"]]",
+          "code": "not-authorized"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors and $not($exists(response.body.data) and $boolean(response.body.data))",
+          "code": "invalid"
+        }
+      ],
+      "map": "{\n    \"repository\": steps.repository.body.name,\n    \"number\": response.body.number,\n    \"html_url\": response.body.html_url,\n    \"id\": response.body.id\n  }"
     },
     {
       "id": "app.morelitea.github.comment",
@@ -2194,7 +3373,59 @@
           "repository",
           "number"
         ]
-      }
+      },
+      "steps": [
+        {
+          "name": "repository",
+          "request": {
+            "method": "GET",
+            "url": "\"https://api.github.com\" & \"/repos/\" & connection.owner & \"/\" & params.repo",
+            "headers": {
+              "Accept": "\"application/vnd.github+json\"",
+              "X-GitHub-Api-Version": "\"2022-11-28\"",
+              "User-Agent": "\"initiative-github\""
+            },
+            "connection": "workspace"
+          }
+        },
+        {
+          "name": "change",
+          "request": {
+            "method": "POST",
+            "url": "\"https://api.github.com\" & \"/repos/\" & steps.repository.body.full_name & \"/issues/\" & params.number & \"/comments\"",
+            "headers": {
+              "Accept": "\"application/vnd.github+json\"",
+              "X-GitHub-Api-Version": "\"2022-11-28\"",
+              "User-Agent": "\"initiative-github\""
+            },
+            "connection": "account",
+            "body": "{\"body\": params.body}"
+          }
+        }
+      ],
+      "errors": [
+        {
+          "status": 403,
+          "when": "$exists(response.headers.\"retry-after\") or response.headers.\"x-ratelimit-remaining\" = \"0\"",
+          "code": "transient"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors[type = \"RATE_LIMITED\"]",
+          "code": "transient"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors[type in [\"FORBIDDEN\", \"INSUFFICIENT_SCOPES\"]]",
+          "code": "not-authorized"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors and $not($exists(response.body.data) and $boolean(response.body.data))",
+          "code": "invalid"
+        }
+      ],
+      "map": "{\n    \"repository\": steps.repository.body.name,\n    \"number\": params.number,\n    \"id\": response.body.id,\n    \"html_url\": response.body.html_url\n  }"
     },
     {
       "id": "app.morelitea.github.close-issue",
@@ -2292,7 +3523,59 @@
           "repository",
           "number"
         ]
-      }
+      },
+      "steps": [
+        {
+          "name": "repository",
+          "request": {
+            "method": "GET",
+            "url": "\"https://api.github.com\" & \"/repos/\" & connection.owner & \"/\" & params.repo",
+            "headers": {
+              "Accept": "\"application/vnd.github+json\"",
+              "X-GitHub-Api-Version": "\"2022-11-28\"",
+              "User-Agent": "\"initiative-github\""
+            },
+            "connection": "workspace"
+          }
+        },
+        {
+          "name": "change",
+          "request": {
+            "method": "PATCH",
+            "url": "\"https://api.github.com\" & \"/repos/\" & steps.repository.body.full_name & \"/issues/\" & params.number",
+            "headers": {
+              "Accept": "\"application/vnd.github+json\"",
+              "X-GitHub-Api-Version": "\"2022-11-28\"",
+              "User-Agent": "\"initiative-github\""
+            },
+            "connection": "account",
+            "body": "$merge([{\"state\": \"closed\"}, params.reason in [\"completed\", \"not_planned\"] ? {\"state_reason\": params.reason}])"
+          }
+        }
+      ],
+      "errors": [
+        {
+          "status": 403,
+          "when": "$exists(response.headers.\"retry-after\") or response.headers.\"x-ratelimit-remaining\" = \"0\"",
+          "code": "transient"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors[type = \"RATE_LIMITED\"]",
+          "code": "transient"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors[type in [\"FORBIDDEN\", \"INSUFFICIENT_SCOPES\"]]",
+          "code": "not-authorized"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors and $not($exists(response.body.data) and $boolean(response.body.data))",
+          "code": "invalid"
+        }
+      ],
+      "map": "{\n      \"repository\": steps.repository.body.name,\n      \"number\": response.body.number,\n      \"state\": response.body.state,\n      \"html_url\": response.body.html_url\n    }"
     },
     {
       "id": "app.morelitea.github.reopen-issue",
@@ -2376,7 +3659,59 @@
           "repository",
           "number"
         ]
-      }
+      },
+      "steps": [
+        {
+          "name": "repository",
+          "request": {
+            "method": "GET",
+            "url": "\"https://api.github.com\" & \"/repos/\" & connection.owner & \"/\" & params.repo",
+            "headers": {
+              "Accept": "\"application/vnd.github+json\"",
+              "X-GitHub-Api-Version": "\"2022-11-28\"",
+              "User-Agent": "\"initiative-github\""
+            },
+            "connection": "workspace"
+          }
+        },
+        {
+          "name": "change",
+          "request": {
+            "method": "PATCH",
+            "url": "\"https://api.github.com\" & \"/repos/\" & steps.repository.body.full_name & \"/issues/\" & params.number",
+            "headers": {
+              "Accept": "\"application/vnd.github+json\"",
+              "X-GitHub-Api-Version": "\"2022-11-28\"",
+              "User-Agent": "\"initiative-github\""
+            },
+            "connection": "account",
+            "body": "{\"state\": \"open\"}"
+          }
+        }
+      ],
+      "errors": [
+        {
+          "status": 403,
+          "when": "$exists(response.headers.\"retry-after\") or response.headers.\"x-ratelimit-remaining\" = \"0\"",
+          "code": "transient"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors[type = \"RATE_LIMITED\"]",
+          "code": "transient"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors[type in [\"FORBIDDEN\", \"INSUFFICIENT_SCOPES\"]]",
+          "code": "not-authorized"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors and $not($exists(response.body.data) and $boolean(response.body.data))",
+          "code": "invalid"
+        }
+      ],
+      "map": "{\n      \"repository\": steps.repository.body.name,\n      \"number\": response.body.number,\n      \"state\": response.body.state,\n      \"html_url\": response.body.html_url\n    }"
     },
     {
       "id": "app.morelitea.github.label",
@@ -2482,7 +3817,64 @@
           "repository",
           "number"
         ]
-      }
+      },
+      "steps": [
+        {
+          "name": "issue",
+          "request": {
+            "method": "GET",
+            "url": "\"https://api.github.com\" & \"/repos/\" & connection.owner & \"/\" & params.repo & \"/issues/\" & params.number",
+            "headers": {
+              "Accept": "\"application/vnd.github+json\"",
+              "X-GitHub-Api-Version": "\"2022-11-28\"",
+              "User-Agent": "\"initiative-github\""
+            },
+            "connection": "workspace"
+          }
+        },
+        {
+          "name": "labels",
+          "request": {
+            "method": "PUT",
+            "url": "\"https://api.github.com\" & \"/repos/\" & $substringAfter(steps.issue.body.repository_url, \"/repos/\") & \"/issues/\" & params.number & \"/labels\"",
+            "headers": {
+              "Accept": "\"application/vnd.github+json\"",
+              "X-GitHub-Api-Version": "\"2022-11-28\"",
+              "User-Agent": "\"initiative-github\""
+            },
+            "connection": "account",
+            "body": "(\n          $add := [params.add];\n          $gone := [params.remove.$lowercase($), $add.$lowercase($)];\n          {\"labels\": [steps.issue.body.labels.name[$not($lowercase($) in $gone)], $distinct($add)]}\n        )"
+          }
+        }
+      ],
+      "errors": [
+        {
+          "status": "2xx",
+          "when": "$count(params.add) + $count(params.remove) = 0",
+          "code": "invalid"
+        },
+        {
+          "status": 403,
+          "when": "$exists(response.headers.\"retry-after\") or response.headers.\"x-ratelimit-remaining\" = \"0\"",
+          "code": "transient"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors[type = \"RATE_LIMITED\"]",
+          "code": "transient"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors[type in [\"FORBIDDEN\", \"INSUFFICIENT_SCOPES\"]]",
+          "code": "not-authorized"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors and $not($exists(response.body.data) and $boolean(response.body.data))",
+          "code": "invalid"
+        }
+      ],
+      "map": "{\"repository\": $split(steps.issue.body.repository_url, \"/\")[-1], \"number\": params.number}"
     },
     {
       "id": "app.morelitea.github.request-review",
@@ -2591,7 +3983,59 @@
           "repository",
           "number"
         ]
-      }
+      },
+      "steps": [
+        {
+          "name": "repository",
+          "request": {
+            "method": "GET",
+            "url": "\"https://api.github.com\" & \"/repos/\" & connection.owner & \"/\" & params.repo",
+            "headers": {
+              "Accept": "\"application/vnd.github+json\"",
+              "X-GitHub-Api-Version": "\"2022-11-28\"",
+              "User-Agent": "\"initiative-github\""
+            },
+            "connection": "workspace"
+          }
+        },
+        {
+          "name": "change",
+          "request": {
+            "method": "POST",
+            "url": "\"https://api.github.com\" & \"/repos/\" & steps.repository.body.full_name & \"/pulls/\" & params.number & \"/requested_reviewers\"",
+            "headers": {
+              "Accept": "\"application/vnd.github+json\"",
+              "X-GitHub-Api-Version": "\"2022-11-28\"",
+              "User-Agent": "\"initiative-github\""
+            },
+            "connection": "account",
+            "body": "$merge([\n        $count(params.reviewers) ? {\"reviewers\": [params.reviewers]},\n        $count(params.team_reviewers) ? {\"team_reviewers\": [params.team_reviewers]}\n      ])"
+          }
+        }
+      ],
+      "errors": [
+        {
+          "status": 403,
+          "when": "$exists(response.headers.\"retry-after\") or response.headers.\"x-ratelimit-remaining\" = \"0\"",
+          "code": "transient"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors[type = \"RATE_LIMITED\"]",
+          "code": "transient"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors[type in [\"FORBIDDEN\", \"INSUFFICIENT_SCOPES\"]]",
+          "code": "not-authorized"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors and $not($exists(response.body.data) and $boolean(response.body.data))",
+          "code": "invalid"
+        }
+      ],
+      "map": "{\"repository\": steps.repository.body.name, \"number\": params.number, \"html_url\": response.body.html_url}"
     },
     {
       "id": "app.morelitea.github.move-project-item",
@@ -2700,7 +4144,44 @@
         "key": [
           "item_id"
         ]
-      }
+      },
+      "request": {
+        "method": "POST",
+        "url": "\"https://api.github.com/graphql\"",
+        "headers": {
+          "Accept": "\"application/vnd.github+json\"",
+          "X-GitHub-Api-Version": "\"2022-11-28\"",
+          "User-Agent": "\"initiative-github\""
+        },
+        "graphql": {
+          "query": "mutation Move($project: ID!, $item: ID!, $field: ID!, $option: String!) { updateProjectV2ItemFieldValue(input: { projectId: $project, itemId: $item, fieldId: $field, value: { singleSelectOptionId: $option } }) { projectV2Item { id } } }",
+          "variables": "{\"project\": params.project_id, \"item\": params.item_id, \"field\": params.field_id, \"option\": params.option_id}"
+        },
+        "connection": "account"
+      },
+      "errors": [
+        {
+          "status": 403,
+          "when": "$exists(response.headers.\"retry-after\") or response.headers.\"x-ratelimit-remaining\" = \"0\"",
+          "code": "transient"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors[type = \"RATE_LIMITED\"]",
+          "code": "transient"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors[type in [\"FORBIDDEN\", \"INSUFFICIENT_SCOPES\"]]",
+          "code": "not-authorized"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors and $not($exists(response.body.data) and $boolean(response.body.data))",
+          "code": "invalid"
+        }
+      ],
+      "map": "(\n    $moved := response.body.data.updateProjectV2ItemFieldValue.projectV2Item.id;\n    {\"item_id\": $moved ? $moved : params.item_id}\n  )"
     },
     {
       "id": "app.morelitea.github.issue-opened",
@@ -3065,7 +4546,7 @@
       "endpoints": [
         "app.morelitea.github.find-issues"
       ],
-      "module_source": "(() => {\n  // src/widgets/missing.ts\n  var WHY = {\n    \"repository-required\": \"Choose a repository for this tile\",\n    \"repository-not-listed\": \"This tile names a repository the installation does not cover\",\n    \"not-configured\": \"No GitHub organization is connected yet\",\n    \"installation-unavailable\": \"GitHub would not let the app into the organization\",\n    \"not-connected\": \"Connect your GitHub account to see this\",\n    \"not-found\": \"That repository is not there, or not visible to the app\",\n    forbidden: \"The organization has not granted the app this\",\n    \"vendor-error\": \"GitHub did not answer\",\n    \"rate-limited\": \"GitHub is limiting requests; this tile will fill in shortly\"\n  };\n  function missing(values) {\n    const why = values.unavailable;\n    if (!why) return null;\n    return { v: 1, scene: { kind: \"empty\", message: WHY[why] || \"There is nothing to show\" } };\n  }\n\n  // src/widgets/open-issues.ts\n  function render(data) {\n    const nothing = missing(data.values);\n    if (nothing) return nothing;\n    const total = data.values.total;\n    return { v: 1, scene: { kind: \"metric\", value: typeof total === \"number\" ? total : data.rows.length, label: \"Open issues\" } };\n  }\n\n  // widget.js\n  globalThis.render = render;\n})();",
+      "module_source": "(() => {\n  // src/widgets/missing.ts\n  var WHY = {\n    \"repository-required\": \"Choose a repository for this tile\",\n    \"not-found\": \"That repository is not there, or not visible to the app\",\n    \"not-authorized\": \"The organization has not granted the app this\"\n  };\n  function missing(values) {\n    const why = values.unavailable;\n    if (!why) return null;\n    return { v: 1, scene: { kind: \"empty\", message: WHY[why] || \"There is nothing to show\" } };\n  }\n\n  // src/widgets/open-issues.ts\n  function render(data) {\n    const nothing = missing(data.values);\n    if (nothing) return nothing;\n    const total = data.values.total;\n    return { v: 1, scene: { kind: \"metric\", value: typeof total === \"number\" ? total : data.rows.length, label: \"Open issues\" } };\n  }\n\n  // widget.js\n  globalThis.render = render;\n})();",
       "sample_data": {
         "app.morelitea.github.find-issues": {
           "numbers": [
@@ -3101,11 +4582,11 @@
         }
       },
       "endpoints": [
-        "app.morelitea.github.find-pull-requests"
+        "app.morelitea.github.review-queue"
       ],
-      "module_source": "(() => {\n  // src/widgets/missing.ts\n  var WHY = {\n    \"repository-required\": \"Choose a repository for this tile\",\n    \"repository-not-listed\": \"This tile names a repository the installation does not cover\",\n    \"not-configured\": \"No GitHub organization is connected yet\",\n    \"installation-unavailable\": \"GitHub would not let the app into the organization\",\n    \"not-connected\": \"Connect your GitHub account to see this\",\n    \"not-found\": \"That repository is not there, or not visible to the app\",\n    forbidden: \"The organization has not granted the app this\",\n    \"vendor-error\": \"GitHub did not answer\",\n    \"rate-limited\": \"GitHub is limiting requests; this tile will fill in shortly\"\n  };\n  function missing(values) {\n    const why = values.unavailable;\n    if (!why) return null;\n    return { v: 1, scene: { kind: \"empty\", message: WHY[why] || \"There is nothing to show\" } };\n  }\n\n  // src/widgets/review-queue.ts\n  function render(data) {\n    const nothing = missing(data.values);\n    if (nothing) return nothing;\n    if (!data.rows.length) return { v: 1, scene: { kind: \"empty\", message: \"Nothing is waiting on you\" } };\n    return {\n      v: 1,\n      scene: {\n        kind: \"table\",\n        columns: [\n          { key: \"number\", label: \"#\", align: \"end\" },\n          { key: \"title\", label: \"Pull request\" }\n        ],\n        rows: data.rows.slice(0, 10).map((row) => ({ number: row.numbers || \"\", title: row.titles || \"\" }))\n      }\n    };\n  }\n\n  // widget.js\n  globalThis.render = render;\n})();",
+      "module_source": "(() => {\n  // src/widgets/missing.ts\n  var WHY = {\n    \"repository-required\": \"Choose a repository for this tile\",\n    \"not-found\": \"That repository is not there, or not visible to the app\",\n    \"not-authorized\": \"The organization has not granted the app this\"\n  };\n  function missing(values) {\n    const why = values.unavailable;\n    if (!why) return null;\n    return { v: 1, scene: { kind: \"empty\", message: WHY[why] || \"There is nothing to show\" } };\n  }\n\n  // src/widgets/review-queue.ts\n  function render(data) {\n    const nothing = missing(data.values);\n    if (nothing) return nothing;\n    if (!data.rows.length) return { v: 1, scene: { kind: \"empty\", message: \"Nothing is waiting on you\" } };\n    return {\n      v: 1,\n      scene: {\n        kind: \"table\",\n        columns: [\n          { key: \"number\", label: \"#\", align: \"end\" },\n          { key: \"title\", label: \"Pull request\" }\n        ],\n        rows: data.rows.slice(0, 10).map((row) => ({ number: row.numbers || \"\", title: row.titles || \"\" }))\n      }\n    };\n  }\n\n  // widget.js\n  globalThis.render = render;\n})();",
       "sample_data": {
-        "app.morelitea.github.find-pull-requests": {
+        "app.morelitea.github.review-queue": {
           "numbers": [
             812,
             809
@@ -3148,7 +4629,7 @@
       "endpoints": [
         "app.morelitea.github.list-alerts"
       ],
-      "module_source": "(() => {\n  // src/widgets/missing.ts\n  var WHY = {\n    \"repository-required\": \"Choose a repository for this tile\",\n    \"repository-not-listed\": \"This tile names a repository the installation does not cover\",\n    \"not-configured\": \"No GitHub organization is connected yet\",\n    \"installation-unavailable\": \"GitHub would not let the app into the organization\",\n    \"not-connected\": \"Connect your GitHub account to see this\",\n    \"not-found\": \"That repository is not there, or not visible to the app\",\n    forbidden: \"The organization has not granted the app this\",\n    \"vendor-error\": \"GitHub did not answer\",\n    \"rate-limited\": \"GitHub is limiting requests; this tile will fill in shortly\"\n  };\n  function missing(values) {\n    const why = values.unavailable;\n    if (!why) return null;\n    return { v: 1, scene: { kind: \"empty\", message: WHY[why] || \"There is nothing to show\" } };\n  }\n\n  // src/widgets/dependabot-alerts.ts\n  function render(data) {\n    const nothing = missing(data.values);\n    if (nothing) return nothing;\n    const counts = {};\n    for (const row of data.rows) {\n      if (row.severities) counts[row.severities] = (counts[row.severities] || 0) + 1;\n    }\n    const shown = [\"critical\", \"high\", \"medium\", \"low\"].filter((severity) => counts[severity]);\n    if (!shown.length) return { v: 1, scene: { kind: \"empty\", message: \"No open Dependabot alerts\" } };\n    return {\n      v: 1,\n      scene: {\n        kind: \"series\",\n        mark: \"bar\",\n        series: [\n          {\n            name: \"Alerts\",\n            points: shown.map((severity) => ({ x: severity.charAt(0).toUpperCase() + severity.slice(1), y: counts[severity] }))\n          }\n        ]\n      }\n    };\n  }\n\n  // widget.js\n  globalThis.render = render;\n})();",
+      "module_source": "(() => {\n  // src/widgets/missing.ts\n  var WHY = {\n    \"repository-required\": \"Choose a repository for this tile\",\n    \"not-found\": \"That repository is not there, or not visible to the app\",\n    \"not-authorized\": \"The organization has not granted the app this\"\n  };\n  function missing(values) {\n    const why = values.unavailable;\n    if (!why) return null;\n    return { v: 1, scene: { kind: \"empty\", message: WHY[why] || \"There is nothing to show\" } };\n  }\n\n  // src/widgets/dependabot-alerts.ts\n  function render(data) {\n    const nothing = missing(data.values);\n    if (nothing) return nothing;\n    const counts = {};\n    for (const row of data.rows) {\n      if (row.severities) counts[row.severities] = (counts[row.severities] || 0) + 1;\n    }\n    const shown = [\"critical\", \"high\", \"medium\", \"low\"].filter((severity) => counts[severity]);\n    if (!shown.length) return { v: 1, scene: { kind: \"empty\", message: \"No open Dependabot alerts\" } };\n    return {\n      v: 1,\n      scene: {\n        kind: \"series\",\n        mark: \"bar\",\n        series: [\n          {\n            name: \"Alerts\",\n            points: shown.map((severity) => ({ x: severity.charAt(0).toUpperCase() + severity.slice(1), y: counts[severity] }))\n          }\n        ]\n      }\n    };\n  }\n\n  // widget.js\n  globalThis.render = render;\n})();",
       "sample_data": {
         "app.morelitea.github.list-alerts": {
           "severities": [
@@ -3199,7 +4680,7 @@
       "endpoints": [
         "app.morelitea.github.find-issues"
       ],
-      "module_source": "(() => {\n  // src/widgets/missing.ts\n  var WHY = {\n    \"repository-required\": \"Choose a repository for this tile\",\n    \"repository-not-listed\": \"This tile names a repository the installation does not cover\",\n    \"not-configured\": \"No GitHub organization is connected yet\",\n    \"installation-unavailable\": \"GitHub would not let the app into the organization\",\n    \"not-connected\": \"Connect your GitHub account to see this\",\n    \"not-found\": \"That repository is not there, or not visible to the app\",\n    forbidden: \"The organization has not granted the app this\",\n    \"vendor-error\": \"GitHub did not answer\",\n    \"rate-limited\": \"GitHub is limiting requests; this tile will fill in shortly\"\n  };\n  function missing(values) {\n    const why = values.unavailable;\n    if (!why) return null;\n    return { v: 1, scene: { kind: \"empty\", message: WHY[why] || \"There is nothing to show\" } };\n  }\n\n  // src/widgets/issue-throughput.ts\n  function render(data) {\n    const nothing = missing(data.values);\n    if (nothing) return nothing;\n    const days = {};\n    const bucket = (iso) => {\n      const day = String(iso).slice(0, 10);\n      if (!days[day]) days[day] = { opened: 0, closed: 0 };\n      return days[day];\n    };\n    for (const row of data.rows) {\n      if (row.created_at) bucket(row.created_at).opened += 1;\n      if (row.closed_at) bucket(row.closed_at).closed += 1;\n    }\n    const ordered = Object.keys(days).sort();\n    if (!ordered.length) return { v: 1, scene: { kind: \"empty\", message: \"Nothing opened or closed in this window\" } };\n    return {\n      v: 1,\n      scene: {\n        kind: \"series\",\n        mark: \"line\",\n        series: [\n          { name: \"Opened\", points: ordered.map((day) => ({ x: day, y: days[day].opened })) },\n          { name: \"Closed\", points: ordered.map((day) => ({ x: day, y: days[day].closed })) }\n        ]\n      }\n    };\n  }\n\n  // widget.js\n  globalThis.render = render;\n})();",
+      "module_source": "(() => {\n  // src/widgets/missing.ts\n  var WHY = {\n    \"repository-required\": \"Choose a repository for this tile\",\n    \"not-found\": \"That repository is not there, or not visible to the app\",\n    \"not-authorized\": \"The organization has not granted the app this\"\n  };\n  function missing(values) {\n    const why = values.unavailable;\n    if (!why) return null;\n    return { v: 1, scene: { kind: \"empty\", message: WHY[why] || \"There is nothing to show\" } };\n  }\n\n  // src/widgets/issue-throughput.ts\n  function render(data) {\n    const nothing = missing(data.values);\n    if (nothing) return nothing;\n    const days = {};\n    const bucket = (iso) => {\n      const day = String(iso).slice(0, 10);\n      if (!days[day]) days[day] = { opened: 0, closed: 0 };\n      return days[day];\n    };\n    for (const row of data.rows) {\n      if (row.created_at) bucket(row.created_at).opened += 1;\n      if (row.closed_at) bucket(row.closed_at).closed += 1;\n    }\n    const ordered = Object.keys(days).sort();\n    if (!ordered.length) return { v: 1, scene: { kind: \"empty\", message: \"Nothing opened or closed in this window\" } };\n    return {\n      v: 1,\n      scene: {\n        kind: \"series\",\n        mark: \"line\",\n        series: [\n          { name: \"Opened\", points: ordered.map((day) => ({ x: day, y: days[day].opened })) },\n          { name: \"Closed\", points: ordered.map((day) => ({ x: day, y: days[day].closed })) }\n        ]\n      }\n    };\n  }\n\n  // widget.js\n  globalThis.render = render;\n})();",
       "sample_data": {
         "app.morelitea.github.find-issues": {
           "created_at": [
@@ -3264,9 +4745,8 @@
             "h": 3
           },
           "binding": {
-            "endpoint_id": "app.morelitea.github.find-pull-requests",
+            "endpoint_id": "app.morelitea.github.review-queue",
             "params": {
-              "review_requested": "@me",
               "state": "open",
               "limit": 10
             }

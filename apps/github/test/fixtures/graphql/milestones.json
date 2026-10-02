@@ -1,0 +1,19 @@
+{
+  "data": {
+    "repository": {
+      "milestones": {
+        "totalCount": 2,
+        "nodes": [
+          {
+            "number": 3,
+            "title": "1.0"
+          },
+          {
+            "number": 5,
+            "title": "1.1"
+          }
+        ]
+      }
+    }
+  }
+}

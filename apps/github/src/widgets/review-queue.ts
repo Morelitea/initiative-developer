@@ -2,10 +2,10 @@
 
 import type { Scene, WidgetData } from "initiative-app-sdk/widget";
 
-import type { findPullRequests } from "../endpoints/pulls.js";
+import type { reviewQueue } from "../endpoints/pulls.js";
 import { missing } from "./missing.js";
 
-export function render(data: WidgetData<typeof findPullRequests>): Scene {
+export function render(data: WidgetData<typeof reviewQueue>): Scene {
   const nothing = missing(data.values);
   if (nothing) return nothing;
   if (!data.rows.length) return { v: 1, scene: { kind: "empty", message: "Nothing is waiting on you" } };

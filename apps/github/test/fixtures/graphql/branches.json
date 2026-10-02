@@ -1,0 +1,17 @@
+{
+  "data": {
+    "repository": {
+      "refs": {
+        "totalCount": 2,
+        "nodes": [
+          {
+            "name": "develop"
+          },
+          {
+            "name": "main"
+          }
+        ]
+      }
+    }
+  }
+}

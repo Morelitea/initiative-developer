@@ -1,0 +1,28 @@
+{
+  "data": {
+    "repository": {
+      "name": "widgets",
+      "owner": {
+        "login": "acme"
+      },
+      "issueOrPullRequest": {
+        "projectItems": {
+          "nodes": [
+            {
+              "id": "PVTI_other",
+              "project": {
+                "id": "PVT_2"
+              }
+            },
+            {
+              "id": "PVTI_7",
+              "project": {
+                "id": "PVT_1"
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}

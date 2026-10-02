@@ -1,0 +1,9 @@
+{
+  "id": 5,
+  "html_url": "https://github.com/acme/widgets/issues/7#issuecomment-5",
+  "issue_url": "https://api.github.com/repos/acme/widgets/issues/7",
+  "body": "On it.",
+  "user": {
+    "login": "alice"
+  }
+}

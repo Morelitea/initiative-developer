@@ -1,0 +1,22 @@
+{
+  "errors": [
+    {
+      "extensions": {
+        "value": null,
+        "problems": [
+          {
+            "path": [],
+            "explanation": "Expected value to not be null"
+          }
+        ]
+      },
+      "locations": [
+        {
+          "line": 1,
+          "column": 32
+        }
+      ],
+      "message": "Variable $repo of type String! was provided invalid value"
+    }
+  ]
+}

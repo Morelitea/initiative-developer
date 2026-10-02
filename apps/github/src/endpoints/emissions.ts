@@ -1,12 +1,15 @@
 /**
- * The six announcements: what each GitHub delivery becomes, and the
- * declaration a subscriber reads before any arrives. The payload each builds
+ * The six announcements: the declaration a subscriber reads before any
+ * arrives, and which GitHub deliveries become each. Initiative reads the
+ * delivery's `headers` (names in lowercase) and `payload`; a delivery whose
+ * subject GitHub did not name is announced as nothing. The payload each maps
  * carries exactly the returns it declares.
  */
 
-import { defineEndpoint, type EmittedEndpoint } from "initiative-app-sdk/manifest";
+import { defineEndpoint, type EmittedEndpoint, type Expression } from "initiative-app-sdk/manifest";
 
-import { declare, EMIT, ISSUE_IDENTITY, many, out, RELEASE_IDENTITY, TAG_IDENTITY, text } from "../vocabulary.js";
+import { EMIT, ISSUE_IDENTITY, many, out, RELEASE_IDENTITY, TAG_IDENTITY, text } from "../vocabulary.js";
+import { quote, TEXT } from "./support.js";
 
 const SUBJECT = {
   repository: out("string"),
@@ -47,95 +50,64 @@ const TAG_SUBJECT = {
 
 interface Announcement {
   declaration: EmittedEndpoint<object>;
-  /** The GitHub event it answers, and which deliveries of it. */
-  event: string;
-  when(payload: Record<string, unknown>): boolean;
-  build(payload: Record<string, unknown>): Record<string, unknown> | null;
+  /** Which deliveries it announces. */
+  when: Expression;
+  /** Its payload. */
+  map: Expression;
 }
 
-function field(source: unknown, key: string): unknown {
-  return typeof source === "object" && source !== null ? (source as Record<string, unknown>)[key] : undefined;
-}
+/** A delivery of one GitHub event, with one `action`. */
+const delivery = (event: string, action?: string): Expression =>
+  `headers."x-github-event" = ${quote(event)}${action ? ` and payload.action = ${quote(action)}` : ""}`;
 
-function textOf(source: unknown, key: string): string | null {
-  const value = field(source, key);
-  return typeof value === "string" ? value : null;
-}
+/** Text that is there. */
+const named = (path: string): Expression => `($type(${path}) = "string" and ${path} != "")`;
+
+const REPOSITORY = `"repository": payload.repository.name, "owner": $text(payload.repository.owner.login)`;
 
 /** An issue or a pull request, from the block of the payload it arrives under. */
-function subjectOf(payload: Record<string, unknown>, holder: "issue" | "pull_request") {
-  const subject = field(payload, holder);
-  const number = field(subject, "number");
-  const repository = textOf(field(payload, "repository"), "name");
-  if (typeof number !== "number" || !repository) return null;
-  return {
-    repository,
-    owner: textOf(field(field(payload, "repository"), "owner"), "login"),
-    number,
-    title: textOf(subject, "title"),
-    url: textOf(subject, "html_url"),
-    author: textOf(field(subject, "user"), "login"),
-  };
-}
+const subjectOf = (holder: "issue" | "pull_request") => ({
+  when: `$type(payload.${holder}.number) = "number" and ${named("payload.repository.name")}`,
+  map: (extra: string) => `(
+    ${TEXT};
+    {
+      ${REPOSITORY},
+      "number": payload.${holder}.number,
+      "title": $text(payload.${holder}.title),
+      "url": $text(payload.${holder}.html_url),
+      "author": $text(payload.${holder}.user.login),
+      ${extra}
+    }
+  )`,
+});
 
-/** A delivery whose `action` is `name`. */
-const action = (name: string) => (payload: Record<string, unknown>) => textOf(payload, "action") === name;
+const ISSUE = subjectOf("issue");
+const PULL = subjectOf("pull_request");
 
-function ownerOf(payload: Record<string, unknown>): string | null {
-  return textOf(field(field(payload, "repository"), "owner"), "login");
-}
+/** GitHub delivers `issues` events for pull requests too; those are not issues. */
+const issueEvent = (action: string) => ({
+  when: `${delivery("issues", action)} and $not($exists(payload.issue.pull_request)) and ${ISSUE.when}`,
+  map: ISSUE.map(`"labels": [payload.issue.labels.name[$type($) = "string" and $ != ""]]`),
+});
 
-function releaseEvent(payload: Record<string, unknown>) {
-  const release = field(payload, "release");
-  const repository = textOf(field(payload, "repository"), "name");
-  const tag = textOf(release, "tag_name");
-  if (!repository || !tag) return null;
-  return {
-    repository,
-    owner: ownerOf(payload),
-    tag,
-    name: textOf(release, "name"),
-    branch: textOf(release, "target_commitish"),
-    url: textOf(release, "html_url"),
-    author: textOf(field(release, "author"), "login"),
-  };
-}
-
-function tagEvent(payload: Record<string, unknown>) {
-  const repository = textOf(field(payload, "repository"), "name");
-  const tag = textOf(payload, "ref");
-  if (!repository || !tag) return null;
-  // GitHub sends no link for a new tag; its page is under the repository's.
-  const home = textOf(field(payload, "repository"), "html_url");
-  return {
-    repository,
-    owner: ownerOf(payload),
-    tag,
-    url: home ? encodeURI(`${home}/tree/${tag}`) : null,
-    // A tag has no author of its own here: the person who pushed it.
-    author: textOf(field(payload, "sender"), "login"),
-  };
-}
-
-function labelsOf(payload: Record<string, unknown>): string[] {
-  const labels = field(field(payload, "issue"), "labels");
-  return Array.isArray(labels)
-    ? labels.map((label) => textOf(label, "name")).filter((name): name is string => !!name)
-    : [];
-}
-
-function issueEvent(payload: Record<string, unknown>) {
-  const base = subjectOf(payload, "issue");
-  // GitHub delivers `issues` events for pull requests too; those are not issues.
-  if (!base || field(field(payload, "issue"), "pull_request") !== undefined) return null;
-  return { ...base, labels: labelsOf(payload) };
-}
+const releaseEvent = (action: string) => ({
+  when: `${delivery("release", action)} and ${named("payload.repository.name")} and ${named("payload.release.tag_name")}`,
+  map: `(
+    ${TEXT};
+    {
+      ${REPOSITORY},
+      "tag": payload.release.tag_name,
+      "name": $text(payload.release.name),
+      "branch": $text(payload.release.target_commitish),
+      "url": $text(payload.release.html_url),
+      "author": $text(payload.release.author.login)
+    }
+  )`,
+});
 
 export const ANNOUNCEMENTS = {
   [EMIT.issueOpened]: {
-    event: "issues",
-    when: action("opened"),
-    build: issueEvent,
+    ...issueEvent("opened"),
     declaration: defineEndpoint({
       direction: "emit",
       label: text("An issue was opened", "Ein Issue wurde geöffnet", "Se abrió una incidencia", "Un ticket a été ouvert"),
@@ -151,9 +123,7 @@ export const ANNOUNCEMENTS = {
     }),
   },
   [EMIT.issueClosed]: {
-    event: "issues",
-    when: action("closed"),
-    build: issueEvent,
+    ...issueEvent("closed"),
     declaration: defineEndpoint({
       direction: "emit",
       label: text("An issue was closed", "Ein Issue wurde geschlossen", "Se cerró una incidencia", "Un ticket a été fermé"),
@@ -169,18 +139,12 @@ export const ANNOUNCEMENTS = {
     }),
   },
   [EMIT.reviewRequested]: {
-    event: "pull_request",
-    when: action("review_requested"),
-    build: (payload) => {
-      const base = subjectOf(payload, "pull_request");
-      if (!base) return null;
-      return {
-        ...base,
-        reviewer:
-          textOf(field(payload, "requested_reviewer"), "login") ??
-          textOf(field(payload, "requested_team"), "slug"),
-      };
-    },
+    when: `${delivery("pull_request", "review_requested")} and ${PULL.when}`,
+    map: PULL.map(
+      `"reviewer": $type(payload.requested_reviewer.login) = "string"
+        ? payload.requested_reviewer.login
+        : $text(payload.requested_team.slug)`
+    ),
     declaration: defineEndpoint({
       direction: "emit",
       label: text("A review was requested", "Eine Review wurde angefragt", "Se solicitó una revisión", "Une revue a été demandée"),
@@ -199,9 +163,7 @@ export const ANNOUNCEMENTS = {
   // subscriber wanting only one is never sent the other, and a pre-release
   // promoted to a full release is announced as a release.
   [EMIT.releasePublished]: {
-    event: "release",
-    when: action("released"),
-    build: releaseEvent,
+    ...releaseEvent("released"),
     declaration: defineEndpoint({
       direction: "emit",
       label: text(
@@ -222,9 +184,7 @@ export const ANNOUNCEMENTS = {
     }),
   },
   [EMIT.prereleasePublished]: {
-    event: "release",
-    when: action("prereleased"),
-    build: releaseEvent,
+    ...releaseEvent("prereleased"),
     declaration: defineEndpoint({
       direction: "emit",
       label: text(
@@ -246,9 +206,19 @@ export const ANNOUNCEMENTS = {
   },
   // GitHub sends `create` for a branch and a tag alike, told apart by `ref_type`.
   [EMIT.tagCreated]: {
-    event: "create",
-    when: (payload) => textOf(payload, "ref_type") === "tag",
-    build: tagEvent,
+    when: `${delivery("create")} and payload.ref_type = "tag" and ${named("payload.repository.name")} and ${named("payload.ref")}`,
+    // GitHub sends no link for a new tag; its page is under the repository's.
+    // A tag has no author of its own here: the person who pushed it.
+    map: `(
+      ${TEXT};
+      $home := payload.repository.html_url;
+      {
+        ${REPOSITORY},
+        "tag": payload.ref,
+        "url": ${named("$home")} ? $encodeUrl($home & "/tree/" & payload.ref) : null,
+        "author": $text(payload.sender.login)
+      }
+    )`,
     declaration: defineEndpoint({
       direction: "emit",
       label: text("A tag was pushed", "Ein Tag wurde gepusht", "Se subió una etiqueta", "Une étiquette a été poussée"),
@@ -270,13 +240,9 @@ export const EMIT_ENDPOINTS = Object.fromEntries(
   Object.entries(ANNOUNCEMENTS).map(([name, announcement]) => [name, announcement.declaration])
 ) as { [K in keyof typeof ANNOUNCEMENTS]: (typeof ANNOUNCEMENTS)[K]["declaration"] };
 
-/** What one GitHub delivery announces, or null when it announces nothing. */
-export function translate(
-  event: string,
-  payload: Record<string, unknown>
-): { eventType: string; payload: Record<string, unknown> } | null {
-  const found = Object.entries(ANNOUNCEMENTS).find(([, one]) => one.event === event && one.when(payload));
-  if (!found) return null;
-  const built = found[1].build(payload);
-  return built ? { eventType: declare(found[0]), payload: built } : null;
-}
+/** What GitHub's deliveries announce: the first row whose `when` holds. */
+export const EVENTS = Object.entries(ANNOUNCEMENTS).map(([emit, announcement]) => ({
+  when: announcement.when,
+  emit: emit as keyof typeof ANNOUNCEMENTS,
+  map: announcement.map,
+}));

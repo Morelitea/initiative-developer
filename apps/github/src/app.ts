@@ -1,73 +1,64 @@
 /**
- * The app, declared once: what it asks a community for, the GitHub
- * connections Initiative runs for it, its endpoints, hooks, schedule, widgets
- * and dashboard, and its registry listing. `npm run manifest` builds
- * `manifest.json` and the registry source from it.
+ * The app, declared once: the GitHub connections Initiative runs for it, the
+ * calls Initiative makes to GitHub for each endpoint and how it reshapes the
+ * answers, what GitHub's deliveries announce, its widgets and dashboard, and
+ * its registry listing. `npm run manifest` builds `manifest.json` and the
+ * registry source from it.
+ *
+ * Nothing of the app runs anywhere: Initiative makes every call itself.
  */
 
-import { defineApp, type ConnectionFlow } from "initiative-app-sdk/manifest";
+import { defineApp, type ConnectionFlow, type GithubPermissionLevel } from "initiative-app-sdk/manifest";
 
-import { EMIT_ENDPOINTS } from "./endpoints/emissions.js";
+import { EMIT_ENDPOINTS, EVENTS } from "./endpoints/emissions.js";
 import { closeIssue, comment, findIssues, getIssue, label, listLabels, listMilestones, openIssue, reopenIssue } from "./endpoints/issues.js";
 import { findProjectItem, listProjectFields, listProjectOptions, listProjects, moveProjectItem } from "./endpoints/projects.js";
-import { findPullRequests, getPullRequest, requestReview } from "./endpoints/pulls.js";
+import { findPullRequests, getPullRequest, requestReview, reviewQueue } from "./endpoints/pulls.js";
 import { listAssignees, listBranches, listRepositories } from "./endpoints/repositories.js";
 import { listAlerts } from "./endpoints/security.js";
-import { PERMISSIONS, WEBHOOK_EVENTS } from "./github/app.js";
-import { checkInstallation, hooks } from "./hooks.js";
-import {
-  ACCOUNT,
-  CHECK_INSTALLATION,
-  DASHBOARD_UID,
-  LISTING_UID,
-  PUBLIC_ID,
-  READ,
-  SCOPES,
-  text,
-  WORKSPACE,
-  WRITE,
-} from "./vocabulary.js";
-
-const GITHUB_WEB = "https://github.com";
-const GITHUB_API = "https://api.github.com";
+import { API, quote, rest, WEB } from "./endpoints/support.js";
+import { ACCOUNT, DASHBOARD_UID, LISTING_UID, PUBLIC_ID, READ, text, WORKSPACE, WRITE } from "./vocabulary.js";
 
 /**
- * The Compose service an operator copies from the app's registration, with the
- * two placeholders Initiative fills.
+ * The permissions the GitHub App registration asks for. Initiative shows them
+ * to a member about to connect and creates the GitHub App with them, and the
+ * README lists them for whoever registers the GitHub App by hand.
  */
-const COMPOSE_SERVICE = `# Merge into the docker-compose.yml that runs Initiative, so the app joins its network.
-services:
-  github:
-    image: \${IMAGE}
-    restart: unless-stopped
-    environment:
-      INITIATIVE_BASE_URL: \${INITIATIVE_URL}/api/v1
-    volumes:
-      # Holds the app's key. Its fingerprint is logged at every start.
-      - github_data:/data
+const PERMISSIONS: Readonly<Record<string, GithubPermissionLevel>> = {
+  issues: "write",
+  pull_requests: "write",
+  contents: "read",
+  vulnerability_alerts: "read",
+  organization_projects: "write",
+  metadata: "read",
+};
 
-volumes:
-  github_data:
-`;
+/** The webhook events the GitHub App registration subscribes to. */
+const WEBHOOK_EVENTS = ["issues", "pull_request", "release", "create"];
 
 /** GitHub's user authorization for the GitHub App, which both connections run. */
 const GITHUB_OAUTH: ConnectionFlow = {
   type: "oauth2",
-  authorize_url: `${GITHUB_WEB}/login/oauth/authorize`,
-  token_url: `${GITHUB_WEB}/login/oauth/access_token`,
+  authorize_url: `${WEB}/login/oauth/authorize`,
+  token_url: `${WEB}/login/oauth/access_token`,
   client_id: "{vendor.client_id}",
   client_secret: "{vendor.client_secret}",
   pkce: true,
 };
 
+/** A delivery about the GitHub App's installation itself. */
+const installation = (action: string) =>
+  `headers."x-github-event" = "installation" and payload.action = ${quote(action)}`;
+
 export default defineApp({
   publicId: PUBLIC_ID,
   uid: LISTING_UID,
   name: "GitHub",
-  scopes: [...SCOPES],
+  hosts: ["api.github.com"],
 
   // What the operator supplies once per deployment for the GitHub App: the
-  // flows and the installation token below name them as {vendor.<key>}.
+  // flows, the installation token and the webhooks below name them as
+  // {vendor.<key>}.
   vendor: {
     label: text("GitHub App", "GitHub-App", "GitHub App", "GitHub App"),
     fields: [
@@ -139,9 +130,9 @@ export default defineApp({
   connections: {
     // The community's GitHub installation. An admin connects it once:
     // Initiative sends them to GitHub's install page, then through one
-    // authorization so the app's after_connect hook can check the
-    // installation is theirs. Initiative mints its tokens from the GitHub
-    // App's key.
+    // authorization, and keeps the installation they came back with only if
+    // it is one of theirs. Initiative mints its tokens from the GitHub App's
+    // key, and checks every 15 minutes that GitHub still has it.
     [WORKSPACE]: {
       scope: "static",
       label: text("GitHub organization", "GitHub-Organisation", "Organización de GitHub", "Organisation GitHub"),
@@ -163,30 +154,60 @@ export default defineApp({
       ],
       flow: {
         ...GITHUB_OAUTH,
-        install_url: `${GITHUB_WEB}/apps/{vendor.app_slug}/installations/new`,
-        after_connect: true,
+        install_url: `${WEB}/apps/{vendor.app_slug}/installations/new`,
+        after_connect: {
+          request: rest("GET", `"/user/installations"`, {
+            connection: null,
+            paging: {
+              kind: "page_number",
+              page_param: "page",
+              per_page_param: "per_page",
+              per_page: 100,
+              items: "response.body.installations",
+              max_pages: 10,
+              on_limit: "truncate",
+            },
+          }),
+          map: `(
+            $claimed := params.installation_id;
+            $held := response.body[$string(id) = $claimed][0];
+            {"values": {"owner": $held.account.login, "installation_id": $held.id}, "account_label": $held.account.login}
+          )`,
+          refuse_when: "$not($exists(result.values.owner) and $exists(result.values.installation_id))",
+          code: "installation-not-held",
+        },
       },
       token: {
         type: "jwt_bearer",
-        exchange_url: `${GITHUB_API}/app/installations/{installation_id}/access_tokens`,
+        exchange_url: `${API}/app/installations/{installation_id}/access_tokens`,
         iss: "{vendor.app_id}",
         key: "{vendor.private_key}",
         alg: "RS256",
         lifetime: 540,
       },
+      // GitHub stops honouring the installation's token once it is removed,
+      // and says so when it is suspended.
+      health: {
+        request: rest("GET", `"/installation/repositories"`, { connection: null, query: { per_page: quote("1") } }),
+        every: "15m",
+        states: [
+          { status: 401, state: "removed" },
+          { status: 403, when: "$contains(response.body.message, /suspended/i)", state: "suspended" },
+        ],
+      },
     },
     // Each member's own GitHub authorization, for what the app does as
-    // them. Initiative holds it, renews it and ends it at GitHub; the
-    // after_connect hook names the account.
+    // them. Initiative holds it, renews it and ends it at GitHub, and names
+    // the connection by the account's login.
     [ACCOUNT]: {
       scope: "interactive",
       label: text("Your GitHub account", "Dein GitHub-Konto", "Tu cuenta de GitHub", "Votre compte GitHub"),
       fields: [],
       flow: {
         ...GITHUB_OAUTH,
-        after_connect: true,
+        after_connect: { request: rest("GET", `"/user"`, { connection: null }), map: `{"account_label": response.body.login}` },
         revoke: "github_grant",
-        revoke_url: `${GITHUB_API}/applications/{vendor.client_id}/grant`,
+        revoke_url: `${API}/applications/{vendor.client_id}/grant`,
       },
       access_hint: {
         api: "GitHub",
@@ -196,8 +217,9 @@ export default defineApp({
   },
 
   // Initiative receives the GitHub App's webhook deliveries, checks them, and
-  // forwards each to the webhook hook of every community whose organization
-  // connection holds the installation it came from.
+  // for every community whose organization connection holds the installation
+  // a delivery came from, announces what it says and notes the installation
+  // being removed, suspended or restored.
   webhooks: {
     verify: {
       scheme: "hmac_sha256",
@@ -208,10 +230,13 @@ export default defineApp({
     },
     dedup: "X-GitHub-Delivery",
     route: { path: "installation.id", connection: WORKSPACE, field: "installation_id" },
+    events: EVENTS,
+    status: [
+      { when: installation("deleted"), connection: WORKSPACE, state: "removed" },
+      { when: installation("suspend"), connection: WORKSPACE, state: "suspended" },
+      { when: installation("unsuspend"), connection: WORKSPACE, state: "ok" },
+    ],
   },
-
-  // Initiative calls this for each community on this interval.
-  schedules: { [CHECK_INSTALLATION]: { every: "15m", run: checkInstallation } },
 
   endpoints: {
     [READ.listRepositories]: listRepositories,
@@ -223,6 +248,7 @@ export default defineApp({
     [READ.findIssues]: findIssues,
     [READ.getPullRequest]: getPullRequest,
     [READ.findPullRequests]: findPullRequests,
+    [READ.reviewQueue]: reviewQueue,
     [READ.listAlerts]: listAlerts,
     [READ.listProjects]: listProjects,
     [READ.listProjectFields]: listProjectFields,
@@ -237,8 +263,6 @@ export default defineApp({
     [WRITE.moveProjectItem]: moveProjectItem,
     ...EMIT_ENDPOINTS,
   },
-
-  hooks,
 
   // The four dashboard tiles. Each module runs in Initiative's sandbox with
   // one data source, the endpoint its tile is bound to, and returns a scene.
@@ -270,10 +294,10 @@ export default defineApp({
           fr: "Pull requests qui ont demandé votre revue.",
         },
       },
-      endpoints: [READ.findPullRequests],
+      endpoints: [READ.reviewQueue],
       module: "src/widgets/review-queue.ts",
       sample_data: {
-        [READ.findPullRequests]: {
+        [READ.reviewQueue]: {
           numbers: [812, 809],
           titles: ["Cache the issue counts", "Drop the unused index"],
           urls: ["#", "#"],
@@ -357,10 +381,7 @@ export default defineApp({
           type: "review-queue",
           title: "Waiting on your review",
           grid: { x: 3, y: 0, w: 6, h: 3 },
-          binding: {
-            endpoint_id: READ.findPullRequests,
-            params: { review_requested: "@me", state: "open", limit: 10 },
-          },
+          binding: { endpoint_id: READ.reviewQueue, params: { state: "open", limit: 10 } },
         },
         {
           id: "alerts",
@@ -383,11 +404,9 @@ export default defineApp({
     },
   ],
 
-  // The registry listing. `image` is the digest the image workflow printed for
-  // this version. It names no key set: each deployment's pod signs with its
-  // own key, registered with that deployment. The "GitHub overview" dashboard
-  // is not a listing of its own: it is bundled in the manifest, and a
-  // deployment publishes it from there.
+  // The registry listing. The "GitHub overview" dashboard is not a listing
+  // of its own: it is bundled in the manifest, and a deployment publishes it
+  // from there.
   listing: {
     publisher: "morelitea",
     summary: "Your organization's issues, reviews and dependency alerts, on a dashboard and in your automations.",
@@ -399,16 +418,11 @@ export default defineApp({
       "Members who connect their own GitHub account get their own review queue, and automations can open, comment on, close, label and move issues as them.",
     ].join("\n"),
     avatar: "assets/avatar.png",
-    version: "2.6.0",
-    // The oldest Initiative that ends a member's GitHub authorization itself
-    // (`github_grant`); an older one refuses this manifest.
+    version: "3.0.0",
+    // The oldest Initiative that runs an app's calls to GitHub itself; an
+    // older one refuses this manifest.
     minAppVersion: "0.75.0",
     releaseNotes:
-      "Initiative can create the GitHub App for you from the app's registration, with one button, and shows the Compose service to run beside it. Initiative now ends a member's GitHub authorization itself, so the app no longer needs the GitHub App's client ID and secret. Needs Initiative 0.75.0.",
-    image: "ghcr.io/morelitea/initiative-github@sha256:982108176bf5a4bc509dde4f084b41e9ceb292f7b62a16634ad1988daf009b85",
-    compose: {
-      service: COMPOSE_SERVICE,
-      baseUrl: "http://github:8080",
-    },
+      "The app runs inside Initiative: there is no service to run beside it. Pull requests waiting on your review have their own endpoint, review-queue. Needs Initiative 0.75.0.",
   },
 });

@@ -1,33 +1,7 @@
 import { defineEndpoint } from "initiative-app-sdk/manifest";
 
-import { graphql } from "../github/http.js";
-import {
-  COUNT_OUT,
-  many,
-  out,
-  REPO,
-  text,
-  TOTAL_OUT,
-  UNAVAILABLE,
-  URL_OUT,
-  WORKSPACE,
-} from "../vocabulary.js";
-import {
-  isResult,
-  lower,
-  nodes,
-  PAGE,
-  PUBLIC_READ,
-  readFailure,
-  repoAccess,
-  unavailable,
-  type Connection,
-} from "./support.js";
-
-interface Alert {
-  number?: number;
-  securityVulnerability?: { severity?: string; package?: { name?: string } } | null;
-}
+import { COUNT_OUT, many, out, REPO, text, TOTAL_OUT, UNAVAILABLE, URL_OUT } from "../vocabulary.js";
+import { graphql, needs, NEEDS_REPO, PAGE, PUBLIC_READ, quote, REPO_VARIABLES, WEB } from "./support.js";
 
 export const listAlerts = defineEndpoint({
   direction: "read",
@@ -52,45 +26,37 @@ export const listAlerts = defineEndpoint({
     ...URL_OUT,
     ...UNAVAILABLE,
   },
-  requires: { all_of: [WORKSPACE] },
-
-  async handler(call) {
-    const access = await repoAccess(call);
-    if (isResult(access)) return { actor: "installation", result: access };
-    const answer = await graphql<{ repository: { vulnerabilityAlerts: Connection<Alert> | null } | null }>(
-      call.context.github.http,
-      access.token,
-      `query Alerts($owner: String!, $repo: String!, $first: Int!) {
-         repository(owner: $owner, name: $repo) {
-           vulnerabilityAlerts(first: $first, states: [OPEN]) {
-             totalCount
-             nodes { number securityVulnerability { severity package { name } } }
-           }
+  request: graphql(
+    `query Alerts($owner: String!, $repo: String!, $first: Int!) {
+       repository(owner: $owner, name: $repo) {
+         name
+         owner { login }
+         vulnerabilityAlerts(first: $first, states: [OPEN]) {
+           totalCount
+           nodes { number securityVulnerability { severity package { name } } }
          }
-       }`,
-      { owner: access.owner, repo: access.repo, first: PAGE }
-    );
-    if (!answer.ok) return { actor: "installation", result: readFailure(answer.failure) };
-    const found = answer.body.repository?.vulnerabilityAlerts;
-    if (!found) return { actor: "installation", result: unavailable("not-found") };
-
-    const alerts = nodes(found);
-    const page = `${call.context.config.github.webBase}/${access.owner}/${access.repo}/security/dependabot`;
-    return {
-      actor: "installation",
-      result: {
-        numbers: alerts.map((alert) => alert.number ?? 0),
-        // GraphQL says MODERATE where the rest of GitHub says medium.
-        severities: alerts.map((alert) => {
-          const severity = lower(alert.securityVulnerability?.severity);
-          return severity === "moderate" ? "medium" : (severity ?? "");
-        }),
-        packages: alerts.map((alert) => alert.securityVulnerability?.package?.name ?? ""),
-        urls: alerts.map((alert) => `${page}/${alert.number ?? ""}`),
-        count: alerts.length,
-        total: found.totalCount ?? alerts.length,
-        url: page,
-      },
-    };
-  },
+       }
+     }`,
+    `{${REPO_VARIABLES}, "first": ${PAGE}}`
+  ),
+  ...needs(NEEDS_REPO),
+  // GraphQL says MODERATE where the rest of GitHub says medium.
+  map: `(
+    $repository := response.body.data.repository;
+    $found := $repository.vulnerabilityAlerts;
+    $page := ${quote(`${WEB}/`)} & $repository.owner.login & "/" & $repository.name & "/security/dependabot";
+    $alerts := $found.nodes[$type($) = "object"];
+    $found ? {
+      "numbers": [$alerts.(number ? number : 0)],
+      "severities": [$alerts.(
+        $severity := securityVulnerability.severity ? $lowercase(securityVulnerability.severity) : "";
+        $severity = "moderate" ? "medium" : $severity
+      )],
+      "packages": [$alerts.(securityVulnerability.package.name ? securityVulnerability.package.name : "")],
+      "urls": [$alerts.($page & "/" & (number ? number : ""))],
+      "count": $count($alerts),
+      "total": $found.totalCount,
+      "url": $page
+    } : {"unavailable": "not-found"}
+  )`,
 });

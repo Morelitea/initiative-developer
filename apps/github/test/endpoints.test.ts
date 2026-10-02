@@ -1,588 +1,502 @@
 /**
- * Every endpoint, called as Initiative calls it: each read's answer on the
- * installation token Initiative mints, for a widget and for another app acting
- * as the community or as a member, and its answer when GitHub refuses the
- * installation; each write's call to GitHub, for another app acting as a
- * member, on that member's token Initiative hands over, and GitHub's refusal
- * passed through.
+ * Every endpoint, as Initiative runs it: the requests it makes to GitHub, on
+ * which connection, and what it makes of GitHub's recorded answers, refusals
+ * included.
  */
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { runEndpoint, type RecordedResponse } from "initiative-app-sdk/testing";
+import { describe, expect, it } from "vitest";
 
-import { EMIT_IDS, READ_IDS, WRITE_IDS } from "../src/vocabulary.js";
-import { asCommunity, asMember, startHarness, type Harness } from "./support/harness.js";
+import app from "../src/app.js";
+import { READ, WRITE } from "../src/vocabulary.js";
+import { recorded } from "./fixtures.js";
 
-const INSTALLATION = "gapp_one";
-const MEMBER = "cref_alice";
-
-let h: Harness;
-
-beforeEach(async () => {
-  h = await startHarness();
-  h.initiative.install(INSTALLATION, { members: { [MEMBER]: "ghu_alice" } });
-  h.github.install(42);
-});
-
-afterEach(() => h.close());
-
-const refusedByGitHub = { body: { data: null, errors: [{ type: "FORBIDDEN", message: "Resource not accessible by integration" }] } };
-
-const issueNode = {
-  __typename: "Issue",
-  number: 7,
-  title: "Broken build",
-  url: "https://github.test/acme/widgets/issues/7",
-  state: "OPEN",
-  stateReason: null,
-  createdAt: "2026-09-01T00:00:00Z",
-  updatedAt: "2026-09-02T00:00:00Z",
-  closedAt: null,
-  author: { login: "bob" },
-  milestone: { title: "1.0" },
-  comments: { totalCount: 2 },
-  labels: { nodes: [{ name: "bug" }] },
-  assignees: { nodes: [{ login: "alice" }] },
+const NOW = "2026-10-01T12:00:00Z";
+const ORGANIZATION = { workspace: { owner: "acme", installation_id: 42 } };
+const API = "https://api.github.com";
+const HEADERS = {
+  Accept: "application/vnd.github+json",
+  "X-GitHub-Api-Version": "2022-11-28",
+  "User-Agent": "initiative-github",
 };
 
-const row = {
-  number: 7,
-  title: "Broken build",
-  url: "https://github.test/acme/widgets/issues/7",
-  state: "OPEN",
-  createdAt: "2026-09-01T00:00:00Z",
-  updatedAt: "2026-09-02T00:00:00Z",
-  closedAt: null,
-};
-
-interface ReadCase {
-  id: string;
-  params: Record<string, unknown>;
-  /** The GraphQL operation it asks, with the data GitHub answers. */
-  operation?: string;
-  data?: unknown;
-  expected: Record<string, unknown>;
-  /** Make GitHub refuse the installation. */
-  refuse(h: Harness): void;
+/** One endpoint, called with `params`, answered in turn by each recorded body or answer. */
+function call(name: string, params: Record<string, unknown>, ...answers: Array<string | RecordedResponse>) {
+  return runEndpoint(app, name, {
+    params,
+    connections: ORGANIZATION,
+    now: NOW,
+    responses: answers.map((answer) => (typeof answer === "string" ? { body: recorded(answer) } : answer)),
+  });
 }
 
-const graphqlRefusal = (operation: string) => (h: Harness) => h.github.graphql.set(operation, () => refusedByGitHub);
+const variables = (run: Awaited<ReturnType<typeof call>>, index = 0) =>
+  (run.requests[index].body as { variables: Record<string, unknown> }).variables;
+
+interface ReadCase {
+  name: string;
+  params: Record<string, unknown>;
+  answers: string[];
+  result: Record<string, unknown>;
+}
+
+const ROW = {
+  urls: ["https://github.com/acme/widgets/issues/7"],
+  states: ["open"],
+  created_at: ["2026-09-01T00:00:00Z"],
+  updated_at: ["2026-09-02T00:00:00Z"],
+  closed_at: [""],
+};
 
 const READS: ReadCase[] = [
   {
-    id: READ_IDS.listRepositories,
+    name: READ.listRepositories,
     params: {},
-    expected: { names: ["widgets", "gadgets"], owner: "acme", count: 2 },
-    refuse: (h) =>
-      h.github.rest.set("GET /installation/repositories", () => ({
-        status: 403,
-        body: { message: "Resource not accessible by integration" },
-      })),
+    answers: ["rest/installation-repositories"],
+    result: { names: ["widgets", "gadgets"], owner: "acme", count: 2 },
   },
   {
-    id: READ_IDS.listLabels,
+    name: READ.listAssignees,
     params: { repo: "widgets" },
-    operation: "Labels",
-    data: { repository: { labels: { totalCount: 2, nodes: [{ name: "bug" }, { name: "docs" }] } } },
-    expected: { names: ["bug", "docs"], count: 2, total: 2 },
-    refuse: graphqlRefusal("Labels"),
+    answers: ["graphql/assignees"],
+    result: { logins: ["alice", "bob"], count: 2, total: 3 },
   },
   {
-    id: READ_IDS.listAssignees,
+    name: READ.listBranches,
     params: { repo: "widgets" },
-    operation: "Assignees",
-    data: { repository: { assignableUsers: { totalCount: 3, nodes: [{ login: "alice" }, null, { login: "bob" }] } } },
-    expected: { logins: ["alice", "bob"], count: 2, total: 3 },
-    refuse: graphqlRefusal("Assignees"),
+    answers: ["graphql/branches"],
+    result: { names: ["develop", "main"], count: 2, total: 2 },
   },
   {
-    id: READ_IDS.listBranches,
+    name: READ.listLabels,
     params: { repo: "widgets" },
-    operation: "Branches",
-    data: { repository: { refs: { totalCount: 2, nodes: [{ name: "develop" }, { name: "main" }] } } },
-    expected: { names: ["develop", "main"], count: 2, total: 2 },
-    refuse: graphqlRefusal("Branches"),
+    answers: ["graphql/labels"],
+    result: { names: ["bug", "docs"], count: 2, total: 2 },
   },
   {
-    id: READ_IDS.listMilestones,
+    name: READ.listMilestones,
     params: { repo: "widgets" },
-    operation: "Milestones",
-    data: {
-      repository: { milestones: { totalCount: 2, nodes: [{ number: 3, title: "1.0" }, { number: 5, title: "1.1" }] } },
-    },
-    expected: { numbers: [3, 5], titles: ["1.0", "1.1"], count: 2, total: 2 },
-    refuse: graphqlRefusal("Milestones"),
+    answers: ["graphql/milestones"],
+    result: { numbers: [3, 5], titles: ["1.0", "1.1"], count: 2, total: 2 },
   },
   {
-    id: READ_IDS.getIssue,
-    params: { repo: "Widgets", number: "7" },
-    operation: "Subject",
-    data: { repository: { issueOrPullRequest: issueNode } },
-    expected: {
+    name: READ.getIssue,
+    params: { repo: "Widgets", number: 7 },
+    answers: ["graphql/subject"],
+    result: {
       repository: "widgets",
       owner: "acme",
       number: 7,
+      title: "Broken build",
       state: "open",
+      state_reason: null,
+      url: "https://github.com/acme/widgets/issues/7",
+      author: "bob",
       labels: ["bug"],
       assignees: ["alice"],
       milestone: "1.0",
       comments: 2,
       is_pull_request: false,
-      state_reason: null,
+      created_at: "2026-09-01T00:00:00Z",
+      updated_at: "2026-09-02T00:00:00Z",
+      closed_at: null,
     },
-    refuse: graphqlRefusal("Subject"),
   },
   {
-    id: READ_IDS.findIssues,
-    params: { repo: "widgets", state: "all", labels: ["bug"], since_days: "14", limit: "5" },
-    operation: "Issues",
-    data: { repository: { issues: { totalCount: 40, nodes: [row] } } },
-    expected: { numbers: [7], titles: ["Broken build"], states: ["open"], count: 1, total: 40 },
-    refuse: graphqlRefusal("Issues"),
-  },
-  {
-    id: READ_IDS.getPullRequest,
-    params: { repo: "widgets", number: "9" },
-    operation: "Pull",
-    data: {
-      repository: {
-        pullRequest: {
-          ...issueNode,
-          __typename: "PullRequest",
-          number: 9,
-          state: "MERGED",
-          isDraft: false,
-          merged: true,
-          mergedAt: "2026-09-03T00:00:00Z",
-          headRefName: "fix",
-          baseRefName: "main",
-          changedFiles: 3,
-          commits: { totalCount: 2 },
-        },
-      },
+    name: READ.findIssues,
+    params: { repo: "widgets", state: "all", labels: ["bug"], since_days: 14, limit: 5, sort: "updated" },
+    answers: ["graphql/issues"],
+    result: {
+      numbers: [7, 8],
+      titles: ["Broken build", "Slow tests"],
+      urls: [...ROW.urls, ROW.urls[0]],
+      states: ["open", "closed"],
+      created_at: [...ROW.created_at, ...ROW.created_at],
+      updated_at: [...ROW.updated_at, ...ROW.updated_at],
+      closed_at: ["", "2026-09-03T00:00:00Z"],
+      count: 2,
+      total: 40,
     },
-    expected: { number: 9, state: "merged", merged: true, draft: false, head_ref: "fix", base_ref: "main", commits: 2, changed_files: 3 },
-    refuse: graphqlRefusal("Pull"),
   },
   {
-    id: READ_IDS.findPullRequests,
-    params: { repo: "widgets", state: "open" },
-    operation: "Pulls",
-    data: { repository: { pullRequests: { totalCount: 1, nodes: [{ ...row, number: 9 }] } } },
-    expected: { numbers: [9], count: 1, total: 1 },
-    refuse: graphqlRefusal("Pulls"),
+    name: READ.getPullRequest,
+    params: { repo: "widgets", number: 9 },
+    answers: ["graphql/pull"],
+    result: {
+      repository: "widgets",
+      owner: "acme",
+      number: 9,
+      title: "Fix the build",
+      state: "merged",
+      merged: true,
+      draft: false,
+      url: "https://github.com/acme/widgets/pull/9",
+      author: "bob",
+      labels: ["bug"],
+      assignees: ["alice"],
+      milestone: "1.0",
+      comments: 2,
+      head_ref: "fix",
+      base_ref: "main",
+      commits: 2,
+      changed_files: 3,
+      created_at: "2026-09-01T00:00:00Z",
+      updated_at: "2026-09-02T00:00:00Z",
+      closed_at: "2026-09-03T00:00:00Z",
+      merged_at: "2026-09-03T00:00:00Z",
+    },
   },
   {
-    id: READ_IDS.listAlerts,
+    name: READ.findPullRequests,
     params: { repo: "widgets" },
-    operation: "Alerts",
-    data: {
-      repository: {
-        vulnerabilityAlerts: {
-          totalCount: 2,
-          nodes: [
-            { number: 1, securityVulnerability: { severity: "CRITICAL", package: { name: "left-pad" } } },
-            { number: 2, securityVulnerability: { severity: "MODERATE", package: { name: "qs" } } },
-          ],
-        },
-      },
-    },
-    expected: {
+    answers: ["graphql/search"],
+    result: { ...ROW, numbers: [9], titles: ["Fix the build"], urls: ["https://github.com/acme/widgets/pull/9"], count: 1, total: 1 },
+  },
+  {
+    name: READ.reviewQueue,
+    params: { repo: "widgets" },
+    answers: ["rest/repository", "graphql/search"],
+    result: { ...ROW, numbers: [9], titles: ["Fix the build"], urls: ["https://github.com/acme/widgets/pull/9"], count: 1, total: 1 },
+  },
+  {
+    name: READ.listAlerts,
+    params: { repo: "widgets" },
+    answers: ["graphql/alerts"],
+    result: {
       numbers: [1, 2],
       severities: ["critical", "medium"],
       packages: ["left-pad", "qs"],
+      urls: [
+        "https://github.com/acme/widgets/security/dependabot/1",
+        "https://github.com/acme/widgets/security/dependabot/2",
+      ],
       count: 2,
-      url: "https://github.test/acme/widgets/security/dependabot",
+      total: 2,
+      url: "https://github.com/acme/widgets/security/dependabot",
     },
-    refuse: graphqlRefusal("Alerts"),
   },
   {
-    id: READ_IDS.listProjects,
+    name: READ.listProjects,
     params: {},
-    operation: "Boards",
-    data: { repositoryOwner: { projectsV2: { totalCount: 1, nodes: [{ id: "PVT_1", title: "Roadmap", number: 1, url: "u" }] } } },
-    expected: { ids: ["PVT_1"], titles: ["Roadmap"], count: 1 },
-    refuse: graphqlRefusal("Boards"),
+    answers: ["graphql/boards"],
+    result: {
+      ids: ["PVT_1"],
+      titles: ["Roadmap"],
+      numbers: [1],
+      urls: ["https://github.com/orgs/acme/projects/1"],
+      count: 1,
+      total: 1,
+    },
   },
   {
-    id: READ_IDS.listProjectFields,
+    name: READ.listProjectFields,
     params: { project_id: "PVT_1" },
-    operation: "Fields",
-    data: {
-      node: {
-        owner: { login: "ACME" },
-        fields: { nodes: [{ id: "F_1", name: "Status", options: [{ id: "O_1", name: "Todo" }] }, {}] },
-      },
-    },
-    expected: { ids: ["F_1"], names: ["Status"], count: 1 },
-    refuse: graphqlRefusal("Fields"),
+    answers: ["graphql/fields"],
+    result: { ids: ["F_1"], names: ["Status"], count: 1 },
   },
   {
-    id: READ_IDS.listProjectOptions,
+    name: READ.listProjectOptions,
     params: { project_id: "PVT_1", field: "status" },
-    operation: "Fields",
-    data: {
-      node: {
-        owner: { login: "acme" },
-        fields: { nodes: [{ id: "F_1", name: "Status", options: [{ id: "O_1", name: "Todo" }, { id: "O_2", name: "Done" }] }] },
-      },
-    },
-    expected: { field_id: "F_1", field_name: "Status", option_ids: ["O_1", "O_2"], option_names: ["Todo", "Done"] },
-    refuse: graphqlRefusal("Fields"),
+    answers: ["graphql/fields"],
+    result: { field_id: "F_1", field_name: "Status", option_ids: ["O_1", "O_2"], option_names: ["Todo", "Done"] },
   },
   {
-    id: READ_IDS.findProjectItem,
-    params: { project_id: "PVT_1", repo: "widgets", number: "7" },
-    operation: "Card",
-    data: {
-      repository: {
-        issueOrPullRequest: { projectItems: { nodes: [{ id: "PVTI_other", project: { id: "PVT_2" } }, { id: "PVTI_7", project: { id: "PVT_1" } }] } },
-      },
-    },
-    expected: { item_id: "PVTI_7", repository: "widgets", owner: "acme", number: 7 },
-    refuse: graphqlRefusal("Card"),
+    name: READ.findProjectItem,
+    params: { project_id: "PVT_1", repo: "widgets", number: 7 },
+    answers: ["graphql/card"],
+    result: { item_id: "PVTI_7", repository: "widgets", owner: "acme", number: 7 },
   },
 ];
 
 describe("reads", () => {
-  it("covers all fourteen", () => {
-    expect(READS.map((one) => one.id).sort()).toEqual(Object.values(READ_IDS).sort());
+  it("covers all fifteen", () => {
+    expect(READS.map((one) => one.name).sort()).toEqual(Object.values(READ).sort());
   });
 
   for (const one of READS) {
-    const name = one.id.split(".").pop();
-
-    it(`${name} answers on the installation's token`, async () => {
-      if (one.operation) h.github.graphql.set(one.operation, () => ({ body: { data: one.data } }));
-      const { status, body } = await h.invoke(INSTALLATION, one.id, one.params);
-      expect(status).toBe(200);
-      expect(body.endpoint).toBe(one.id);
-      expect(body.actor).toBe("installation");
-      expect(body.result).toMatchObject(one.expected);
-      expect(body.result.unavailable).toBeUndefined();
-      for (const call of h.github.calls.filter((c) => c.path === "/graphql")) {
-        expect(call.token).toMatch(/^ghs_42_/);
-      }
+    it(`${one.name} answers from GitHub's answer`, async () => {
+      const run = await call(one.name, one.params, ...one.answers);
+      expect(run).toEqual({ requests: expect.any(Array), result: one.result });
+      for (const request of run.requests) expect(request.headers).toEqual(HEADERS);
     });
 
-    it(`${name} answers another app on the installation's token, as the community or a member`, async () => {
-      if (one.operation) h.github.graphql.set(one.operation, () => ({ body: { data: one.data } }));
-      for (const as of [asCommunity(INSTALLATION), asMember(MEMBER)]) {
-        const { status, body } = await h.invoke(INSTALLATION, one.id, one.params, as);
-        expect(status).toBe(200);
-        expect(body.actor).toBe("installation");
-        expect(body.result).toMatchObject(one.expected);
-      }
-      expect(h.github.calls.length).toBeGreaterThan(0);
-      for (const call of h.github.calls) expect(call.token).toMatch(/^ghs_42_/);
-      expect(h.initiative.installs.get(INSTALLATION)!.tokenAsks).toEqual(["cref_ws_gapp_one"]);
+    it(`${one.name} says so when GitHub refuses the installation`, async () => {
+      const run = await call(one.name, one.params, { status: 403, body: recorded("rest/forbidden") });
+      expect(run).toMatchObject({ unavailable: "not-authorized" });
     });
 
-    it(`${name} says so when GitHub refuses the installation`, async () => {
-      one.refuse(h);
-      const { status, body } = await h.invoke(INSTALLATION, one.id, one.params);
-      expect(status).toBe(200);
-      expect(body.result).toEqual({ unavailable: "forbidden" });
+    it(`${one.name} is retried when GitHub is limiting requests`, async () => {
+      const limited = { status: 403, headers: { "X-RateLimit-Remaining": "0" }, body: recorded("rest/rate-limited") };
+      expect(await call(one.name, one.params, limited)).toMatchObject({ transient: true });
+      expect(await call(one.name, one.params, { status: 429 })).toMatchObject({ transient: true });
     });
   }
 
-  it("names a missing repository rather than guessing one", async () => {
-    const { body } = await h.invoke(INSTALLATION, READ_IDS.findIssues, {});
-    expect(body.result).toEqual({ unavailable: "repository-required" });
+  it("asks GitHub as the organization's installation, about the repository the call names", async () => {
+    const run = await call(READ.listLabels, { repo: "widgets" }, "graphql/labels");
+    expect(run.requests).toEqual([
+      {
+        method: "POST",
+        url: `${API}/graphql`,
+        headers: HEADERS,
+        body: { query: expect.stringContaining("repository(owner: $owner, name: $repo)"), variables: { owner: "acme", repo: "widgets", first: 100 } },
+        connection: "workspace",
+      },
+    ]);
   });
 
-  it("refuses a repository the installation does not cover", async () => {
-    const { body } = await h.invoke(INSTALLATION, READ_IDS.findIssues, { repo: "elsewhere" });
-    expect(body.result).toEqual({ unavailable: "repository-not-listed" });
+  it("reads every page of the installation's repositories, up to five", async () => {
+    const page = (names: string[]) => ({ body: { repositories: names.map((name) => ({ name })) } });
+    const full = Array.from({ length: 100 }, (_, index) => `repo-${index}`);
+    const run = await call(READ.listRepositories, {}, page(full), page(["last"]));
+    expect(run.requests.map((request) => request.url)).toEqual([
+      `${API}/installation/repositories?page=1&per_page=100`,
+      `${API}/installation/repositories?page=2&per_page=100`,
+    ]);
+    expect(run).toMatchObject({ result: { count: 101, owner: "acme" } });
+
+    const capped = await call(READ.listRepositories, {}, ...Array.from({ length: 5 }, () => page(full)));
+    expect(capped.requests).toHaveLength(5);
+    expect(capped).toMatchObject({ result: { count: 500 } });
   });
 
-  it("asks GitHub about the repository the call names", async () => {
-    for (const [id, operation] of [
-      [READ_IDS.listAssignees, "Assignees"],
-      [READ_IDS.listBranches, "Branches"],
-      [READ_IDS.listMilestones, "Milestones"],
-    ] as const) {
-      let asked: Record<string, unknown> | undefined;
-      h.github.graphql.set(operation, (variables) => {
-        asked = variables;
-        return { body: { data: { repository: null } } };
-      });
-      const { body } = await h.invoke(INSTALLATION, id, { repo: "WIDGETS" });
-      expect(asked).toMatchObject({ owner: "acme", repo: "widgets" });
-      expect(body.result).toEqual({ unavailable: "not-found" });
+  it("asks for issues by state, labels, order and how far back", async () => {
+    const run = await call(
+      READ.findIssues,
+      { repo: "widgets", state: "all", labels: ["bug"], since_days: 14, limit: 5, sort: "updated" },
+      "graphql/issues"
+    );
+    expect(variables(run)).toEqual({
+      owner: "acme",
+      repo: "widgets",
+      first: 5,
+      order: { field: "UPDATED_AT", direction: "DESC" },
+      filter: { states: null, labels: ["bug"], since: "2026-09-17T12:00:00.000Z" },
+    });
+
+    const defaults = await call(READ.findIssues, { repo: "widgets", assignee: "alice", milestone: 3, limit: 500 }, "graphql/issues");
+    expect(variables(defaults)).toEqual({
+      owner: "acme",
+      repo: "widgets",
+      first: 100,
+      order: { field: "CREATED_AT", direction: "DESC" },
+      filter: { states: ["OPEN"], assignee: "alice", milestoneNumber: "3" },
+    });
+  });
+
+  it("finds pull requests through GitHub's search, as the installation", async () => {
+    const run = await call(
+      READ.findPullRequests,
+      {
+        repo: "widgets",
+        state: "closed",
+        labels: ["needs review", "ui"],
+        base_ref: "main",
+        head_ref: "fix",
+        review_requested: "dave",
+        sort: "updated",
+        direction: "asc",
+        limit: 10,
+      },
+      "graphql/search"
+    );
+    expect(run.requests[0].connection).toBe("workspace");
+    expect(variables(run)).toEqual({
+      query:
+        'repo:acme/widgets is:pr is:closed is:unmerged label:"needs review" label:"ui" base:"main" head:"fix" review-requested:dave sort:updated-asc',
+      first: 10,
+    });
+
+    const all = await call(READ.findPullRequests, { repo: "widgets", state: "all" }, "graphql/search");
+    expect(variables(all)).toEqual({ query: "repo:acme/widgets is:pr sort:created-desc", first: 30 });
+  });
+
+  it("refuses a reviewer that is not a GitHub login, and never searches for it", async () => {
+    for (const login of ["a b", "@me", "-dave", "x".repeat(40)]) {
+      const run = await call(READ.findPullRequests, { repo: "widgets", review_requested: login }, "graphql/search");
+      expect(run).toMatchObject({ unavailable: "bad-login" });
+      expect(variables(run).query).not.toContain("review-requested");
     }
   });
 
-  it("says a community has no organization connected", async () => {
-    h.initiative.install("gapp_empty", { workspace: null });
-    const { body } = await h.invoke("gapp_empty", READ_IDS.listRepositories, {});
-    expect(body.result).toEqual({ unavailable: "not-configured" });
+  it("asks for the member's review queue as the member, in the repository on the organization", async () => {
+    const run = await call(READ.reviewQueue, { repo: "widgets", labels: ["ui"], limit: 10 }, "rest/repository", "graphql/search");
+    expect(run.requests.map((request) => [request.method, request.url, request.connection])).toEqual([
+      ["GET", `${API}/repos/acme/widgets`, "workspace"],
+      ["POST", `${API}/graphql`, "account"],
+    ]);
+    expect(variables(run, 1)).toEqual({
+      query: 'repo:acme/widgets is:pr is:open label:"ui" review-requested:@me sort:created-desc',
+      first: 10,
+    });
   });
 
-  it("says so when Initiative can get no token for the installation", async () => {
-    h.github.installations.delete(42);
-    const { body } = await h.invoke(INSTALLATION, READ_IDS.listRepositories, {});
-    expect(body.result).toEqual({ unavailable: "installation-unavailable" });
+  it("names a missing repository, number, board or field rather than guessing one", async () => {
+    const refused = { body: recorded("graphql/invalid-variables") };
+    expect(await call(READ.findIssues, {}, refused)).toMatchObject({ unavailable: "repository-required" });
+    expect(await call(READ.getIssue, { repo: "widgets" }, refused)).toMatchObject({ unavailable: "number-required" });
+    expect(await call(READ.listProjectFields, {}, refused)).toMatchObject({ unavailable: "project-required" });
+    expect(await call(READ.listProjectOptions, { project_id: "PVT_1" }, refused)).toMatchObject({ unavailable: "field-required" });
+    expect(await call(READ.reviewQueue, {}, { status: 404 })).toMatchObject({ unavailable: "repository-required" });
   });
 
-  it("reuses the installation token until it is about to expire", async () => {
-    await h.invoke(INSTALLATION, READ_IDS.listRepositories, {});
-    h.github.graphql.set("Labels", () => ({ body: { data: { repository: { labels: { totalCount: 0, nodes: [] } } } } }));
-    await h.invoke(INSTALLATION, READ_IDS.listLabels, { repo: "widgets" });
-    expect(h.initiative.installs.get(INSTALLATION)!.tokenAsks).toEqual(["cref_ws_gapp_one"]);
+  it("says a repository, issue or pull request is not there", async () => {
+    for (const name of [READ.listLabels, READ.listAssignees, READ.findIssues, READ.getIssue, READ.listAlerts, READ.findProjectItem]) {
+      const run = await call(name, { repo: "elsewhere", number: 7, project_id: "PVT_1" }, "graphql/not-found");
+      expect(run).toMatchObject({ unavailable: "not-found" });
+    }
+    expect(await call(READ.reviewQueue, { repo: "elsewhere" }, { status: 404 })).toMatchObject({ unavailable: "not-found" });
   });
 
-  it("answers @me on the viewing member's own token", async () => {
-    h.github.graphql.set("ReviewRequested", (variables) => ({
-      body: { data: { search: { issueCount: 1, nodes: [{ ...row, number: 9 }] } } },
-      ...(String(variables.query).includes("review-requested:@me") ? {} : { status: 500 }),
-    }));
-    const { body } = await h.invoke(
-      INSTALLATION,
-      READ_IDS.findPullRequests,
-      { repo: "widgets", review_requested: "@me" },
-      { connectionRefs: { account: MEMBER } }
-    );
-    expect(body.actor).toBe("member");
-    expect(body.result).toMatchObject({ numbers: [9], total: 1 });
-    expect(h.github.calls.find((call) => call.path === "/graphql")?.token).toBe("ghu_alice");
+  it("reads GitHub's refusal inside a GraphQL answer", async () => {
+    expect(await call(READ.listAlerts, { repo: "widgets" }, "graphql/forbidden")).toMatchObject({ unavailable: "not-authorized" });
+    expect(await call(READ.listLabels, { repo: "widgets" }, "graphql/rate-limited")).toMatchObject({ transient: true });
+    expect(await call(READ.listLabels, { repo: "widgets" }, "graphql/invalid-variables")).toMatchObject({ unavailable: "invalid" });
   });
 
-  it("answers @me for another app on the token of the member it acts as", async () => {
-    h.github.graphql.set("ReviewRequested", () => ({ body: { data: { search: { issueCount: 1, nodes: [row] } } } }));
-    const { body } = await h.invoke(
-      INSTALLATION,
-      READ_IDS.findPullRequests,
-      { repo: "widgets", review_requested: "@me" },
-      asMember(MEMBER)
-    );
-    expect(body.actor).toBe("member");
-    expect(body.result).toMatchObject({ numbers: [7], total: 1 });
-    expect(h.github.calls.find((call) => call.path === "/graphql")?.token).toBe("ghu_alice");
+  it("reads only boards on the organization's own account", async () => {
+    const elsewhere = recorded("graphql/fields");
+    elsewhere.data.node.owner.login = "other";
+    expect(await call(READ.listProjectFields, { project_id: "PVT_9" }, { body: elsewhere })).toMatchObject({
+      unavailable: "project-not-listed",
+    });
+    expect(await call(READ.listProjectOptions, { project_id: "PVT_gone", field: "Status" }, "graphql/no-such-node")).toMatchObject({
+      unavailable: "no-such-project",
+    });
+    expect(await call(READ.listProjectOptions, { project_id: "PVT_1", field: "Priority" }, "graphql/fields")).toMatchObject({
+      unavailable: "no-such-field",
+    });
+    expect(await call(READ.listProjectOptions, { project_id: "PVT_1", field: "F_1" }, "graphql/fields")).toMatchObject({
+      result: { field_id: "F_1" },
+    });
   });
 
-  it("has no one to answer @me for when another app calls as the community", async () => {
-    const { body } = await h.invoke(
-      INSTALLATION,
-      READ_IDS.findPullRequests,
-      { repo: "widgets", review_requested: "@me" },
-      asCommunity(INSTALLATION)
-    );
-    expect(body.result).toEqual({ unavailable: "member-required" });
-    expect(h.github.calls.filter((call) => call.path === "/graphql")).toHaveLength(0);
-  });
-
-  it("asks a member who has not connected to connect for @me", async () => {
-    const { body } = await h.invoke(INSTALLATION, READ_IDS.findPullRequests, { repo: "widgets", review_requested: "@me" });
-    expect(body.result).toEqual({ unavailable: "not-connected" });
-  });
-
-  it("refuses a reviewer that is not a GitHub login", async () => {
-    const { body } = await h.invoke(INSTALLATION, READ_IDS.findPullRequests, { repo: "widgets", review_requested: "a b" });
-    expect(body.result).toEqual({ unavailable: "bad-login" });
+  it("says when an issue has no card on the board", async () => {
+    const run = await call(READ.findProjectItem, { project_id: "PVT_3", repo: "widgets", number: 7 }, "graphql/card");
+    expect(run).toMatchObject({ unavailable: "not-on-that-board" });
   });
 });
 
 interface WriteCase {
-  id: string;
+  name: string;
   params: Record<string, unknown>;
-  /** The GitHub route it calls, and what GitHub answers. */
-  route: string;
-  answer: { status: number; body?: unknown };
-  expected: Record<string, unknown>;
-  sent?: unknown;
+  /** The change it makes as the member, and GitHub's answer. */
+  change: [method: string, path: string, body: unknown];
+  answer: string;
+  result: Record<string, unknown>;
 }
 
 const WRITES: WriteCase[] = [
   {
-    id: WRITE_IDS.openIssue,
+    name: WRITE.openIssue,
     params: { repo: "widgets", title: "Broken", body: "It broke.", labels: ["bug"], assignees: ["alice"] },
-    route: "POST /repos/acme/widgets/issues",
-    answer: { status: 201, body: { number: 12, html_url: "https://github.test/acme/widgets/issues/12", id: 999, title: "Broken" } },
-    expected: { repository: "widgets", number: 12, html_url: "https://github.test/acme/widgets/issues/12", id: 999 },
-    sent: { title: "Broken", body: "It broke.", labels: ["bug"], assignees: ["alice"] },
+    change: ["POST", "/repos/acme/widgets/issues", { title: "Broken", body: "It broke.", labels: ["bug"], assignees: ["alice"] }],
+    answer: "rest/issue-created",
+    result: { repository: "widgets", number: 12, html_url: "https://github.com/acme/widgets/issues/12", id: 1001 },
   },
   {
-    id: WRITE_IDS.comment,
-    params: { repo: "widgets", number: "7", body: "On it." },
-    route: "POST /repos/acme/widgets/issues/7/comments",
-    answer: { status: 201, body: { id: 5, html_url: "https://github.test/c/5" } },
-    expected: { repository: "widgets", number: 7, id: 5, html_url: "https://github.test/c/5" },
-    sent: { body: "On it." },
+    name: WRITE.comment,
+    params: { repo: "widgets", number: 7, body: "On it." },
+    change: ["POST", "/repos/acme/widgets/issues/7/comments", { body: "On it." }],
+    answer: "rest/comment",
+    result: { repository: "widgets", number: 7, id: 5, html_url: "https://github.com/acme/widgets/issues/7#issuecomment-5" },
   },
   {
-    id: WRITE_IDS.closeIssue,
-    params: { repo: "widgets", number: "7", reason: "not_planned" },
-    route: "PATCH /repos/acme/widgets/issues/7",
-    answer: { status: 200, body: { number: 7, state: "closed", html_url: "h" } },
-    expected: { repository: "widgets", number: 7, state: "closed", html_url: "h" },
-    sent: { state: "closed", state_reason: "not_planned" },
+    name: WRITE.closeIssue,
+    params: { repo: "widgets", number: 7, reason: "not_planned" },
+    change: ["PATCH", "/repos/acme/widgets/issues/7", { state: "closed", state_reason: "not_planned" }],
+    answer: "rest/issue-closed",
+    result: { repository: "widgets", number: 7, state: "closed", html_url: "https://github.com/acme/widgets/issues/7" },
   },
   {
-    id: WRITE_IDS.reopenIssue,
-    params: { repo: "widgets", number: "7" },
-    route: "PATCH /repos/acme/widgets/issues/7",
-    answer: { status: 200, body: { number: 7, state: "open", html_url: "h" } },
-    expected: { repository: "widgets", number: 7, state: "open" },
-    sent: { state: "open" },
+    name: WRITE.reopenIssue,
+    params: { repo: "widgets", number: 7 },
+    change: ["PATCH", "/repos/acme/widgets/issues/7", { state: "open" }],
+    answer: "rest/issue",
+    result: { repository: "widgets", number: 7, state: "open", html_url: "https://github.com/acme/widgets/issues/7" },
   },
   {
-    id: WRITE_IDS.label,
-    params: { repo: "widgets", number: "7", add: ["bug"] },
-    route: "POST /repos/acme/widgets/issues/7/labels",
-    answer: { status: 200, body: [] },
-    expected: { repository: "widgets", number: 7 },
-    sent: { labels: ["bug"] },
-  },
-  {
-    id: WRITE_IDS.requestReview,
-    params: { repo: "widgets", number: "9", reviewers: ["carol"], team_reviewers: ["core"] },
-    route: "POST /repos/acme/widgets/pulls/9/requested_reviewers",
-    answer: { status: 201, body: { html_url: "https://github.test/acme/widgets/pull/9" } },
-    expected: { repository: "widgets", number: 9, html_url: "https://github.test/acme/widgets/pull/9" },
-    sent: { reviewers: ["carol"], team_reviewers: ["core"] },
+    name: WRITE.requestReview,
+    params: { repo: "widgets", number: 9, reviewers: ["carol"], team_reviewers: ["core"] },
+    change: ["POST", "/repos/acme/widgets/pulls/9/requested_reviewers", { reviewers: ["carol"], team_reviewers: ["core"] }],
+    answer: "rest/review-requested",
+    result: { repository: "widgets", number: 9, html_url: "https://github.com/acme/widgets/pull/9" },
   },
 ];
 
 describe("writes", () => {
-  for (const one of WRITES) {
-    const name = one.id.split(".").pop();
+  it("covers all seven", () => {
+    expect([...WRITES.map((one) => one.name), WRITE.label, WRITE.moveProjectItem].sort()).toEqual(Object.values(WRITE).sort());
+  });
 
-    it(`${name} calls GitHub as the member it is done for`, async () => {
-      h.github.rest.set(one.route, () => one.answer);
-      const { status, body } = await h.invoke(INSTALLATION, one.id, one.params, asMember(MEMBER));
-      expect(status).toBe(200);
-      expect(body).toMatchObject({ endpoint: one.id, actor: "member" });
-      expect(body.result).toMatchObject(one.expected);
-      const [method, path] = one.route.split(" ");
-      const sent = h.github.callsTo(method, path);
-      expect(sent).toHaveLength(1);
-      expect(sent[0].token).toBe("ghu_alice");
-      if (one.sent) expect(sent[0].body).toEqual(one.sent);
+  for (const one of WRITES) {
+    it(`${one.name} reads the repository on the installation, then writes as the member`, async () => {
+      const run = await call(one.name, one.params, "rest/repository", one.answer);
+      const [method, path, body] = one.change;
+      expect(run.requests).toEqual([
+        { method: "GET", url: `${API}/repos/acme/widgets`, headers: HEADERS, connection: "workspace" },
+        { method, url: `${API}${path}`, headers: HEADERS, body, connection: "account" },
+      ]);
+      expect(run).toMatchObject({ result: one.result });
     });
   }
+
+  it("writes nothing in a repository the installation does not cover", async () => {
+    const run = await call(WRITE.openIssue, { repo: "elsewhere", title: "x" }, { status: 404, body: { message: "Not Found" } });
+    expect(run.requests).toHaveLength(1);
+    expect(run).toMatchObject({ unavailable: "not-found" });
+  });
+
+  it("passes GitHub's refusal of the member through", async () => {
+    const run = await call(WRITE.comment, { repo: "widgets", number: 7, body: "x" }, "rest/repository", {
+      status: 403,
+      body: { message: "Must have push access" },
+    });
+    expect(run).toMatchObject({ unavailable: "not-authorized" });
+    const invalid = await call(WRITE.requestReview, { repo: "widgets", number: 9 }, "rest/repository", { status: 422 });
+    expect(invalid.requests[1].body).toEqual({});
+    expect(invalid).toMatchObject({ unavailable: "invalid" });
+  });
+
+  it("label reads the issue's labels, then sets them as the member", async () => {
+    const run = await call(
+      WRITE.label,
+      { repo: "widgets", number: 7, add: ["triage", "bug"], remove: ["wontfix"] },
+      "rest/issue",
+      "rest/labels"
+    );
+    expect(run.requests).toEqual([
+      { method: "GET", url: `${API}/repos/acme/widgets/issues/7`, headers: HEADERS, connection: "workspace" },
+      {
+        method: "PUT",
+        url: `${API}/repos/acme/widgets/issues/7/labels`,
+        headers: HEADERS,
+        body: { labels: ["triage", "bug"] },
+        connection: "account",
+      },
+    ]);
+    expect(run).toMatchObject({ result: { repository: "widgets", number: 7 } });
+  });
+
+  it("label keeps a label named both to add and to remove, and may remove every label", async () => {
+    const both = await call(WRITE.label, { repo: "widgets", number: 7, add: ["ui"], remove: ["UI", "bug"] }, "rest/issue", "rest/labels");
+    expect(both.requests[1].body).toEqual({ labels: ["Wontfix", "ui"] });
+    const none = await call(WRITE.label, { repo: "widgets", number: 7, remove: ["bug", "wontfix"] }, "rest/issue", "rest/labels");
+    expect(none.requests[1].body).toEqual({ labels: [] });
+  });
+
+  it("label asks for a label to add or remove", async () => {
+    const run = await call(WRITE.label, { repo: "widgets", number: 7 }, "rest/issue");
+    expect(run.requests).toHaveLength(1);
+    expect(run).toMatchObject({ unavailable: "invalid" });
+  });
 
   it("move-project-item sets the card's field as the member", async () => {
-    h.github.graphql.set("Move", (variables, token) => ({
-      body: { data: { updateProjectV2ItemFieldValue: { projectV2Item: { id: String(variables.item) } } } },
-      ...(token === "ghu_alice" ? {} : { status: 401 }),
-    }));
-    const { status, body } = await h.invoke(
-      INSTALLATION,
-      WRITE_IDS.moveProjectItem,
-      { project_id: "PVT_1", item_id: "PVTI_7", field_id: "F_1", option_id: "O_2" },
-      asMember(MEMBER)
-    );
-    expect(status).toBe(200);
-    expect(body).toMatchObject({ actor: "member", result: { item_id: "PVTI_7" } });
+    const params = { project_id: "PVT_1", item_id: "PVTI_7", field_id: "F_1", option_id: "O_2" };
+    const run = await call(WRITE.moveProjectItem, params, "graphql/moved");
+    expect(run.requests).toHaveLength(1);
+    expect(run.requests[0].connection).toBe("account");
+    expect(variables(run)).toEqual({ project: "PVT_1", item: "PVTI_7", field: "F_1", option: "O_2" });
+    expect(run).toMatchObject({ result: { item_id: "PVTI_7" } });
   });
-
-  it("covers all seven", () => {
-    expect([...WRITES.map((one) => one.id), WRITE_IDS.moveProjectItem].sort()).toEqual(Object.values(WRITE_IDS).sort());
-  });
-
-  it("passes GitHub's own refusal through as a status", async () => {
-    h.github.rest.set("POST /repos/acme/widgets/issues/7/comments", () => ({ status: 403, body: { message: "Must have push access" } }));
-    const { status, body } = await h.invoke(
-      INSTALLATION,
-      WRITE_IDS.comment,
-      { repo: "widgets", number: "7", body: "x" },
-      asMember(MEMBER)
-    );
-    expect(status).toBe(403);
-    expect(body).toMatchObject({ error: "forbidden", detail: "Must have push access" });
-  });
-
-  it("removes labels before adding, and a label already gone is not an error", async () => {
-    h.github.rest.set("DELETE /repos/acme/widgets/issues/7/labels/wontfix", () => ({ status: 404, body: { message: "Label does not exist" } }));
-    h.github.rest.set("POST /repos/acme/widgets/issues/7/labels", () => ({ status: 200, body: [] }));
-    const { status } = await h.invoke(
-      INSTALLATION,
-      WRITE_IDS.label,
-      { repo: "widgets", number: "7", add: ["bug"], remove: ["wontfix"] },
-      asMember(MEMBER)
-    );
-    expect(status).toBe(200);
-    const order = h.github.calls
-      .filter((call) => call.path.startsWith("/repos/acme/widgets/issues/7/labels"))
-      .map((call) => call.method);
-    expect(order).toEqual(["DELETE", "POST"]);
-  });
-
-  it("never falls back to the app when the member has not connected", async () => {
-    h.github.rest.set("POST /repos/acme/widgets/issues", () => ({ status: 201, body: { number: 1 } }));
-    const { status, body } = await h.invoke(INSTALLATION, WRITE_IDS.openIssue, { repo: "widgets", title: "x" }, asMember());
-    expect(status).toBe(409);
-    expect(body.error).toBe("not-connected");
-    expect(h.github.callsTo("POST", "/repos/acme/widgets/issues")).toHaveLength(0);
-  });
-
-  it("refuses a write made as the community, even with its handle", async () => {
-    h.github.rest.set("POST /repos/acme/widgets/issues", () => ({ status: 201, body: { number: 1 } }));
-    const { status, body } = await h.invoke(
-      INSTALLATION,
-      WRITE_IDS.openIssue,
-      { repo: "widgets", title: "x" },
-      asCommunity(INSTALLATION)
-    );
-    expect(status).toBe(403);
-    expect(body.error).toBe("actor-not-supported");
-    expect(h.github.callsTo("POST", "/repos/acme/widgets/issues")).toHaveLength(0);
-  });
-
-  it("is made only for another app, never for a widget", async () => {
-    h.github.rest.set("POST /repos/acme/widgets/issues", () => ({ status: 201, body: { number: 1 } }));
-    const { status, body } = await h.invoke(
-      INSTALLATION,
-      WRITE_IDS.openIssue,
-      { repo: "widgets", title: "x" },
-      { connectionRefs: { account: MEMBER } }
-    );
-    expect(status).toBe(403);
-    expect(body.error).toBe("actor-not-supported");
-    expect(h.github.callsTo("POST", "/repos/acme/widgets/issues")).toHaveLength(0);
-  });
-
-  it("says GitHub did not answer when Initiative could not renew the member's token", async () => {
-    h.initiative.connectionTokenFails = 502;
-    const { status, body } = await h.invoke(
-      INSTALLATION,
-      WRITE_IDS.openIssue,
-      { repo: "widgets", title: "x" },
-      asMember(MEMBER)
-    );
-    expect(status).toBe(502);
-    expect(body.error).toBe("vendor-error");
-  });
-
-  it("refuses a handle Initiative does not hold a credential for", async () => {
-    const { status, body } = await h.invoke(
-      INSTALLATION,
-      WRITE_IDS.openIssue,
-      { repo: "widgets", title: "x" },
-      asMember("cref_nobody")
-    );
-    expect(status).toBe(409);
-    expect(body.error).toBe("not-connected");
-  });
-
-  it("asks for the parameters a write cannot run without", async () => {
-    const { status, body } = await h.invoke(
-      INSTALLATION,
-      WRITE_IDS.openIssue,
-      { repo: "widgets" },
-      asMember(MEMBER)
-    );
-    expect(status).toBe(400);
-    expect(body.error).toBe("invalid-params");
-  });
-});
-
-describe("announcements", () => {
-  for (const id of Object.values(EMIT_IDS)) {
-    it(`${id.split(".").pop()} is delivered, never called`, async () => {
-      const { status, body } = await h.invoke(INSTALLATION, id, {});
-      expect(status).toBe(400);
-      expect(body.detail).toContain("emitted rather than called");
-    });
-  }
 });

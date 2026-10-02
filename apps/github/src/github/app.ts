@@ -7,6 +7,7 @@
  */
 
 import { InitiativeApiError, type Client } from "initiative-app-sdk/client";
+import type { GithubPermissionLevel } from "initiative-app-sdk/manifest";
 
 import type { Logger } from "../context.js";
 import type { Workspace } from "../installs.js";
@@ -23,10 +24,10 @@ const REPOSITORY_PAGES = 5;
 
 /**
  * The permissions the GitHub App registration asks for. Initiative shows them
- * to a member about to connect, and the README lists them for whoever
- * registers the GitHub App.
+ * to a member about to connect and creates the GitHub App with them, and the
+ * README lists them for whoever registers the GitHub App by hand.
  */
-export const PERMISSIONS: Readonly<Record<string, string>> = {
+export const PERMISSIONS: Readonly<Record<string, GithubPermissionLevel>> = {
   issues: "write",
   pull_requests: "write",
   contents: "read",

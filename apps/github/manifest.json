@@ -92,7 +92,37 @@
           "fr": "Secret du webhook"
         }
       }
-    ]
+    ],
+    "setup": {
+      "kind": "github_app_manifest",
+      "app": {
+        "name": "Initiative",
+        "url": "https://github.com/Morelitea/initiative-developer/tree/main/apps/github",
+        "public": false,
+        "default_permissions": {
+          "issues": "write",
+          "pull_requests": "write",
+          "contents": "read",
+          "vulnerability_alerts": "read",
+          "organization_projects": "write",
+          "metadata": "read"
+        },
+        "default_events": [
+          "issues",
+          "pull_request",
+          "release",
+          "create"
+        ]
+      },
+      "values": {
+        "client_id": "client_id",
+        "client_secret": "client_secret",
+        "app_slug": "slug",
+        "app_id": "id",
+        "private_key": "pem",
+        "webhook_secret": "webhook_secret"
+      }
+    }
   },
   "connections": [
     {

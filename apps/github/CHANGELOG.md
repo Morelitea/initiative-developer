@@ -1,5 +1,23 @@
 # Changelog
 
+## [2.6.0]
+
+Initiative can set the app up.
+
+### Changed
+
+- The app's manifest describes the GitHub App it needs, so Initiative can
+  create it with one button on the app's registration and enter its six values
+  itself. The permissions and events are the ones the README lists for
+  registering it by hand.
+- The listing carries the Compose service to run the app beside Initiative,
+  which Initiative shows on the app's registration to copy.
+
+### Upgrading
+
+- Nothing to do. An Initiative that offers neither ignores both, and the GitHub
+  App is registered by hand as before.
+
 ## [2.5.0]
 
 The app keeps its own key.

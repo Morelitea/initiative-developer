@@ -13,7 +13,7 @@ import { findProjectItem, listProjectFields, listProjectOptions, listProjects, m
 import { findPullRequests, getPullRequest, requestReview } from "./endpoints/pulls.js";
 import { listAssignees, listBranches, listRepositories } from "./endpoints/repositories.js";
 import { listAlerts } from "./endpoints/security.js";
-import { PERMISSIONS } from "./github/app.js";
+import { PERMISSIONS, WEBHOOK_EVENTS } from "./github/app.js";
 import { checkInstallation, hooks } from "./hooks.js";
 import {
   ACCOUNT,
@@ -30,6 +30,28 @@ import {
 
 const GITHUB_WEB = "https://github.com";
 const GITHUB_API = "https://api.github.com";
+
+/**
+ * The Compose service an operator copies from the app's registration, with the
+ * two placeholders Initiative fills.
+ */
+const COMPOSE_SERVICE = `# Merge into the docker-compose.yml that runs Initiative, so the app joins its network.
+services:
+  github:
+    image: \${IMAGE}
+    restart: unless-stopped
+    environment:
+      INITIATIVE_BASE_URL: \${INITIATIVE_URL}/api/v1
+      # From the GitHub App's page once it exists: its client ID, and a client secret made there.
+      GITHUB_CLIENT_ID: ""
+      GITHUB_CLIENT_SECRET: ""
+    volumes:
+      # Holds the app's key. Its fingerprint is logged at every start.
+      - github_data:/data
+
+volumes:
+  github_data:
+`;
 
 /** GitHub's user authorization for the GitHub App, which both connections run. */
 const GITHUB_OAUTH: ConnectionFlow = {
@@ -94,6 +116,27 @@ export default defineApp({
         label: text("Webhook secret", "Webhook-Secret", "Secreto del webhook", "Secret du webhook"),
       },
     ],
+    // Initiative can create the GitHub App from the operator's browser, with
+    // the permissions and events the README's registration table lists, and
+    // write GitHub's answer into the six fields above.
+    setup: {
+      kind: "github_app_manifest",
+      app: {
+        name: "Initiative",
+        url: "https://github.com/Morelitea/initiative-developer/tree/main/apps/github",
+        public: false,
+        default_permissions: { ...PERMISSIONS },
+        default_events: [...WEBHOOK_EVENTS],
+      },
+      values: {
+        client_id: "client_id",
+        client_secret: "client_secret",
+        app_slug: "slug",
+        app_id: "id",
+        private_key: "pem",
+        webhook_secret: "webhook_secret",
+      },
+    },
   },
 
   connections: {
@@ -358,14 +401,19 @@ export default defineApp({
       "Members who connect their own GitHub account get their own review queue, and automations can open, comment on, close, label and move issues as them.",
     ].join("\n"),
     avatar: "assets/avatar.png",
-    version: "2.5.0",
+    version: "2.6.0",
     // The oldest Initiative that runs this app's connections. Development
     // builds report the last release until the next one, and no release before
     // the next one follows the registry, so this admits development builds and
-    // every later release.
+    // every later release. An Initiative older than the vendor setup and the
+    // Compose snippet ignores both, and the GitHub App is registered by hand.
     minAppVersion: "0.72.0",
     releaseNotes:
-      "Makes and keeps its own signing key when none is given, on a volume at /data, and logs the key's fingerprint at every start so it can be checked against the one Initiative shows. A key given in the environment is used as before.",
+      "Initiative can create the GitHub App for you from the app's registration, with one button, and shows the Compose service to run beside it. A running deployment needs no change.",
     image: "ghcr.io/morelitea/initiative-github@sha256:e616af78d1b5bd17cbe344de1904d52c664533d8b0b7e831f26ddca236324ebb",
+    compose: {
+      service: COMPOSE_SERVICE,
+      baseUrl: "http://github:8080",
+    },
   },
 });

@@ -366,6 +366,6 @@ export default defineApp({
     minAppVersion: "0.72.0",
     releaseNotes:
       "Makes and keeps its own signing key when none is given, on a volume at /data, and logs the key's fingerprint at every start so it can be checked against the one Initiative shows. A key given in the environment is used as before.",
-    image: "ghcr.io/morelitea/initiative-github@sha256:ec966af338fef63213bfa6b37e6d1392a39374001e78a15ed07db2a8847e56c5",
+    image: "ghcr.io/morelitea/initiative-github@sha256:e616af78d1b5bd17cbe344de1904d52c664533d8b0b7e831f26ddca236324ebb",
   },
 });

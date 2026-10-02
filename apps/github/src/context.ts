@@ -10,7 +10,6 @@
 import type { Config } from "./config.js";
 import { GitHubApp } from "./github/app.js";
 import type { GitHubHttp } from "./github/http.js";
-import type { OAuthClient } from "./github/oauth.js";
 import { InstallRegistry } from "./installs.js";
 
 export interface Logger {
@@ -31,8 +30,6 @@ export interface GitHubContext {
   log: Logger;
   http: GitHubHttp;
   github: GitHubApp;
-  /** The GitHub App's client, for ending a member's authorization. */
-  oauth: OAuthClient;
   installs: InstallRegistry;
   /** Installation checks in a row on which Initiative could get no token, by installation. */
   unavailable: Map<string, number>;
@@ -57,12 +54,6 @@ export function createContext(config: Config, options: ContextOptions = {}): Git
     log,
     http,
     github: new GitHubApp({ http, log }),
-    oauth: {
-      http,
-      webBase: config.github.webBase,
-      clientId: config.github.clientId,
-      clientSecret: config.github.clientSecret,
-    },
     installs: new InstallRegistry({ now }),
     unavailable: new Map<string, number>(),
   };

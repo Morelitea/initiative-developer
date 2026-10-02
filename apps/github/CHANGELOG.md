@@ -2,7 +2,7 @@
 
 ## [2.6.0]
 
-Initiative can set the app up.
+Initiative can set the app up, and ends a member's authorization itself.
 
 ### Changed
 
@@ -12,11 +12,17 @@ Initiative can set the app up.
   registering it by hand.
 - The listing carries the Compose service to run the app beside Initiative,
   which Initiative shows on the app's registration to copy.
+- Initiative ends a member's GitHub authorization itself, with the GitHub
+  App's values it already holds. The app no longer needs the client ID and
+  secret, and no longer has a revoke hook.
 
 ### Upgrading
 
-- Nothing to do. An Initiative that offers neither ignores both, and the GitHub
-  App is registered by hand as before.
+- Needs Initiative 0.75.0 or later; an older one refuses this manifest.
+- Take this version's manifest and image together: an Initiative still holding
+  2.5.0's manifest calls the revoke hook, which this version no longer has.
+- Remove `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` from the app's settings;
+  it no longer reads them.
 
 ## [2.5.0]
 

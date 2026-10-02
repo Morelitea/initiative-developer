@@ -1,8 +1,7 @@
 /**
  * A fake GitHub: the installations Initiative mints tokens for, the REST and
- * GraphQL calls the endpoints make, what the hooks ask about a user token,
- * the token refresh, and grant revocation. Every API call is recorded with
- * the token it carried.
+ * GraphQL calls the endpoints make, and what the hooks ask about a user
+ * token. Every API call is recorded with the token it carried.
  */
 
 import { json } from "./fake-initiative.js";
@@ -33,19 +32,10 @@ export class FakeGitHub {
   readonly graphql = new Map<string, GraphQLHandler>();
   /** REST answers by `METHOD /path`. */
   readonly rest = new Map<string, RestHandler>();
-  /** Refresh tokens → the grant a refresh returns; absent means refused. */
-  readonly refreshes = new Map<string, { access_token: string; refresh_token?: string; expires_in?: number }>();
   /** User access tokens → the login they belong to. */
   readonly users = new Map<string, string>();
   /** User access tokens → the installations that person can reach. */
   readonly userInstallations = new Map<string, Array<{ id: number; login: string }>>();
-  /** User access tokens GitHub no longer recognizes. */
-  readonly lapsed = new Set<string>();
-  /** The access tokens whose grant was ended. */
-  readonly revoked: string[] = [];
-  readonly exchanges: URLSearchParams[] = [];
-  /** When set, grant revocation answers with this status. */
-  revokeStatus: number | null = null;
   private minted = 0;
 
   install(id: number, setup: Partial<GitHubInstallation> = {}): void {
@@ -85,16 +75,6 @@ export class FakeGitHub {
       body = raw;
     }
 
-    if (url.origin === GITHUB_WEB) {
-      if (url.pathname === "/login/oauth/access_token" && method === "POST") {
-        const form = new URLSearchParams(raw);
-        this.exchanges.push(form);
-        const grant = form.get("grant_type") === "refresh_token" ? this.refreshes.get(form.get("refresh_token") ?? "") : undefined;
-        return grant ? json(200, grant) : json(200, { error: "bad_refresh_token" });
-      }
-      return json(404, { message: "Not Found" });
-    }
-
     const path = `${url.pathname}${url.search}`;
     this.calls.push({ method, path, token, body });
 
@@ -119,15 +99,6 @@ export class FakeGitHub {
       const held = this.userInstallations.get(token);
       if (!held) return json(401, { message: "Bad credentials" });
       return json(200, { installations: held.map(({ id, login }) => ({ id, account: { login } })) });
-    }
-
-    const grantPath = url.pathname.match(/^\/applications\/([^/]+)\/grant$/);
-    if (grantPath && method === "DELETE") {
-      if (this.revokeStatus !== null) return json(this.revokeStatus, { message: "Server Error" });
-      const accessToken = String((body as { access_token?: unknown })?.access_token);
-      if (this.lapsed.has(accessToken)) return json(404, { message: "Not Found" });
-      this.revoked.push(accessToken);
-      return new Response(null, { status: 204 });
     }
 
     if (url.pathname === "/graphql" && method === "POST") {

@@ -48,10 +48,10 @@ member and runs on that member's own GitHub account, so an automation's
 "comment on the issue" is theirs. Writes are reachable only this way.
 
 **Removing it.** When a member disconnects, leaves or is blocked, or the app is
-removed, Initiative ends the member's GitHub authorization (the grant, so its
-refresh token goes too) by calling the app's revoke hook. Turning the app off,
-or a community being put on hold, only pauses it: everything is kept, and
-nobody has to authorize again when it is turned back on.
+removed, Initiative ends the member's GitHub authorization at GitHub (the
+grant, so its refresh token goes too). Turning the app off, or a community
+being put on hold, only pauses it: everything is kept, and nobody has to
+authorize again when it is turned back on.
 
 ## Installing it
 
@@ -67,13 +67,9 @@ App services**, on the GitHub app's registration:
 2. **Press Create the GitHub App.** GitHub shows the app it is about to create,
    with the permissions and events in the table below and Initiative's
    addresses already set. Confirm it there, and GitHub sends you back to
-   Initiative with the app's six values entered for you.
-3. On the new GitHub App's page on GitHub, copy its client ID and generate a
-   client secret, and set them as `GITHUB_CLIENT_ID` and
-   `GITHUB_CLIENT_SECRET` in the service: ending a member's authorization at
-   GitHub is authenticated as the GitHub App's client. Then
+   Initiative with the app's six values entered for you. Then
    `docker compose up -d`.
-4. Press **Connect** on the registration. The app proves who it is to
+3. Press **Connect** on the registration. The app proves who it is to
    Initiative with its own key: on first start it generates one, keeps it in
    `/data`, serves the public half at `/.well-known/jwks.json`, and logs its
    fingerprint at every start:
@@ -130,8 +126,6 @@ services:
     restart: unless-stopped
     environment:
       INITIATIVE_BASE_URL: http://initiative:8173/api/v1
-      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID}
-      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET}
     volumes:
       - github_data:/data
 
@@ -164,14 +158,11 @@ Adding or removing repositories later is done at GitHub, on the app's
 
 ## Settings
 
-Required: the app refuses to start without any of them, and names what is
-missing.
+Required: the app refuses to start without it, and names what is missing.
 
 | Variable | |
 |---|---|
 | `INITIATIVE_BASE_URL` | Initiative's API as this container reaches it, e.g. `http://initiative:8173/api/v1`. |
-| `GITHUB_CLIENT_ID` | The GitHub App's client ID, for ending a member's authorization. |
-| `GITHUB_CLIENT_SECRET` | The GitHub App's client secret, for the same. |
 
 Optional:
 
@@ -182,13 +173,13 @@ Optional:
 | `INITIATIVE_APP_KEY_ID` | the key's thumbprint | The `kid` that key is registered under. |
 | `INITIATIVE_APP_DATA_DIR` | `/data` | Where a generated key is kept, as `app-key.pem`. |
 | `GITHUB_API_BASE` | `https://api.github.com` | GitHub's API. |
-| `GITHUB_WEB_BASE` | `https://github.com` | Where a member's lapsed token is renewed before their authorization is ended. |
+| `GITHUB_WEB_BASE` | `https://github.com` | GitHub's website, for the Dependabot alerts link. |
 
 ## Running it
 
 Initiative calls the app at its registered address, for its endpoints and its
-four hooks (`/v1/hooks/after_connect`, `/v1/hooks/revoke`,
-`/v1/hooks/webhook`, `/v1/hooks/schedule`).
+three hooks (`/v1/hooks/after_connect`, `/v1/hooks/webhook`,
+`/v1/hooks/schedule`).
 
 Every 15 minutes, Initiative asks the app to check each community's
 organization. The app reports the configuration as not working when GitHub has
@@ -202,6 +193,14 @@ to the app, and only Initiative calls it. A deployment that registers the
 app's key by address reads it at `/.well-known/jwks.json`.
 
 `GET /healthz` and `GET /readyz` both answer once the process is up.
+
+## Upgrading from 2.5
+
+Initiative now ends a member's GitHub authorization itself, so this needs
+Initiative 0.75.0 or later. Take this version's manifest and image together:
+an Initiative still holding 2.5.0's manifest calls the revoke hook, which this
+version no longer has. Remove `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET`
+from the app's settings; it no longer reads them.
 
 ## Upgrading from 2.2
 

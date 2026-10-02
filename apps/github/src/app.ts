@@ -42,9 +42,6 @@ services:
     restart: unless-stopped
     environment:
       INITIATIVE_BASE_URL: \${INITIATIVE_URL}/api/v1
-      # From the GitHub App's page once it exists: its client ID, and a client secret made there.
-      GITHUB_CLIENT_ID: ""
-      GITHUB_CLIENT_SECRET: ""
     volumes:
       # Holds the app's key. Its fingerprint is logged at every start.
       - github_data:/data
@@ -179,8 +176,8 @@ export default defineApp({
       },
     },
     // Each member's own GitHub authorization, for what the app does as
-    // them. Initiative holds it and renews it; the after_connect hook names
-    // the account, and the revoke hook ends it at GitHub.
+    // them. Initiative holds it, renews it and ends it at GitHub; the
+    // after_connect hook names the account.
     [ACCOUNT]: {
       scope: "interactive",
       label: text("Your GitHub account", "Dein GitHub-Konto", "Tu cuenta de GitHub", "Votre compte GitHub"),
@@ -188,7 +185,8 @@ export default defineApp({
       flow: {
         ...GITHUB_OAUTH,
         after_connect: true,
-        revoke: "hook",
+        revoke: "github_grant",
+        revoke_url: `${GITHUB_API}/applications/{vendor.client_id}/grant`,
       },
       access_hint: {
         api: "GitHub",
@@ -402,14 +400,11 @@ export default defineApp({
     ].join("\n"),
     avatar: "assets/avatar.png",
     version: "2.6.0",
-    // The oldest Initiative that runs this app's connections. Development
-    // builds report the last release until the next one, and no release before
-    // the next one follows the registry, so this admits development builds and
-    // every later release. An Initiative older than the vendor setup and the
-    // Compose snippet ignores both, and the GitHub App is registered by hand.
-    minAppVersion: "0.72.0",
+    // The oldest Initiative that ends a member's GitHub authorization itself
+    // (`github_grant`); an older one refuses this manifest.
+    minAppVersion: "0.75.0",
     releaseNotes:
-      "Initiative can create the GitHub App for you from the app's registration, with one button, and shows the Compose service to run beside it. A running deployment needs no change.",
+      "Initiative can create the GitHub App for you from the app's registration, with one button, and shows the Compose service to run beside it. Initiative now ends a member's GitHub authorization itself, so the app no longer needs the GitHub App's client ID and secret. Needs Initiative 0.75.0.",
     image: "ghcr.io/morelitea/initiative-github@sha256:e616af78d1b5bd17cbe344de1904d52c664533d8b0b7e831f26ddca236324ebb",
     compose: {
       service: COMPOSE_SERVICE,

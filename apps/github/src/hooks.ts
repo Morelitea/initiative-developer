@@ -7,8 +7,6 @@
  *   says they hold; its account and id become the community's configuration.
  * - **`after_connect`** for `account`: a member authorized. Their login is
  *   what Initiative shows for the connection.
- * - **`revoke`** for `account`: a member's connection ended. Their
- *   authorization of the GitHub App is ended at GitHub.
  * - **`webhook`**: a GitHub delivery for the community's installation, which
  *   Initiative has checked and routed. It becomes one of the six
  *   announcements, emitted in that community.
@@ -18,8 +16,8 @@
  *
  * The SDK verifies the lifecycle token and the body; these handlers do only
  * the GitHub work. A handler that throws answers 500, which Initiative reads
- * as the hook failing: a connection is then not recorded, and a revocation or
- * a scheduled check is tried again.
+ * as the hook failing: a connection is then not recorded, and a scheduled
+ * check is tried again.
  */
 
 import type {
@@ -27,12 +25,11 @@ import type {
   AfterConnectCall,
   Call,
   Hooks,
-  RevokeCall,
   WebhookCall,
 } from "initiative-app-sdk/manifest";
 
 import { translate } from "./endpoints/emissions.js";
-import { endAuthorization, userInstallations, userLogin } from "./github/oauth.js";
+import { userInstallations, userLogin } from "./github/oauth.js";
 import { ACCOUNT, WORKSPACE } from "./vocabulary.js";
 
 const REFUSE: AfterConnectAnswer = { refuse: true };
@@ -58,7 +55,6 @@ export const hooks: Hooks = {
       : call.connection === ACCOUNT && call.actor === "member"
         ? authorized(call)
         : Promise.resolve(REFUSE),
-  revoke,
   webhook: delivered,
 };
 
@@ -85,18 +81,6 @@ async function authorized(call: AfterConnectCall): Promise<AfterConnectAnswer> {
   const login = await userLogin(call.context.http, call.access_token);
   if (!login) throw new Error("GitHub would not name the member's account");
   return { account_label: login };
-}
-
-/** A member's authorization of the GitHub App, ended at GitHub. */
-async function revoke(call: RevokeCall): Promise<void> {
-  if (call.connection !== ACCOUNT) return;
-  const outcome = await endAuthorization(call.context.oauth, {
-    accessToken: call.access_token ?? null,
-    refreshToken: call.refresh_token ?? null,
-  });
-  if (outcome === "nothing-to-end") {
-    call.context.log.info("a member's GitHub authorization had already ended");
-  }
 }
 
 /** A GitHub delivery, announced in the community it was routed to. */

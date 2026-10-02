@@ -197,7 +197,8 @@
         "client_secret": "{vendor.client_secret}",
         "pkce": true,
         "after_connect": true,
-        "revoke": "hook"
+        "revoke": "github_grant",
+        "revoke_url": "https://api.github.com/applications/{vendor.client_id}/grant"
       },
       "access_hint": {
         "api": "GitHub",

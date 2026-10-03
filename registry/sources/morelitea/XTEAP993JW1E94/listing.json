@@ -13,10 +13,10 @@
   },
   "versions": [
     {
-      "version": "3.0.0",
-      "definition": "3.0.0/manifest.json",
+      "version": "3.1.0",
+      "definition": "3.1.0/manifest.json",
       "min_app_version": "0.75.0",
-      "release_notes": "The app runs inside Initiative: there is no service to run beside it. Pull requests waiting on your review have their own endpoint, review-queue. Needs Initiative 0.75.0."
+      "release_notes": "Connecting an organization's installation needs an admin of that organization, and a personal account's needs that account. Needs Initiative 0.75.0."
     }
   ],
   "registration": {

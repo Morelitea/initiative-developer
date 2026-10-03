@@ -11,9 +11,7 @@ name: Registry
 #
 # Daily: the same build and publish, so every online role is re-signed well
 # inside its expiry (timestamp 1 day, snapshot 7 days, publisher roles 90 days)
-# even when nothing merges. The daily run is started from outside this
-# repository (workflow_dispatch), because GitHub turns a public
-# repository's schedules off after 60 days without a commit.
+# even when nothing merges.
 #
 # Publishing needs GitHub Pages set to deploy from GitHub Actions
 # (Settings > Pages > Source) and three secrets, each the PEM text of a key
@@ -30,6 +28,8 @@ on:
     paths:
       - "registry/**"
       - ".github/workflows/registry.yml"
+  schedule:
+    - cron: "17 4 * * *"
   workflow_dispatch:
 
 permissions:

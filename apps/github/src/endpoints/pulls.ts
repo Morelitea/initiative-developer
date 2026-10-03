@@ -41,6 +41,7 @@ import {
   NEEDS_REPO,
   PUBLIC_READ,
   PUBLIC_WRITE,
+  REPO_NAME,
   REPO_PATH,
   REPO_VARIABLES,
   rest,
@@ -84,7 +85,7 @@ function search(reviewer: string, connection: string) {
       $quoted := function($value) { '"' & $replace($value, '"', '') & '"' };
       {
         "query": $join([
-          "repo:" & connections.workspace.owner & "/" & params.repo,
+          "repo:" & connections.workspace.owner & "/" & ${REPO_NAME},
           "is:pr",
           params.state = "closed" ? "is:closed is:unmerged" : params.state = "merged" ? "is:merged" : $not(params.state = "all") ? "is:open",
           params.labels.("label:" & $quoted($)),

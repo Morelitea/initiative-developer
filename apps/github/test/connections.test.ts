@@ -1,7 +1,7 @@
 /**
- * The two GitHub connections Initiative runs: checking an organization's
- * installation against the admin's own once they connect it, naming a
- * member's account, and asking GitHub whether the installation still exists.
+ * The two GitHub connections Initiative runs: checking that the person
+ * connecting an installation controls the account it is on, naming a member's
+ * account, and asking GitHub whether the installation still exists.
  */
 
 import { runAfterConnect, runHealth } from "initiative-app-sdk/testing";
@@ -13,37 +13,69 @@ import { recorded } from "./fixtures.js";
 
 const API = "https://api.github.com";
 
-const installed = (installationId: string, ...pages: unknown[]) =>
+const MEMBERSHIPS = `${API}/user/memberships/orgs?state=active&page=1&per_page=100`;
+
+/**
+ * Connecting the installation the install page returned, with the person's
+ * installations (every page of them), their organization memberships and
+ * their own account as GitHub answers them.
+ */
+const installed = (
+  installationId: string,
+  { installations = [recorded("rest/user-installations")], memberships = recorded("rest/user-memberships") }: {
+    installations?: unknown[];
+    memberships?: unknown;
+  } = {}
+) =>
   runAfterConnect(app, WORKSPACE, {
     params: { installation_id: installationId },
-    responses: (pages.length ? pages : [recorded("rest/user-installations")]).map((body) => ({ body })),
+    responses: [...installations, memberships, recorded("rest/user")].map((body) => ({ body })),
   });
 
 describe("after_connect for the organization", () => {
-  it("records the installation the admin holds, with its account", async () => {
+  it("records an organization's installation for one of its admins", async () => {
     const run = await installed("42");
-    expect(run.requests).toEqual([
-      {
+    expect(run.requests).toEqual(
+      [`${API}/user/installations?page=1&per_page=100`, MEMBERSHIPS, `${API}/user`].map((url) => ({
         method: "GET",
-        url: `${API}/user/installations?page=1&per_page=100`,
+        url,
         headers: expect.objectContaining({ "X-GitHub-Api-Version": "2022-11-28" }),
-      },
-    ]);
+      }))
+    );
     expect(run).toMatchObject({ result: { values: { owner: "acme", installation_id: 42 }, account_label: "acme" } });
   });
 
-  it("finds it on a later page of the admin's installations", async () => {
-    const others = Array.from({ length: 100 }, (_, index) => ({ id: 1000 + index, account: { login: `org-${index}` } }));
-    const run = await installed("42", { installations: others }, recorded("rest/user-installations"));
+  it("finds it on a later page of the person's installations", async () => {
+    const others = Array.from({ length: 100 }, (_, index) => ({
+      id: 1000 + index,
+      account: { login: `org-${index}`, id: 5000 + index, type: "Organization" },
+    }));
+    const run = await installed("42", { installations: [{ installations: others }, recorded("rest/user-installations")] });
     expect(run.requests.map((request) => request.url)).toEqual([
       `${API}/user/installations?page=1&per_page=100`,
       `${API}/user/installations?page=2&per_page=100`,
+      MEMBERSHIPS,
+      `${API}/user`,
     ]);
     expect(run).toMatchObject({ result: { values: { owner: "acme", installation_id: 42 } } });
   });
 
-  it("refuses an installation the admin does not hold", async () => {
-    for (const claimed of ["43", "abc", ""]) {
+  it("refuses an organization's installation to a member who is not its admin", async () => {
+    expect(await installed("41")).toMatchObject({ refused: "installation-not-held" });
+    const pending = recorded("rest/user-memberships").map((row: Record<string, unknown>) => ({ ...row, state: "pending" }));
+    expect(await installed("42", { memberships: pending })).toMatchObject({ refused: "installation-not-held" });
+    expect(await installed("42", { memberships: [] })).toMatchObject({ refused: "installation-not-held" });
+  });
+
+  it("records a personal account's installation for that person only", async () => {
+    expect(await installed("43")).toMatchObject({
+      result: { values: { owner: "alice", installation_id: 43 }, account_label: "alice" },
+    });
+    expect(await installed("44")).toMatchObject({ refused: "installation-not-held" });
+  });
+
+  it("refuses an installation the person does not hold", async () => {
+    for (const claimed of ["45", "abc", ""]) {
       expect(await installed(claimed)).toMatchObject({ refused: "installation-not-held" });
     }
   });

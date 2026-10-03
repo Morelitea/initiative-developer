@@ -102,9 +102,9 @@ set.
 3. GitHub's install page opens. Choose the account and the repositories the
    app may see. Only an owner of that account can finish; anyone else sends a
    request for an owner to approve, and Initiative says it is waiting.
-4. GitHub asks you to authorize once, and Initiative checks that the
-   installation you chose is one you hold. You are sent back to Initiative,
-   connected.
+4. GitHub asks you to authorize once, and Initiative checks that you control
+   the account the installation is on: an admin of the organization, or the
+   user it is installed for. You are sent back to Initiative, connected.
 5. Each member who wants their review queue, or whose automations write to
    GitHub, connects *Your GitHub account* in the app's settings.
 

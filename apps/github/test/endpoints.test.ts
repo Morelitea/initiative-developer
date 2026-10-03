@@ -339,6 +339,14 @@ describe("reads", () => {
     expect(await call(READ.reviewQueue, {}, refused)).toMatchObject({ unavailable: "repository-required" });
   });
 
+  it("searches one repository of the organization, or none", async () => {
+    for (const repo of ["widgets repo:other/secret", "other/secret", "..", "wid\"gets"]) {
+      const run = await call(READ.findPullRequests, { repo }, "graphql/search");
+      expect(variables(run).query, repo).toBe("repo:acme/ is:pr is:open sort:created-desc");
+      expect(run).toMatchObject({ unavailable: "repository-required" });
+    }
+  });
+
   it("says a repository, issue or pull request is not there", async () => {
     for (const name of [READ.listLabels, READ.listAssignees, READ.findIssues, READ.getIssue, READ.listAlerts, READ.findProjectItem]) {
       const run = await call(name, { repo: "elsewhere", number: 7, project_id: "PVT_1" }, "graphql/not-found");
@@ -447,6 +455,14 @@ describe("writes", () => {
     const invalid = await call(WRITE.requestReview, { repo: "widgets", number: 9 }, { status: 422 });
     expect(invalid.requests[0].body).toEqual({});
     expect(invalid).toMatchObject({ unavailable: "invalid" });
+  });
+
+  it("writes to a repository of the organization, or to none", async () => {
+    for (const repo of ["../other/secret", "other/secret", "..", ".", "wid gets", "widgets?x=1", "%2e%2e"]) {
+      const run = await call(WRITE.comment, { repo, number: 7, body: "x" }, { status: 404, body: { message: "Not Found" } });
+      expect(run.requests.map((request) => request.url), repo).toEqual([`${API}/repos/acme//issues/7/comments`]);
+      expect(run).toMatchObject({ unavailable: "not-found" });
+    }
   });
 
   it("label reads the issue's labels, then sets them as the member", async () => {

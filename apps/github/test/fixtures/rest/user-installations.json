@@ -1,10 +1,11 @@
 {
-  "total_count": 2,
+  "total_count": 4,
   "installations": [
     {
       "id": 41,
       "account": {
         "login": "someone-else",
+        "id": 401,
         "type": "Organization"
       },
       "app_slug": "initiative"
@@ -13,7 +14,26 @@
       "id": 42,
       "account": {
         "login": "acme",
+        "id": 400,
         "type": "Organization"
+      },
+      "app_slug": "initiative"
+    },
+    {
+      "id": 43,
+      "account": {
+        "login": "alice",
+        "id": 7,
+        "type": "User"
+      },
+      "app_slug": "initiative"
+    },
+    {
+      "id": 44,
+      "account": {
+        "login": "bob",
+        "id": 8,
+        "type": "User"
       },
       "app_slug": "initiative"
     }

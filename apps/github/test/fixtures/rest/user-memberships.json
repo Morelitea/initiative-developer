@@ -1,0 +1,32 @@
+[
+  {
+    "url": "https://api.github.com/orgs/acme/memberships/alice",
+    "state": "active",
+    "role": "admin",
+    "organization_url": "https://api.github.com/orgs/acme",
+    "organization": {
+      "login": "acme",
+      "id": 400
+    },
+    "user": {
+      "login": "alice",
+      "id": 7,
+      "type": "User"
+    }
+  },
+  {
+    "url": "https://api.github.com/orgs/someone-else/memberships/alice",
+    "state": "active",
+    "role": "member",
+    "organization_url": "https://api.github.com/orgs/someone-else",
+    "organization": {
+      "login": "someone-else",
+      "id": 401
+    },
+    "user": {
+      "login": "alice",
+      "id": 7,
+      "type": "User"
+    }
+  }
+]

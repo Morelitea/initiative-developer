@@ -57,10 +57,22 @@ export function graphql(query: string, variables: Expression, connection: string
 }
 
 /**
+ * The repository a call names, when `repo` is a name GitHub gives a
+ * repository: letters, digits, '.', '-' and '_', at most 100, and neither '.'
+ * nor '..'. Anything else is no repository at all, so every address and
+ * search names one repository of the organization or none.
+ */
+export const REPO_NAME = `(
+  $repo := params.repo;
+  $type($repo) = "string" and $length($repo) <= 100 and $contains($repo, /^[A-Za-z0-9._-]+$/) and $not($repo in [".", ".."])
+    ? $repo : ""
+)`;
+
+/**
  * The repository a call names, as its path at GitHub: on the organization,
  * whichever connection the request carries.
  */
-export const REPO_PATH = `"/repos/" & connections.workspace.owner & "/" & params.repo`;
+export const REPO_PATH = `"/repos/" & connections.workspace.owner & "/" & ${REPO_NAME}`;
 
 /**
  * A read other apps may call through Initiative, as the community or as one of
@@ -118,7 +130,8 @@ export function needs(...refusals: Array<[when: Expression, code: string]>): { u
   };
 }
 
-export const NEEDS_REPO: [string, string] = [missing("repo"), "repository-required"];
+/** No repository, or a name no repository can have. */
+export const NEEDS_REPO: [string, string] = [`${REPO_NAME} = ""`, "repository-required"];
 export const NEEDS_NUMBER: [string, string] = [missing("number"), "number-required"];
 export const NEEDS_PROJECT: [string, string] = [missing("project_id"), "project-required"];
 export const NEEDS_FIELD: [string, string] = [missing("field"), "field-required"];
@@ -143,7 +156,7 @@ export const SINCE = `(
 )`;
 
 /** The variables naming the call's repository on the organization. */
-export const REPO_VARIABLES = `"owner": connections.workspace.owner, "repo": params.repo`;
+export const REPO_VARIABLES = `"owner": connections.workspace.owner, "repo": ${REPO_NAME}`;
 
 // --- answers -------------------------------------------------------------------
 

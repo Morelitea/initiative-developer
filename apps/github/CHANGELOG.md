@@ -1,5 +1,22 @@
 # Changelog
 
+## [3.1.0]
+
+Connecting an installation asks who controls its account.
+
+### Changed
+
+- Connecting an organization's installation needs an admin of that
+  organization, and connecting a personal account's installation needs that
+  account. Initiative checks it when you authorize, with no new permission.
+- `repo` names one repository of the connected organization: a name GitHub
+  could not give a repository answers `repository-required`, or `not-found`
+  from a write.
+
+### Upgrading
+
+- Needs Initiative 0.75.0 or later.
+
 ## [3.0.0]
 
 The app runs inside Initiative.

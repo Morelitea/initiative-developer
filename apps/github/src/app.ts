@@ -8,7 +8,7 @@
  * Nothing of the app runs anywhere: Initiative makes every call itself.
  */
 
-import { defineApp, type ConnectionFlow, type GithubPermissionLevel } from "initiative-app-sdk/manifest";
+import { defineApp, type ConnectionFlow, type GithubPermissionLevel, type Paging } from "initiative-app-sdk/manifest";
 
 import { EMIT_ENDPOINTS, EVENTS } from "./endpoints/emissions.js";
 import { closeIssue, comment, findIssues, getIssue, label, listLabels, listMilestones, openIssue, reopenIssue } from "./endpoints/issues.js";
@@ -45,6 +45,17 @@ const GITHUB_OAUTH: ConnectionFlow = {
   client_secret: "{vendor.client_secret}",
   pkce: true,
 };
+
+/** Every page, up to ten of a hundred, of a list the person's own token reads. */
+const pages = (items: string): Paging => ({
+  kind: "page_number",
+  page_param: "page",
+  per_page_param: "per_page",
+  per_page: 100,
+  items,
+  max_pages: 10,
+  on_limit: "truncate",
+});
 
 /** A delivery about the GitHub App's installation itself. */
 const installation = (action: string) =>
@@ -131,8 +142,10 @@ export default defineApp({
     // The community's GitHub installation. An admin connects it once:
     // Initiative sends them to GitHub's install page, then through one
     // authorization, and keeps the installation they came back with only if
-    // it is one of theirs. Initiative mints its tokens from the GitHub App's
-    // key, and checks every 15 minutes that GitHub still has it.
+    // it is one of theirs and they control the account it is on: an admin of
+    // the organization, or the user it is installed for. Initiative mints its
+    // tokens from the GitHub App's key, and checks every 15 minutes that
+    // GitHub still has it.
     [WORKSPACE]: {
       scope: "static",
       label: text("GitHub organization", "GitHub-Organisation", "Organización de GitHub", "Organisation GitHub"),
@@ -156,22 +169,29 @@ export default defineApp({
         ...GITHUB_OAUTH,
         install_url: `${WEB}/apps/{vendor.app_slug}/installations/new`,
         after_connect: {
-          request: rest("GET", `"/user/installations"`, {
-            connection: null,
-            paging: {
-              kind: "page_number",
-              page_param: "page",
-              per_page_param: "per_page",
-              per_page: 100,
-              items: "response.body.installations",
-              max_pages: 10,
-              on_limit: "truncate",
+          steps: [
+            {
+              name: "installations",
+              request: rest("GET", `"/user/installations"`, { connection: null, paging: pages("response.body.installations") }),
             },
-          }),
+            {
+              name: "memberships",
+              request: rest("GET", `"/user/memberships/orgs"`, {
+                connection: null,
+                query: { state: quote("active") },
+                paging: pages("response.body"),
+              }),
+            },
+            { name: "user", request: rest("GET", `"/user"`, { connection: null }) },
+          ],
           map: `(
             $claimed := params.installation_id;
-            $held := response.body[$string(id) = $claimed][0];
-            {"values": {"owner": $held.account.login, "installation_id": $held.id}, "account_label": $held.account.login}
+            $held := steps.installations.body[$string(id) = $claimed][0];
+            $account := $held.account;
+            $controls := $account.type = "Organization"
+              ? $exists(steps.memberships.body[organization.id = $account.id and state = "active" and role = "admin"])
+              : $account.type = "User" and $account.id = steps.user.body.id;
+            $controls ? {"values": {"owner": $account.login, "installation_id": $held.id}, "account_label": $account.login} : {}
           )`,
           refuse_when: "$not($exists(result.values.owner) and $exists(result.values.installation_id))",
           code: "installation-not-held",
@@ -418,11 +438,11 @@ export default defineApp({
       "Members who connect their own GitHub account get their own review queue, and automations can open, comment on, close, label and move issues as them.",
     ].join("\n"),
     avatar: "assets/avatar.png",
-    version: "3.0.0",
-    // The oldest Initiative that runs an app's calls to GitHub itself; an
-    // older one refuses this manifest.
+    version: "3.1.0",
+    // The oldest Initiative that runs an app's calls to GitHub itself, and an
+    // after_connect in steps; an older one refuses this manifest.
     minAppVersion: "0.75.0",
     releaseNotes:
-      "The app runs inside Initiative: there is no service to run beside it. Pull requests waiting on your review have their own endpoint, review-queue. Needs Initiative 0.75.0.",
+      "Connecting an organization's installation needs an admin of that organization, and a personal account's needs that account. Needs Initiative 0.75.0.",
   },
 });

@@ -1,5 +1,5 @@
 {
-  "app_kind": "service",
+  "plugin_kind": "service",
   "features": [
     "dashboards",
     "endpoints",
@@ -88,7 +88,7 @@
       "kind": "github_app_manifest",
       "app": {
         "name": "Initiative",
-        "url": "https://github.com/Morelitea/initiative-developer/tree/main/apps/github",
+        "url": "https://github.com/Morelitea/initiative-developer/tree/main/plugins/github",
         "public": false,
         "default_permissions": {
           "issues": "write",
@@ -321,32 +321,32 @@
     "events": [
       {
         "when": "headers.\"x-github-event\" = \"issues\" and payload.action = \"opened\" and $not($exists(payload.issue.pull_request)) and $type(payload.issue.number) = \"number\" and ($type(payload.repository.name) = \"string\" and payload.repository.name != \"\")",
-        "emit": "app.morelitea.github.issue-opened",
+        "emit": "plugin.morelitea.github.issue-opened",
         "map": "(\n    $text := function($value) { $type($value) = \"string\" ? $value : null };\n    {\n      \"repository\": payload.repository.name, \"owner\": $text(payload.repository.owner.login),\n      \"number\": payload.issue.number,\n      \"title\": $text(payload.issue.title),\n      \"url\": $text(payload.issue.html_url),\n      \"author\": $text(payload.issue.user.login),\n      \"labels\": [payload.issue.labels.name[$type($) = \"string\" and $ != \"\"]]\n    }\n  )"
       },
       {
         "when": "headers.\"x-github-event\" = \"issues\" and payload.action = \"closed\" and $not($exists(payload.issue.pull_request)) and $type(payload.issue.number) = \"number\" and ($type(payload.repository.name) = \"string\" and payload.repository.name != \"\")",
-        "emit": "app.morelitea.github.issue-closed",
+        "emit": "plugin.morelitea.github.issue-closed",
         "map": "(\n    $text := function($value) { $type($value) = \"string\" ? $value : null };\n    {\n      \"repository\": payload.repository.name, \"owner\": $text(payload.repository.owner.login),\n      \"number\": payload.issue.number,\n      \"title\": $text(payload.issue.title),\n      \"url\": $text(payload.issue.html_url),\n      \"author\": $text(payload.issue.user.login),\n      \"labels\": [payload.issue.labels.name[$type($) = \"string\" and $ != \"\"]]\n    }\n  )"
       },
       {
         "when": "headers.\"x-github-event\" = \"pull_request\" and payload.action = \"review_requested\" and $type(payload.pull_request.number) = \"number\" and ($type(payload.repository.name) = \"string\" and payload.repository.name != \"\")",
-        "emit": "app.morelitea.github.review-requested",
+        "emit": "plugin.morelitea.github.review-requested",
         "map": "(\n    $text := function($value) { $type($value) = \"string\" ? $value : null };\n    {\n      \"repository\": payload.repository.name, \"owner\": $text(payload.repository.owner.login),\n      \"number\": payload.pull_request.number,\n      \"title\": $text(payload.pull_request.title),\n      \"url\": $text(payload.pull_request.html_url),\n      \"author\": $text(payload.pull_request.user.login),\n      \"reviewer\": $type(payload.requested_reviewer.login) = \"string\"\n        ? payload.requested_reviewer.login\n        : $text(payload.requested_team.slug)\n    }\n  )"
       },
       {
         "when": "headers.\"x-github-event\" = \"release\" and payload.action = \"released\" and ($type(payload.repository.name) = \"string\" and payload.repository.name != \"\") and ($type(payload.release.tag_name) = \"string\" and payload.release.tag_name != \"\")",
-        "emit": "app.morelitea.github.release-published",
+        "emit": "plugin.morelitea.github.release-published",
         "map": "(\n    $text := function($value) { $type($value) = \"string\" ? $value : null };\n    {\n      \"repository\": payload.repository.name, \"owner\": $text(payload.repository.owner.login),\n      \"tag\": payload.release.tag_name,\n      \"name\": $text(payload.release.name),\n      \"branch\": $text(payload.release.target_commitish),\n      \"url\": $text(payload.release.html_url),\n      \"author\": $text(payload.release.author.login)\n    }\n  )"
       },
       {
         "when": "headers.\"x-github-event\" = \"release\" and payload.action = \"prereleased\" and ($type(payload.repository.name) = \"string\" and payload.repository.name != \"\") and ($type(payload.release.tag_name) = \"string\" and payload.release.tag_name != \"\")",
-        "emit": "app.morelitea.github.prerelease-published",
+        "emit": "plugin.morelitea.github.prerelease-published",
         "map": "(\n    $text := function($value) { $type($value) = \"string\" ? $value : null };\n    {\n      \"repository\": payload.repository.name, \"owner\": $text(payload.repository.owner.login),\n      \"tag\": payload.release.tag_name,\n      \"name\": $text(payload.release.name),\n      \"branch\": $text(payload.release.target_commitish),\n      \"url\": $text(payload.release.html_url),\n      \"author\": $text(payload.release.author.login)\n    }\n  )"
       },
       {
         "when": "headers.\"x-github-event\" = \"create\" and payload.ref_type = \"tag\" and ($type(payload.repository.name) = \"string\" and payload.repository.name != \"\") and ($type(payload.ref) = \"string\" and payload.ref != \"\")",
-        "emit": "app.morelitea.github.tag-created",
+        "emit": "plugin.morelitea.github.tag-created",
         "map": "(\n      $text := function($value) { $type($value) = \"string\" ? $value : null };\n      $home := payload.repository.html_url;\n      {\n        \"repository\": payload.repository.name, \"owner\": $text(payload.repository.owner.login),\n        \"tag\": payload.ref,\n        \"url\": ($type($home) = \"string\" and $home != \"\") ? $encodeUrl($home & \"/tree/\" & payload.ref) : null,\n        \"author\": $text(payload.sender.login)\n      }\n    )"
       }
     ],
@@ -370,7 +370,7 @@
   },
   "endpoints": [
     {
-      "id": "app.morelitea.github.list-repositories",
+      "id": "plugin.morelitea.github.list-repositories",
       "direction": "read",
       "label": {
         "en": "Repositories",
@@ -477,7 +477,7 @@
       "map": "(\n    $names := [response.body.name];\n    {\"names\": $names, \"owner\": connections.workspace.owner, \"count\": $count($names)}\n  )"
     },
     {
-      "id": "app.morelitea.github.list-assignees",
+      "id": "plugin.morelitea.github.list-assignees",
       "direction": "read",
       "label": {
         "en": "Who can be assigned",
@@ -514,7 +514,7 @@
             "fr": "Dépôt"
           },
           "options_from": {
-            "endpoint": "app.morelitea.github.list-repositories",
+            "endpoint": "plugin.morelitea.github.list-repositories",
             "key": "names"
           }
         }
@@ -614,7 +614,7 @@
       "map": "(\n    $list := response.body.data.repository.assignableUsers;\n    $list ? (\n      $found := [$list.nodes.login];\n      {\"logins\": $found, \"count\": $count($found), \"total\": $list.totalCount}\n    ) : {\"unavailable\": \"not-found\"}\n  )"
     },
     {
-      "id": "app.morelitea.github.list-branches",
+      "id": "plugin.morelitea.github.list-branches",
       "direction": "read",
       "label": {
         "en": "Branches",
@@ -651,7 +651,7 @@
             "fr": "Dépôt"
           },
           "options_from": {
-            "endpoint": "app.morelitea.github.list-repositories",
+            "endpoint": "plugin.morelitea.github.list-repositories",
             "key": "names"
           }
         }
@@ -751,7 +751,7 @@
       "map": "(\n    $list := response.body.data.repository.refs;\n    $list ? (\n      $found := [$list.nodes.name];\n      {\"names\": $found, \"count\": $count($found), \"total\": $list.totalCount}\n    ) : {\"unavailable\": \"not-found\"}\n  )"
     },
     {
-      "id": "app.morelitea.github.list-labels",
+      "id": "plugin.morelitea.github.list-labels",
       "direction": "read",
       "label": {
         "en": "Labels",
@@ -788,7 +788,7 @@
             "fr": "Dépôt"
           },
           "options_from": {
-            "endpoint": "app.morelitea.github.list-repositories",
+            "endpoint": "plugin.morelitea.github.list-repositories",
             "key": "names"
           }
         }
@@ -888,7 +888,7 @@
       "map": "(\n    $list := response.body.data.repository.labels;\n    $list ? (\n      $found := [$list.nodes.name];\n      {\"names\": $found, \"count\": $count($found), \"total\": $list.totalCount}\n    ) : {\"unavailable\": \"not-found\"}\n  )"
     },
     {
-      "id": "app.morelitea.github.list-milestones",
+      "id": "plugin.morelitea.github.list-milestones",
       "direction": "read",
       "label": {
         "en": "Milestones",
@@ -925,7 +925,7 @@
             "fr": "Dépôt"
           },
           "options_from": {
-            "endpoint": "app.morelitea.github.list-repositories",
+            "endpoint": "plugin.morelitea.github.list-repositories",
             "key": "names"
           }
         }
@@ -1036,7 +1036,7 @@
       "map": "(\n    $list := response.body.data.repository.milestones;\n    $found := $list.nodes[$type(number) = \"number\"];\n    $list ? {\n      \"numbers\": [$found.number],\n      \"titles\": [$found.(title ? title : \"\")],\n      \"count\": $count($found),\n      \"total\": $list.totalCount\n    } : {\"unavailable\": \"not-found\"}\n  )"
     },
     {
-      "id": "app.morelitea.github.get-issue",
+      "id": "plugin.morelitea.github.get-issue",
       "direction": "read",
       "label": {
         "en": "Get an issue",
@@ -1073,7 +1073,7 @@
             "fr": "Dépôt"
           },
           "options_from": {
-            "endpoint": "app.morelitea.github.list-repositories",
+            "endpoint": "plugin.morelitea.github.list-repositories",
             "key": "names"
           }
         },
@@ -1247,7 +1247,7 @@
       "map": "(\n    $text := function($value) { $type($value) = \"string\" ? $value : null };\n    $repository := response.body.data.repository;\n    $node := $repository.issueOrPullRequest;\n    $node ? $merge([\n      {\n        \"repository\": $repository.name,\n        \"owner\": $repository.owner.login,\n        \"number\": $node.number,\n        \"title\": $text($node.title),\n        \"state\": $node.state ? $lowercase($node.state) : null,\n        \"url\": $text($node.url),\n        \"author\": $text($node.author.login),\n        \"labels\": [$node.labels.nodes.name],\n        \"assignees\": [$node.assignees.nodes.login],\n        \"milestone\": $text($node.milestone.title),\n        \"comments\": $node.comments.totalCount ? $node.comments.totalCount : 0,\n        \"created_at\": $text($node.createdAt),\n        \"updated_at\": $text($node.updatedAt),\n        \"closed_at\": $text($node.closedAt)\n      },\n      {\n      \"state_reason\": $node.stateReason ? $lowercase($node.stateReason) : null,\n      \"is_pull_request\": $node.__typename = \"PullRequest\"\n    }\n    ]) : {\"unavailable\": \"not-found\"}\n  )"
     },
     {
-      "id": "app.morelitea.github.find-issues",
+      "id": "plugin.morelitea.github.find-issues",
       "direction": "read",
       "label": {
         "en": "Find issues",
@@ -1284,7 +1284,7 @@
             "fr": "Dépôt"
           },
           "options_from": {
-            "endpoint": "app.morelitea.github.list-repositories",
+            "endpoint": "plugin.morelitea.github.list-repositories",
             "key": "names"
           }
         },
@@ -1314,7 +1314,7 @@
           },
           "list": true,
           "options_from": {
-            "endpoint": "app.morelitea.github.list-labels",
+            "endpoint": "plugin.morelitea.github.list-labels",
             "key": "names",
             "needs": {
               "repo": "repo"
@@ -1331,7 +1331,7 @@
             "fr": "Personne assignée"
           },
           "options_from": {
-            "endpoint": "app.morelitea.github.list-assignees",
+            "endpoint": "plugin.morelitea.github.list-assignees",
             "key": "logins",
             "needs": {
               "repo": "repo"
@@ -1348,7 +1348,7 @@
             "fr": "Jalon"
           },
           "options_from": {
-            "endpoint": "app.morelitea.github.list-milestones",
+            "endpoint": "plugin.morelitea.github.list-milestones",
             "key": "numbers",
             "label_key": "titles",
             "needs": {
@@ -1547,7 +1547,7 @@
       "map": "(\n    $issues := response.body.data.repository.issues;\n    $issues ? (\n    $rows := $issues.nodes[$type($) = \"object\"];\n    {\n      \"numbers\": [$rows.(number ? number : 0)],\n      \"titles\": [$rows.(title ? title : \"\")],\n      \"urls\": [$rows.(url ? url : \"\")],\n      \"states\": [$rows.(state ? $lowercase(state) : \"\")],\n      \"created_at\": [$rows.(createdAt ? createdAt : \"\")],\n      \"updated_at\": [$rows.(updatedAt ? updatedAt : \"\")],\n      \"closed_at\": [$rows.(closedAt ? closedAt : \"\")],\n      \"count\": $count($rows),\n      \"total\": $issues.totalCount\n    }\n  ) : {\"unavailable\": \"not-found\"}\n  )"
     },
     {
-      "id": "app.morelitea.github.get-pull-request",
+      "id": "plugin.morelitea.github.get-pull-request",
       "direction": "read",
       "label": {
         "en": "Get a pull request",
@@ -1584,7 +1584,7 @@
             "fr": "Dépôt"
           },
           "options_from": {
-            "endpoint": "app.morelitea.github.list-repositories",
+            "endpoint": "plugin.morelitea.github.list-repositories",
             "key": "names"
           }
         },
@@ -1784,7 +1784,7 @@
       "map": "(\n    $text := function($value) { $type($value) = \"string\" ? $value : null };\n    $repository := response.body.data.repository;\n    $node := $repository.pullRequest;\n    $node ? $merge([\n      {\n        \"repository\": $repository.name,\n        \"owner\": $repository.owner.login,\n        \"number\": $node.number,\n        \"title\": $text($node.title),\n        \"state\": $node.state ? $lowercase($node.state) : null,\n        \"url\": $text($node.url),\n        \"author\": $text($node.author.login),\n        \"labels\": [$node.labels.nodes.name],\n        \"assignees\": [$node.assignees.nodes.login],\n        \"milestone\": $text($node.milestone.title),\n        \"comments\": $node.comments.totalCount ? $node.comments.totalCount : 0,\n        \"created_at\": $text($node.createdAt),\n        \"updated_at\": $text($node.updatedAt),\n        \"closed_at\": $text($node.closedAt)\n      },\n      {\n      \"merged\": $node.merged = true,\n      \"draft\": $node.isDraft = true,\n      \"head_ref\": $text($node.headRefName),\n      \"base_ref\": $text($node.baseRefName),\n      \"commits\": $node.commits.totalCount ? $node.commits.totalCount : 0,\n      \"changed_files\": $node.changedFiles ? $node.changedFiles : 0,\n      \"merged_at\": $text($node.mergedAt)\n    }\n    ]) : {\"unavailable\": \"not-found\"}\n  )"
     },
     {
-      "id": "app.morelitea.github.find-pull-requests",
+      "id": "plugin.morelitea.github.find-pull-requests",
       "direction": "read",
       "label": {
         "en": "Find pull requests",
@@ -1821,7 +1821,7 @@
             "fr": "Dépôt"
           },
           "options_from": {
-            "endpoint": "app.morelitea.github.list-repositories",
+            "endpoint": "plugin.morelitea.github.list-repositories",
             "key": "names"
           }
         },
@@ -1852,7 +1852,7 @@
           },
           "list": true,
           "options_from": {
-            "endpoint": "app.morelitea.github.list-labels",
+            "endpoint": "plugin.morelitea.github.list-labels",
             "key": "names",
             "needs": {
               "repo": "repo"
@@ -1889,7 +1889,7 @@
             "fr": "En attente de"
           },
           "options_from": {
-            "endpoint": "app.morelitea.github.list-assignees",
+            "endpoint": "plugin.morelitea.github.list-assignees",
             "key": "logins",
             "needs": {
               "repo": "repo"
@@ -2078,7 +2078,7 @@
       "map": "(\n  $search := response.body.data.search;\n  (\n    $rows := $search.nodes[$type($) = \"object\"];\n    {\n      \"numbers\": [$rows.(number ? number : 0)],\n      \"titles\": [$rows.(title ? title : \"\")],\n      \"urls\": [$rows.(url ? url : \"\")],\n      \"states\": [$rows.(state ? $lowercase(state) : \"\")],\n      \"created_at\": [$rows.(createdAt ? createdAt : \"\")],\n      \"updated_at\": [$rows.(updatedAt ? updatedAt : \"\")],\n      \"closed_at\": [$rows.(closedAt ? closedAt : \"\")],\n      \"count\": $count($rows),\n      \"total\": $search.issueCount\n    }\n  )\n)"
     },
     {
-      "id": "app.morelitea.github.review-queue",
+      "id": "plugin.morelitea.github.review-queue",
       "direction": "read",
       "label": {
         "en": "Waiting on your review",
@@ -2115,7 +2115,7 @@
             "fr": "Dépôt"
           },
           "options_from": {
-            "endpoint": "app.morelitea.github.list-repositories",
+            "endpoint": "plugin.morelitea.github.list-repositories",
             "key": "names"
           }
         },
@@ -2146,7 +2146,7 @@
           },
           "list": true,
           "options_from": {
-            "endpoint": "app.morelitea.github.list-labels",
+            "endpoint": "plugin.morelitea.github.list-labels",
             "key": "names",
             "needs": {
               "repo": "repo"
@@ -2344,7 +2344,7 @@
       "map": "(\n  $search := response.body.data.search;\n  (\n    $rows := $search.nodes[$type($) = \"object\"];\n    {\n      \"numbers\": [$rows.(number ? number : 0)],\n      \"titles\": [$rows.(title ? title : \"\")],\n      \"urls\": [$rows.(url ? url : \"\")],\n      \"states\": [$rows.(state ? $lowercase(state) : \"\")],\n      \"created_at\": [$rows.(createdAt ? createdAt : \"\")],\n      \"updated_at\": [$rows.(updatedAt ? updatedAt : \"\")],\n      \"closed_at\": [$rows.(closedAt ? closedAt : \"\")],\n      \"count\": $count($rows),\n      \"total\": $search.issueCount\n    }\n  )\n)"
     },
     {
-      "id": "app.morelitea.github.list-alerts",
+      "id": "plugin.morelitea.github.list-alerts",
       "direction": "read",
       "label": {
         "en": "Dependabot alerts",
@@ -2381,7 +2381,7 @@
             "fr": "Dépôt"
           },
           "options_from": {
-            "endpoint": "app.morelitea.github.list-repositories",
+            "endpoint": "plugin.morelitea.github.list-repositories",
             "key": "names"
           }
         }
@@ -2500,7 +2500,7 @@
       "map": "(\n    $repository := response.body.data.repository;\n    $found := $repository.vulnerabilityAlerts;\n    $page := \"https://github.com/\" & $repository.owner.login & \"/\" & $repository.name & \"/security/dependabot\";\n    $alerts := $found.nodes[$type($) = \"object\"];\n    $found ? {\n      \"numbers\": [$alerts.(number ? number : 0)],\n      \"severities\": [$alerts.(\n        $severity := securityVulnerability.severity ? $lowercase(securityVulnerability.severity) : \"\";\n        $severity = \"moderate\" ? \"medium\" : $severity\n      )],\n      \"packages\": [$alerts.(securityVulnerability.package.name ? securityVulnerability.package.name : \"\")],\n      \"urls\": [$alerts.($page & \"/\" & (number ? number : \"\"))],\n      \"count\": $count($alerts),\n      \"total\": $found.totalCount,\n      \"url\": $page\n    } : {\"unavailable\": \"not-found\"}\n  )"
     },
     {
-      "id": "app.morelitea.github.list-projects",
+      "id": "plugin.morelitea.github.list-projects",
       "direction": "read",
       "label": {
         "en": "Project boards",
@@ -2623,7 +2623,7 @@
       "map": "(\n    $found := response.body.data.repositoryOwner.projectsV2;\n    $boards := $found.nodes[$type(id) = \"string\"];\n    $found ? {\n      \"ids\": [$boards.id],\n      \"titles\": [$boards.(title ? title : \"\")],\n      \"numbers\": [$boards.(number ? number : 0)],\n      \"urls\": [$boards.(url ? url : \"\")],\n      \"count\": $count($boards),\n      \"total\": $found.totalCount\n    } : {\"unavailable\": \"not-found\"}\n  )"
     },
     {
-      "id": "app.morelitea.github.list-project-fields",
+      "id": "plugin.morelitea.github.list-project-fields",
       "direction": "read",
       "label": {
         "en": "Project fields",
@@ -2660,7 +2660,7 @@
             "fr": "Projet"
           },
           "options_from": {
-            "endpoint": "app.morelitea.github.list-projects",
+            "endpoint": "plugin.morelitea.github.list-projects",
             "key": "ids",
             "label_key": "titles"
           }
@@ -2764,7 +2764,7 @@
       "map": "(\n    $board := response.body.data.node;\n    $fields := $board.fields.nodes[$type(id) = \"string\"];\n    $owned := $type($board.owner.login) = \"string\" and $lowercase($board.owner.login) = $lowercase(connections.workspace.owner);\n    $board.fields ? ($owned ? {\"ids\": [$fields.id], \"names\": [$fields.(name ? name : \"\")], \"count\": $count($fields)} : {\"unavailable\": \"project-not-listed\"}) : {\"unavailable\": \"no-such-project\"}\n  )"
     },
     {
-      "id": "app.morelitea.github.list-project-options",
+      "id": "plugin.morelitea.github.list-project-options",
       "direction": "read",
       "label": {
         "en": "Project field values",
@@ -2801,7 +2801,7 @@
             "fr": "Projet"
           },
           "options_from": {
-            "endpoint": "app.morelitea.github.list-projects",
+            "endpoint": "plugin.morelitea.github.list-projects",
             "key": "ids",
             "label_key": "titles"
           }
@@ -2816,7 +2816,7 @@
             "fr": "Champ"
           },
           "options_from": {
-            "endpoint": "app.morelitea.github.list-project-fields",
+            "endpoint": "plugin.morelitea.github.list-project-fields",
             "key": "ids",
             "label_key": "names",
             "needs": {
@@ -2933,7 +2933,7 @@
       "map": "(\n    $board := response.body.data.node;\n    $fields := $board.fields.nodes[$type(id) = \"string\"];\n    $owned := $type($board.owner.login) = \"string\" and $lowercase($board.owner.login) = $lowercase(connections.workspace.owner);\n    $board.fields ? ($owned ? (\n    $wanted := params.field;\n    $field := $fields[id = $wanted or $lowercase(name) = $lowercase($wanted)][0];\n    $options := $field.options[$type(id) = \"string\"];\n    $field ? {\n      \"field_id\": $field.id,\n      \"field_name\": $field.name ? $field.name : \"\",\n      \"option_ids\": [$options.id],\n      \"option_names\": [$options.(name ? name : \"\")]\n    } : {\"unavailable\": \"no-such-field\"}\n  ) : {\"unavailable\": \"project-not-listed\"}) : {\"unavailable\": \"no-such-project\"}\n  )"
     },
     {
-      "id": "app.morelitea.github.find-project-item",
+      "id": "plugin.morelitea.github.find-project-item",
       "direction": "read",
       "label": {
         "en": "Find a project card",
@@ -2970,7 +2970,7 @@
             "fr": "Projet"
           },
           "options_from": {
-            "endpoint": "app.morelitea.github.list-projects",
+            "endpoint": "plugin.morelitea.github.list-projects",
             "key": "ids",
             "label_key": "titles"
           }
@@ -2985,7 +2985,7 @@
             "fr": "Dépôt"
           },
           "options_from": {
-            "endpoint": "app.morelitea.github.list-repositories",
+            "endpoint": "plugin.morelitea.github.list-repositories",
             "key": "names"
           }
         },
@@ -3109,7 +3109,7 @@
       "map": "(\n    $repository := response.body.data.repository;\n    $item := $repository.issueOrPullRequest;\n    $wanted := params.project_id;\n    $card := $item.projectItems.nodes[$type(id) = \"string\" and project.id = $wanted][0];\n    $item ? (\n      $card ? {\"item_id\": $card.id, \"repository\": $repository.name, \"owner\": $repository.owner.login, \"number\": params.number}\n      : {\"unavailable\": \"not-on-that-board\"}\n    ) : {\"unavailable\": \"not-found\"}\n  )"
     },
     {
-      "id": "app.morelitea.github.open-issue",
+      "id": "plugin.morelitea.github.open-issue",
       "direction": "write",
       "label": {
         "en": "Open an issue",
@@ -3145,7 +3145,7 @@
             "fr": "Dépôt"
           },
           "options_from": {
-            "endpoint": "app.morelitea.github.list-repositories",
+            "endpoint": "plugin.morelitea.github.list-repositories",
             "key": "names"
           }
         },
@@ -3181,7 +3181,7 @@
           },
           "list": true,
           "options_from": {
-            "endpoint": "app.morelitea.github.list-labels",
+            "endpoint": "plugin.morelitea.github.list-labels",
             "key": "names",
             "needs": {
               "repo": "repo"
@@ -3199,7 +3199,7 @@
           },
           "list": true,
           "options_from": {
-            "endpoint": "app.morelitea.github.list-assignees",
+            "endpoint": "plugin.morelitea.github.list-assignees",
             "key": "logins",
             "needs": {
               "repo": "repo"
@@ -3280,7 +3280,7 @@
       "map": "{\n    \"repository\": $split(response.body.repository_url, \"/\")[-1],\n    \"number\": response.body.number,\n    \"html_url\": response.body.html_url,\n    \"id\": response.body.id\n  }"
     },
     {
-      "id": "app.morelitea.github.comment",
+      "id": "plugin.morelitea.github.comment",
       "direction": "write",
       "label": {
         "en": "Comment",
@@ -3316,7 +3316,7 @@
             "fr": "Dépôt"
           },
           "options_from": {
-            "endpoint": "app.morelitea.github.list-repositories",
+            "endpoint": "plugin.morelitea.github.list-repositories",
             "key": "names"
           }
         },
@@ -3415,7 +3415,7 @@
       "map": "{\n    \"repository\": $split(response.body.issue_url, \"/\")[-3],\n    \"number\": params.number,\n    \"id\": response.body.id,\n    \"html_url\": response.body.html_url\n  }"
     },
     {
-      "id": "app.morelitea.github.close-issue",
+      "id": "plugin.morelitea.github.close-issue",
       "direction": "write",
       "label": {
         "en": "Close an issue",
@@ -3451,7 +3451,7 @@
             "fr": "Dépôt"
           },
           "options_from": {
-            "endpoint": "app.morelitea.github.list-repositories",
+            "endpoint": "plugin.morelitea.github.list-repositories",
             "key": "names"
           }
         },
@@ -3547,7 +3547,7 @@
       "map": "{\n      \"repository\": $split(response.body.repository_url, \"/\")[-1],\n      \"number\": response.body.number,\n      \"state\": response.body.state,\n      \"html_url\": response.body.html_url\n    }"
     },
     {
-      "id": "app.morelitea.github.reopen-issue",
+      "id": "plugin.morelitea.github.reopen-issue",
       "direction": "write",
       "label": {
         "en": "Reopen an issue",
@@ -3583,7 +3583,7 @@
             "fr": "Dépôt"
           },
           "options_from": {
-            "endpoint": "app.morelitea.github.list-repositories",
+            "endpoint": "plugin.morelitea.github.list-repositories",
             "key": "names"
           }
         },
@@ -3665,7 +3665,7 @@
       "map": "{\n      \"repository\": $split(response.body.repository_url, \"/\")[-1],\n      \"number\": response.body.number,\n      \"state\": response.body.state,\n      \"html_url\": response.body.html_url\n    }"
     },
     {
-      "id": "app.morelitea.github.label",
+      "id": "plugin.morelitea.github.label",
       "direction": "write",
       "label": {
         "en": "Change labels",
@@ -3701,7 +3701,7 @@
             "fr": "Dépôt"
           },
           "options_from": {
-            "endpoint": "app.morelitea.github.list-repositories",
+            "endpoint": "plugin.morelitea.github.list-repositories",
             "key": "names"
           }
         },
@@ -3726,7 +3726,7 @@
           },
           "list": true,
           "options_from": {
-            "endpoint": "app.morelitea.github.list-labels",
+            "endpoint": "plugin.morelitea.github.list-labels",
             "key": "names",
             "needs": {
               "repo": "repo"
@@ -3744,7 +3744,7 @@
           },
           "list": true,
           "options_from": {
-            "endpoint": "app.morelitea.github.list-labels",
+            "endpoint": "plugin.morelitea.github.list-labels",
             "key": "names",
             "needs": {
               "repo": "repo"
@@ -3828,7 +3828,7 @@
       "map": "{\"repository\": $split(steps.issue.body.repository_url, \"/\")[-1], \"number\": params.number}"
     },
     {
-      "id": "app.morelitea.github.request-review",
+      "id": "plugin.morelitea.github.request-review",
       "direction": "write",
       "label": {
         "en": "Request a review",
@@ -3864,7 +3864,7 @@
             "fr": "Dépôt"
           },
           "options_from": {
-            "endpoint": "app.morelitea.github.list-repositories",
+            "endpoint": "plugin.morelitea.github.list-repositories",
             "key": "names"
           }
         },
@@ -3889,7 +3889,7 @@
           },
           "list": true,
           "options_from": {
-            "endpoint": "app.morelitea.github.list-assignees",
+            "endpoint": "plugin.morelitea.github.list-assignees",
             "key": "logins",
             "needs": {
               "repo": "repo"
@@ -3971,7 +3971,7 @@
       "map": "{\"repository\": response.body.base.repo.name, \"number\": params.number, \"html_url\": response.body.html_url}"
     },
     {
-      "id": "app.morelitea.github.move-project-item",
+      "id": "plugin.morelitea.github.move-project-item",
       "direction": "write",
       "label": {
         "en": "Move a project card",
@@ -4007,7 +4007,7 @@
             "fr": "Projet"
           },
           "options_from": {
-            "endpoint": "app.morelitea.github.list-projects",
+            "endpoint": "plugin.morelitea.github.list-projects",
             "key": "ids",
             "label_key": "titles"
           }
@@ -4032,7 +4032,7 @@
             "fr": "Champ"
           },
           "options_from": {
-            "endpoint": "app.morelitea.github.list-project-fields",
+            "endpoint": "plugin.morelitea.github.list-project-fields",
             "key": "ids",
             "label_key": "names",
             "needs": {
@@ -4050,7 +4050,7 @@
             "fr": "Valeur"
           },
           "options_from": {
-            "endpoint": "app.morelitea.github.list-project-options",
+            "endpoint": "plugin.morelitea.github.list-project-options",
             "key": "option_ids",
             "label_key": "option_names",
             "needs": {
@@ -4117,7 +4117,7 @@
       "map": "(\n    $moved := response.body.data.updateProjectV2ItemFieldValue.projectV2Item.id;\n    {\"item_id\": $moved ? $moved : params.item_id}\n  )"
     },
     {
-      "id": "app.morelitea.github.issue-opened",
+      "id": "plugin.morelitea.github.issue-opened",
       "direction": "emit",
       "label": {
         "en": "An issue was opened",
@@ -4172,7 +4172,7 @@
       }
     },
     {
-      "id": "app.morelitea.github.issue-closed",
+      "id": "plugin.morelitea.github.issue-closed",
       "direction": "emit",
       "label": {
         "en": "An issue was closed",
@@ -4227,7 +4227,7 @@
       }
     },
     {
-      "id": "app.morelitea.github.review-requested",
+      "id": "plugin.morelitea.github.review-requested",
       "direction": "emit",
       "label": {
         "en": "A review was requested",
@@ -4281,7 +4281,7 @@
       }
     },
     {
-      "id": "app.morelitea.github.release-published",
+      "id": "plugin.morelitea.github.release-published",
       "direction": "emit",
       "label": {
         "en": "A release was published",
@@ -4347,7 +4347,7 @@
       }
     },
     {
-      "id": "app.morelitea.github.prerelease-published",
+      "id": "plugin.morelitea.github.prerelease-published",
       "direction": "emit",
       "label": {
         "en": "A pre-release was published",
@@ -4413,7 +4413,7 @@
       }
     },
     {
-      "id": "app.morelitea.github.tag-created",
+      "id": "plugin.morelitea.github.tag-created",
       "direction": "emit",
       "label": {
         "en": "A tag was pushed",
@@ -4477,11 +4477,11 @@
         }
       },
       "endpoints": [
-        "app.morelitea.github.find-issues"
+        "plugin.morelitea.github.find-issues"
       ],
-      "module_source": "(() => {\n  // src/widgets/missing.ts\n  var WHY = {\n    \"repository-required\": \"Choose a repository for this tile\",\n    \"not-found\": \"That repository is not there, or not visible to the app\",\n    \"not-authorized\": \"The organization has not granted the app this\"\n  };\n  function missing(values) {\n    const why = values.unavailable;\n    if (!why) return null;\n    return { v: 1, scene: { kind: \"empty\", message: WHY[why] || \"There is nothing to show\" } };\n  }\n\n  // src/widgets/open-issues.ts\n  function render(data) {\n    const nothing = missing(data.values);\n    if (nothing) return nothing;\n    const total = data.values.total;\n    return { v: 1, scene: { kind: \"metric\", value: typeof total === \"number\" ? total : data.rows.length, label: \"Open issues\" } };\n  }\n\n  // widget.js\n  globalThis.render = render;\n})();",
+      "module_source": "(() => {\n  // src/widgets/missing.ts\n  var WHY = {\n    \"repository-required\": \"Choose a repository for this tile\",\n    \"not-found\": \"That repository is not there, or not visible to the plug-in\",\n    \"not-authorized\": \"The organization has not granted the plug-in this\"\n  };\n  function missing(values) {\n    const why = values.unavailable;\n    if (!why) return null;\n    return { v: 1, scene: { kind: \"empty\", message: WHY[why] || \"There is nothing to show\" } };\n  }\n\n  // src/widgets/open-issues.ts\n  function render(data) {\n    const nothing = missing(data.values);\n    if (nothing) return nothing;\n    const total = data.values.total;\n    return { v: 1, scene: { kind: \"metric\", value: typeof total === \"number\" ? total : data.rows.length, label: \"Open issues\" } };\n  }\n\n  // widget.js\n  globalThis.render = render;\n})();",
       "sample_data": {
-        "app.morelitea.github.find-issues": {
+        "plugin.morelitea.github.find-issues": {
           "numbers": [
             812
           ],
@@ -4515,11 +4515,11 @@
         }
       },
       "endpoints": [
-        "app.morelitea.github.review-queue"
+        "plugin.morelitea.github.review-queue"
       ],
-      "module_source": "(() => {\n  // src/widgets/missing.ts\n  var WHY = {\n    \"repository-required\": \"Choose a repository for this tile\",\n    \"not-found\": \"That repository is not there, or not visible to the app\",\n    \"not-authorized\": \"The organization has not granted the app this\"\n  };\n  function missing(values) {\n    const why = values.unavailable;\n    if (!why) return null;\n    return { v: 1, scene: { kind: \"empty\", message: WHY[why] || \"There is nothing to show\" } };\n  }\n\n  // src/widgets/review-queue.ts\n  function render(data) {\n    const nothing = missing(data.values);\n    if (nothing) return nothing;\n    if (!data.rows.length) return { v: 1, scene: { kind: \"empty\", message: \"Nothing is waiting on you\" } };\n    return {\n      v: 1,\n      scene: {\n        kind: \"table\",\n        columns: [\n          { key: \"number\", label: \"#\", align: \"end\" },\n          { key: \"title\", label: \"Pull request\" }\n        ],\n        rows: data.rows.slice(0, 10).map((row) => ({ number: row.numbers || \"\", title: row.titles || \"\" }))\n      }\n    };\n  }\n\n  // widget.js\n  globalThis.render = render;\n})();",
+      "module_source": "(() => {\n  // src/widgets/missing.ts\n  var WHY = {\n    \"repository-required\": \"Choose a repository for this tile\",\n    \"not-found\": \"That repository is not there, or not visible to the plug-in\",\n    \"not-authorized\": \"The organization has not granted the plug-in this\"\n  };\n  function missing(values) {\n    const why = values.unavailable;\n    if (!why) return null;\n    return { v: 1, scene: { kind: \"empty\", message: WHY[why] || \"There is nothing to show\" } };\n  }\n\n  // src/widgets/review-queue.ts\n  function render(data) {\n    const nothing = missing(data.values);\n    if (nothing) return nothing;\n    if (!data.rows.length) return { v: 1, scene: { kind: \"empty\", message: \"Nothing is waiting on you\" } };\n    return {\n      v: 1,\n      scene: {\n        kind: \"table\",\n        columns: [\n          { key: \"number\", label: \"#\", align: \"end\" },\n          { key: \"title\", label: \"Pull request\" }\n        ],\n        rows: data.rows.slice(0, 10).map((row) => ({ number: row.numbers || \"\", title: row.titles || \"\" }))\n      }\n    };\n  }\n\n  // widget.js\n  globalThis.render = render;\n})();",
       "sample_data": {
-        "app.morelitea.github.review-queue": {
+        "plugin.morelitea.github.review-queue": {
           "numbers": [
             812,
             809
@@ -4560,11 +4560,11 @@
         }
       },
       "endpoints": [
-        "app.morelitea.github.list-alerts"
+        "plugin.morelitea.github.list-alerts"
       ],
-      "module_source": "(() => {\n  // src/widgets/missing.ts\n  var WHY = {\n    \"repository-required\": \"Choose a repository for this tile\",\n    \"not-found\": \"That repository is not there, or not visible to the app\",\n    \"not-authorized\": \"The organization has not granted the app this\"\n  };\n  function missing(values) {\n    const why = values.unavailable;\n    if (!why) return null;\n    return { v: 1, scene: { kind: \"empty\", message: WHY[why] || \"There is nothing to show\" } };\n  }\n\n  // src/widgets/dependabot-alerts.ts\n  function render(data) {\n    const nothing = missing(data.values);\n    if (nothing) return nothing;\n    const counts = {};\n    for (const row of data.rows) {\n      if (row.severities) counts[row.severities] = (counts[row.severities] || 0) + 1;\n    }\n    const shown = [\"critical\", \"high\", \"medium\", \"low\"].filter((severity) => counts[severity]);\n    if (!shown.length) return { v: 1, scene: { kind: \"empty\", message: \"No open Dependabot alerts\" } };\n    return {\n      v: 1,\n      scene: {\n        kind: \"series\",\n        mark: \"bar\",\n        series: [\n          {\n            name: \"Alerts\",\n            points: shown.map((severity) => ({ x: severity.charAt(0).toUpperCase() + severity.slice(1), y: counts[severity] }))\n          }\n        ]\n      }\n    };\n  }\n\n  // widget.js\n  globalThis.render = render;\n})();",
+      "module_source": "(() => {\n  // src/widgets/missing.ts\n  var WHY = {\n    \"repository-required\": \"Choose a repository for this tile\",\n    \"not-found\": \"That repository is not there, or not visible to the plug-in\",\n    \"not-authorized\": \"The organization has not granted the plug-in this\"\n  };\n  function missing(values) {\n    const why = values.unavailable;\n    if (!why) return null;\n    return { v: 1, scene: { kind: \"empty\", message: WHY[why] || \"There is nothing to show\" } };\n  }\n\n  // src/widgets/dependabot-alerts.ts\n  function render(data) {\n    const nothing = missing(data.values);\n    if (nothing) return nothing;\n    const counts = {};\n    for (const row of data.rows) {\n      if (row.severities) counts[row.severities] = (counts[row.severities] || 0) + 1;\n    }\n    const shown = [\"critical\", \"high\", \"medium\", \"low\"].filter((severity) => counts[severity]);\n    if (!shown.length) return { v: 1, scene: { kind: \"empty\", message: \"No open Dependabot alerts\" } };\n    return {\n      v: 1,\n      scene: {\n        kind: \"series\",\n        mark: \"bar\",\n        series: [\n          {\n            name: \"Alerts\",\n            points: shown.map((severity) => ({ x: severity.charAt(0).toUpperCase() + severity.slice(1), y: counts[severity] }))\n          }\n        ]\n      }\n    };\n  }\n\n  // widget.js\n  globalThis.render = render;\n})();",
       "sample_data": {
-        "app.morelitea.github.list-alerts": {
+        "plugin.morelitea.github.list-alerts": {
           "severities": [
             "critical",
             "high",
@@ -4611,11 +4611,11 @@
         }
       },
       "endpoints": [
-        "app.morelitea.github.find-issues"
+        "plugin.morelitea.github.find-issues"
       ],
-      "module_source": "(() => {\n  // src/widgets/missing.ts\n  var WHY = {\n    \"repository-required\": \"Choose a repository for this tile\",\n    \"not-found\": \"That repository is not there, or not visible to the app\",\n    \"not-authorized\": \"The organization has not granted the app this\"\n  };\n  function missing(values) {\n    const why = values.unavailable;\n    if (!why) return null;\n    return { v: 1, scene: { kind: \"empty\", message: WHY[why] || \"There is nothing to show\" } };\n  }\n\n  // src/widgets/issue-throughput.ts\n  function render(data) {\n    const nothing = missing(data.values);\n    if (nothing) return nothing;\n    const days = {};\n    const bucket = (iso) => {\n      const day = String(iso).slice(0, 10);\n      if (!days[day]) days[day] = { opened: 0, closed: 0 };\n      return days[day];\n    };\n    for (const row of data.rows) {\n      if (row.created_at) bucket(row.created_at).opened += 1;\n      if (row.closed_at) bucket(row.closed_at).closed += 1;\n    }\n    const ordered = Object.keys(days).sort();\n    if (!ordered.length) return { v: 1, scene: { kind: \"empty\", message: \"Nothing opened or closed in this window\" } };\n    return {\n      v: 1,\n      scene: {\n        kind: \"series\",\n        mark: \"line\",\n        series: [\n          { name: \"Opened\", points: ordered.map((day) => ({ x: day, y: days[day].opened })) },\n          { name: \"Closed\", points: ordered.map((day) => ({ x: day, y: days[day].closed })) }\n        ]\n      }\n    };\n  }\n\n  // widget.js\n  globalThis.render = render;\n})();",
+      "module_source": "(() => {\n  // src/widgets/missing.ts\n  var WHY = {\n    \"repository-required\": \"Choose a repository for this tile\",\n    \"not-found\": \"That repository is not there, or not visible to the plug-in\",\n    \"not-authorized\": \"The organization has not granted the plug-in this\"\n  };\n  function missing(values) {\n    const why = values.unavailable;\n    if (!why) return null;\n    return { v: 1, scene: { kind: \"empty\", message: WHY[why] || \"There is nothing to show\" } };\n  }\n\n  // src/widgets/issue-throughput.ts\n  function render(data) {\n    const nothing = missing(data.values);\n    if (nothing) return nothing;\n    const days = {};\n    const bucket = (iso) => {\n      const day = String(iso).slice(0, 10);\n      if (!days[day]) days[day] = { opened: 0, closed: 0 };\n      return days[day];\n    };\n    for (const row of data.rows) {\n      if (row.created_at) bucket(row.created_at).opened += 1;\n      if (row.closed_at) bucket(row.closed_at).closed += 1;\n    }\n    const ordered = Object.keys(days).sort();\n    if (!ordered.length) return { v: 1, scene: { kind: \"empty\", message: \"Nothing opened or closed in this window\" } };\n    return {\n      v: 1,\n      scene: {\n        kind: \"series\",\n        mark: \"line\",\n        series: [\n          { name: \"Opened\", points: ordered.map((day) => ({ x: day, y: days[day].opened })) },\n          { name: \"Closed\", points: ordered.map((day) => ({ x: day, y: days[day].closed })) }\n        ]\n      }\n    };\n  }\n\n  // widget.js\n  globalThis.render = render;\n})();",
       "sample_data": {
-        "app.morelitea.github.find-issues": {
+        "plugin.morelitea.github.find-issues": {
           "created_at": [
             "2026-08-17T09:00:00Z",
             "2026-08-17T11:00:00Z",
@@ -4660,7 +4660,7 @@
             "h": 3
           },
           "binding": {
-            "endpoint_id": "app.morelitea.github.find-issues",
+            "endpoint_id": "plugin.morelitea.github.find-issues",
             "params": {
               "state": "open",
               "limit": 1
@@ -4678,7 +4678,7 @@
             "h": 3
           },
           "binding": {
-            "endpoint_id": "app.morelitea.github.review-queue",
+            "endpoint_id": "plugin.morelitea.github.review-queue",
             "params": {
               "state": "open",
               "limit": 10
@@ -4696,7 +4696,7 @@
             "h": 3
           },
           "binding": {
-            "endpoint_id": "app.morelitea.github.list-alerts"
+            "endpoint_id": "plugin.morelitea.github.list-alerts"
           }
         },
         {
@@ -4710,7 +4710,7 @@
             "h": 4
           },
           "binding": {
-            "endpoint_id": "app.morelitea.github.find-issues",
+            "endpoint_id": "plugin.morelitea.github.find-issues",
             "params": {
               "state": "all",
               "since_days": 14,

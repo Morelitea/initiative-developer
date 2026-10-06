@@ -197,7 +197,7 @@ def _verify(args: argparse.Namespace) -> None:
 def parser() -> argparse.ArgumentParser:
     top = argparse.ArgumentParser(
         prog="initiative-registry",
-        description="Build, sign and verify the TUF repository of Initiative apps "
+        description="Build, sign and verify the TUF repository of Initiative plug-ins "
         "and content.",
     )
     commands = top.add_subparsers(dest="command", required=True)

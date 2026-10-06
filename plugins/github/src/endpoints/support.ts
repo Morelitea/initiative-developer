@@ -13,7 +13,7 @@
  * widget can say why. A write is refused with the code.
  */
 
-import type { Endpoint, ErrorRule, Expression, Paging, VendorRequest } from "initiative-app-sdk/manifest";
+import type { Endpoint, ErrorRule, Expression, Paging, VendorRequest } from "initiative-plugin-sdk/manifest";
 
 import { ACCOUNT, WORKSPACE } from "../vocabulary.js";
 
@@ -75,7 +75,7 @@ export const REPO_NAME = `(
 export const REPO_PATH = `"/repos/" & connections.workspace.owner & "/" & ${REPO_NAME}`;
 
 /**
- * A read other apps may call through Initiative, as the community or as one of
+ * A read other plug-ins may call through Initiative, as the community or as one of
  * its members. It runs on the organization's installation either way, so it
  * answers the same for both.
  */
@@ -86,7 +86,7 @@ export const PUBLIC_READ = {
 } satisfies Pick<Endpoint, "public" | "actors" | "requires">;
 
 /**
- * A write other apps may call through Initiative, as one of the community's
+ * A write other plug-ins may call through Initiative, as one of the community's
  * members only: it runs on that member's own GitHub account.
  */
 export const PUBLIC_WRITE = {

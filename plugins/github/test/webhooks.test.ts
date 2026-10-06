@@ -4,15 +4,15 @@
  * installation being removed, suspended or restored.
  */
 
-import { runWebhook } from "initiative-app-sdk/testing";
+import { runWebhook } from "initiative-plugin-sdk/testing";
 import { describe, expect, it } from "vitest";
 
-import app from "../src/app.js";
+import plugin from "../src/plugin.js";
 import { EMIT } from "../src/vocabulary.js";
 import { recorded } from "./fixtures.js";
 
 function deliver(event: string, payload: unknown) {
-  return runWebhook(app, {
+  return runWebhook(plugin, {
     headers: { "X-GitHub-Event": event, "X-GitHub-Delivery": "delivery-1" },
     payload,
     connection: { owner: "acme", installation_id: 42 },

@@ -1,6 +1,6 @@
 # registry
 
-The signed catalogue of Initiative apps and content. Every listing is a source
+The signed catalogue of Initiative plug-ins and content. Every listing is a source
 file in this directory. The builder turns the sources into a
 [TUF](https://theupdateframework.io/) repository and signs it, and CI publishes
 it to this repository's GitHub Pages site at `/public/`. A deployment that
@@ -31,7 +31,7 @@ pull request review is the listing's review: merging it publishes the listing.
   "uid": "0ACME000000001",
   "public_id": "acme.tracker",
   "publisher": "acme",
-  "kind": "app",
+  "kind": "plugin",
   "name": "Acme Tracker",
   "summary": "Links Acme tickets to your projects.",
   "avatar": {"path": "assets/avatar.png"},
@@ -49,8 +49,8 @@ pull request review is the listing's review: merging it publishes the listing.
 }
 ```
 
-[`tests/fixtures/sources/`](tests/fixtures/sources/) holds a complete app
-listing and a content listing you can copy. The build checks every rule below,
+[`tests/fixtures/sources/`](tests/fixtures/sources/) holds a complete
+plug-in listing and a content listing you can copy. The build checks every rule below,
 and [`schema/listing.schema.json`](schema/listing.schema.json) states most of
 them:
 
@@ -60,7 +60,7 @@ them:
   listing. **`public_id`** is `<publisher>.<slug>`. The `core` prefix is
   reserved and never accepted.
 - **`kind`** is one of:
-  - `app`;
+  - `plugin`, a plug-in;
   - `auto`, an automation;
   - `profile_pack`, a pack of profile decorations, art included;
   - a tool's content: `calendar`, `counter_group`, `dashboard`, `document`,
@@ -72,24 +72,24 @@ them:
   checks the file against it. If you leave it out, the build computes it.
 - **`versions[].definition`** is what the version installs, as a path to a JSON
   file or an object inline:
-  - for an app, its kit manifest (`manifest.json`), with `"app_kind":
+  - for a plug-in, its kit manifest (`manifest.json`), with `"plugin_kind":
     "service"`. A container's `service.public_id` is the listing's
-    `public_id`; a declarative app's manifest has no `service` block;
+    `public_id`; a declarative plug-in's manifest has no `service` block;
   - for a tool's content, that tool's definition.
 - **`versions[].example`** is optional, and only for a tool's content: the
   filled-in example shown beside the listing, as a path or inline.
-- **`registration`** is required for an app and not allowed for anything
+- **`registration`** is required for a plug-in and not allowed for anything
   else.
   - `kind` is `container` or `declarative`.
   - A container names its `image`, pinned by digest. It names no location or
     keys: each deployment that runs it gives the location and the key set its
     copy signs with, since each copy holds its own private key.
-  - A declarative app names no `image` and no `compose`: there is nothing to
+  - A declarative plug-in names no `image` and no `compose`: there is nothing to
     run, and Initiative makes its calls from its kit manifest.
-  - `scope_ceiling` is the most the app may ever be granted, with
-    `apps:<public_id>` for each app it may call. A manifest may ask for less,
+  - `scope_ceiling` is the most the plug-in may ever be granted, with
+    `plugins:<public_id>` for each plug-in it may call. A manifest may ask for less,
     never more.
-  - `reference_sectors` lists the reference sectors an app may be granted.
+  - `reference_sectors` lists the reference sectors a plug-in may be granted.
   - `compose` is optional, and a container's only: the Docker Compose service
     an operator copies to run the container beside Initiative. `service` is the fragment, as YAML
     text of at most 4096 characters. It may use two placeholders, which
@@ -110,8 +110,8 @@ Each version's definition and example move into its own target,
 {
   "uid": "0ACME000000001",
   "public_id": "acme.tracker",
-  "kind": "app",
-  "definition": {"app_kind": "service", "service": {"public_id": "acme.tracker", "protocol": 1}, "features": []},
+  "kind": "plugin",
+  "definition": {"plugin_kind": "service", "service": {"public_id": "acme.tracker", "protocol": 1}, "features": []},
   "example": {"…": "only when the source gives one"}
 }
 ```

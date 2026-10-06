@@ -1,6 +1,6 @@
 /** How many issues are open. */
 
-import type { Scene, WidgetData } from "initiative-app-sdk/widget";
+import type { Scene, WidgetData } from "initiative-plugin-sdk/widget";
 
 import type { findIssues } from "../endpoints/issues.js";
 import { missing } from "./missing.js";

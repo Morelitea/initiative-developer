@@ -1,14 +1,14 @@
 /**
- * The app, declared once: the GitHub connections Initiative runs for it, the
+ * The plug-in, declared once: the GitHub connections Initiative runs for it, the
  * calls Initiative makes to GitHub for each endpoint and how it reshapes the
  * answers, what GitHub's deliveries announce, its widgets and dashboard, and
  * its registry listing. `npm run manifest` builds `manifest.json` and the
  * registry source from it.
  *
- * Nothing of the app runs anywhere: Initiative makes every call itself.
+ * Nothing of the plug-in runs anywhere: Initiative makes every call itself.
  */
 
-import { defineApp, type ConnectionFlow, type GithubPermissionLevel, type Paging } from "initiative-app-sdk/manifest";
+import { definePlugin, type ConnectionFlow, type GithubPermissionLevel, type Paging } from "initiative-plugin-sdk/manifest";
 
 import { EMIT_ENDPOINTS, EVENTS } from "./endpoints/emissions.js";
 import { closeIssue, comment, findIssues, getIssue, label, listLabels, listMilestones, openIssue, reopenIssue } from "./endpoints/issues.js";
@@ -61,7 +61,7 @@ const pages = (items: string): Paging => ({
 const installation = (action: string) =>
   `headers."x-github-event" = "installation" and payload.action = ${quote(action)}`;
 
-export default defineApp({
+export default definePlugin({
   publicId: PUBLIC_ID,
   uid: LISTING_UID,
   name: "GitHub",
@@ -122,7 +122,7 @@ export default defineApp({
       kind: "github_app_manifest",
       app: {
         name: "Initiative",
-        url: "https://github.com/Morelitea/initiative-developer/tree/main/apps/github",
+        url: "https://github.com/Morelitea/initiative-developer/tree/main/plugins/github",
         public: false,
         default_permissions: { ...PERMISSIONS },
         default_events: [...WEBHOOK_EVENTS],
@@ -216,8 +216,8 @@ export default defineApp({
         ],
       },
     },
-    // Each member's own GitHub authorization, for what the app does as
-    // them. Initiative holds it, renews it and ends it at GitHub, and names
+    // Each member's own GitHub authorization, for what the plug-in does
+    // as them. Initiative holds it, renews it and ends it at GitHub, and names
     // the connection by the account's login.
     [ACCOUNT]: {
       scope: "interactive",
@@ -433,16 +433,16 @@ export default defineApp({
     description: [
       "Bring a GitHub organization into your community.",
       "",
-      "An admin connects the organization once, on GitHub's own install page, and picks the repositories the app may see. Dashboards then show open issues, pull requests waiting on review, Dependabot alerts and a fortnight of throughput for everyone, with nobody pasting a token.",
+      "An admin connects the organization once, on GitHub's own install page, and picks the repositories the plug-in may see. Dashboards then show open issues, pull requests waiting on review, Dependabot alerts and a fortnight of throughput for everyone, with nobody pasting a token.",
       "",
       "Members who connect their own GitHub account get their own review queue, and automations can open, comment on, close, label and move issues as them.",
     ].join("\n"),
     avatar: "assets/avatar.png",
-    version: "3.1.0",
-    // The oldest Initiative that runs an app's calls to GitHub itself, and an
+    version: "4.0.0",
+    // The oldest Initiative that runs a plug-in's calls to GitHub itself, and an
     // after_connect in steps; an older one refuses this manifest.
     minAppVersion: "0.75.0",
     releaseNotes:
-      "Connecting an organization's installation needs an admin of that organization, and a personal account's needs that account. Needs Initiative 0.75.0.",
+      "Renamed for Initiative's plug-ins: the endpoint and event ids are now plugin.morelitea.github.*, and another plug-in asks for plugins:morelitea.github. Needs an Initiative that speaks plug-ins.",
   },
 });

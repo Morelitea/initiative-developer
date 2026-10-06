@@ -3,10 +3,10 @@
   "uid": "0ACME000000001",
   "public_id": "acme.tracker",
   "publisher": "acme",
-  "kind": "app",
+  "kind": "plugin",
   "name": "Acme Tracker",
   "summary": "Links Acme tickets to your projects and shows their status on a board.",
-  "description": "An example app listing. It runs as a container that the operator deploys and points Initiative at.",
+  "description": "An example plug-in listing. It runs as a container that the operator deploys and points Initiative at.",
   "avatar": {"path": "assets/avatar.png"},
   "images": [
     {"path": "assets/board.png", "alt": "A project board with Acme tickets on it"}

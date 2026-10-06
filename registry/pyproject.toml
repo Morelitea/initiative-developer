@@ -1,7 +1,7 @@
 [project]
 name = "initiative-registry"
 version = "0.1.0"
-description = "Builds and signs the TUF repository of Initiative apps and content."
+description = "Builds and signs the TUF repository of Initiative plug-ins and content."
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.12"

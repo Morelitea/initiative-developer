@@ -183,8 +183,8 @@ def _document(listing: Listing, value: Any, *, what: str) -> dict[str, Any]:
 
 
 def service_public_id(definition: dict[str, Any]) -> str | None:
-    """The app service a kit manifest names, if it is a service app."""
-    if definition.get("app_kind") != "service":
+    """The plug-in service a kit manifest names, if it is a service plug-in."""
+    if definition.get("plugin_kind") != "service":
         return None
     service = definition.get("service")
     if not isinstance(service, dict):
@@ -196,13 +196,15 @@ def service_public_id(definition: dict[str, Any]) -> str | None:
 def definition_matches(
     registration: dict[str, Any], public_id: str, definition: dict[str, Any]
 ) -> bool:
-    """Whether a kit manifest is the app a registration says.
+    """Whether a kit manifest is the plug-in a registration says.
 
-    A container's names ``public_id`` as its service; a declarative app's has
-    no service block.
+    A container's names ``public_id`` as its service; a declarative plug-in's
+    has no service block.
     """
     if registration.get("kind") == "declarative":
-        return definition.get("app_kind") == "service" and "service" not in definition
+        return (
+            definition.get("plugin_kind") == "service" and "service" not in definition
+        )
     return service_public_id(definition) == public_id
 
 
@@ -238,12 +240,12 @@ def _publish_version(
     ):
         if registration["kind"] == "declarative":
             raise RegistryError(
-                f"{what} definition: a declarative app's kit manifest has no "
+                f"{what} definition: a declarative plug-in's kit manifest has no "
                 "service block"
             )
         raise RegistryError(
             f"{what} definition: a listing with a registration is a service "
-            f"app, and its service.public_id must be {listing.public_id!r} "
+            f"plug-in, and its service.public_id must be {listing.public_id!r} "
             f"(it is {service_public_id(definition)!r})"
         )
     manifest = manifest_document(listing, kind, definition, example)

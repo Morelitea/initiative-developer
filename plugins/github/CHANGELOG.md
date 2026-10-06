@@ -1,5 +1,23 @@
 # Changelog
 
+## [4.0.0]
+
+Renamed for Initiative's plug-ins.
+
+### Changed
+
+- The listing is a `plugin`, and every endpoint and announcement id starts
+  `plugin.morelitea.github.` instead of `app.morelitea.github.`.
+- Another plug-in the community lets use GitHub is granted
+  `plugins:morelitea.github`.
+- Built on [initiative-plugin-sdk](https://github.com/Morelitea/initiative-plugin-sdk)
+  2.0.0.
+
+### Upgrading
+
+- Needs an Initiative that speaks plug-ins. An older one refuses this
+  manifest.
+
 ## [3.1.0]
 
 Connecting an installation asks who controls its account.

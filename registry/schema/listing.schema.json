@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "urn:initiative-registry:schema:listing",
   "title": "Listing",
-  "description": "One listing: an app or a piece of content. This is the file a pull request adds as sources/<publisher>/<uid>/listing.json. Paths are relative to that directory. A sha256 given on an asset is checked against the file it names; the build fills in any that are left out. The signed listing.json a client reads is the same document with every asset path rewritten to its target, every sha256 filled in, and each version's definition and example moved into its manifest target (entry.schema.json).",
+  "description": "One listing: a plug-in or a piece of content. This is the file a pull request adds as sources/<publisher>/<uid>/listing.json. Paths are relative to that directory. A sha256 given on an asset is checked against the file it names; the build fills in any that are left out. The signed listing.json a client reads is the same document with every asset path rewritten to its target, every sha256 filled in, and each version's definition and example moved into its manifest target (entry.schema.json).",
   "$ref": "#/$defs/listing_base",
   "properties": {
     "versions": {
@@ -18,7 +18,7 @@
     "properties": {
       "kind": {
         "enum": [
-          "app",
+          "plugin",
           "auto",
           "profile_pack"
         ]
@@ -77,9 +77,9 @@
           "pattern": "^[a-z0-9_-]+$"
         },
         "kind": {
-          "description": "What is listed: an app ('app'), an automation ('auto'), a pack of profile decorations ('profile_pack'), or one tool's content, named by the tool.",
+          "description": "What is listed: a plug-in ('plugin'), an automation ('auto'), a pack of profile decorations ('profile_pack'), or one tool's content, named by the tool.",
           "enum": [
-            "app",
+            "plugin",
             "auto",
             "profile_pack",
             "calendar",
@@ -153,14 +153,14 @@
       },
       "allOf": [
         {
-          "description": "An app carries a registration.",
+          "description": "A plug-in carries a registration.",
           "if": {
             "required": [
               "kind"
             ],
             "properties": {
               "kind": {
-                "const": "app"
+                "const": "plugin"
               }
             }
           },
@@ -171,7 +171,7 @@
           }
         },
         {
-          "description": "Only an app carries one.",
+          "description": "Only a plug-in carries one.",
           "if": {
             "required": [
               "kind"
@@ -179,7 +179,7 @@
             "properties": {
               "kind": {
                 "not": {
-                  "const": "app"
+                  "const": "plugin"
                 }
               }
             }
@@ -267,7 +267,7 @@
       ],
       "properties": {
         "definition": {
-          "description": "What installs. For an app, its kit manifest: a container's names the listing's public_id as its service.public_id, and a declarative app's has no service block. For a tool's content, that tool's definition.",
+          "description": "What installs. For a plug-in, its kit manifest: a container's names the listing's public_id as its service.public_id, and a declarative plug-in's has no service block. For a tool's content, that tool's definition.",
           "$ref": "#/$defs/document"
         },
         "example": {
@@ -278,7 +278,7 @@
       "unevaluatedProperties": false
     },
     "registration": {
-      "description": "For an app (and allowed for an automation): what kind it is, the most it may ever be granted, and the reference sectors it may learn. A container names the image each deployment runs, and each deployment gives its location and the keys its copy signs with. A declarative app names no image: Initiative runs it from its manifest.",
+      "description": "For a plug-in (and allowed for an automation): what kind it is, the most it may ever be granted, and the reference sectors it may learn. A container names the image each deployment runs, and each deployment gives its location and the keys its copy signs with. A declarative plug-in names no image: Initiative runs it from its manifest.",
       "type": "object",
       "required": [
         "kind",
@@ -298,16 +298,16 @@
           "pattern": "^[a-z0-9][a-z0-9._/:-]*@sha256:[0-9a-f]{64}$"
         },
         "scope_ceiling": {
-          "description": "The scopes review cleared, and 'apps:<public_id>' for each app it may call. A manifest may ask for less, never more.",
+          "description": "The scopes review cleared, and 'plugins:<public_id>' for each plug-in it may call. A manifest may ask for less, never more.",
           "type": "array",
           "uniqueItems": true,
           "items": {
             "type": "string",
-            "pattern": "^([a-z][a-z_]*:[a-z][a-z_]*|apps:[a-z0-9_-]+\\.[a-z0-9._-]+)$"
+            "pattern": "^([a-z][a-z_]*:[a-z][a-z_]*|plugins:[a-z0-9_-]+\\.[a-z0-9._-]+)$"
           }
         },
         "reference_sectors": {
-          "description": "Reference sectors the app may be granted. The public target refuses any listing that names one.",
+          "description": "Reference sectors the plug-in may be granted. The public target refuses any listing that names one.",
           "type": "array",
           "uniqueItems": true,
           "items": {

@@ -1,6 +1,6 @@
 /** A fortnight of issues opened against issues closed, by day. */
 
-import type { Scene, WidgetData } from "initiative-app-sdk/widget";
+import type { Scene, WidgetData } from "initiative-plugin-sdk/widget";
 
 import type { findIssues } from "../endpoints/issues.js";
 import { missing } from "./missing.js";

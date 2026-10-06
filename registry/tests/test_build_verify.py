@@ -15,23 +15,24 @@ from initiative_registry.verify import open_updater, verify
 
 from .conftest import World, resign_role
 
-APP = "0ACME000000001"
+PLUGIN = "0ACME000000001"
 DASHBOARD = "0ACME000000002"
 
 
 def test_build_then_verify_round_trip(world: World) -> None:
     result = world.build()
-    assert sorted(listing.uid for listing in result.listings) == [APP, DASHBOARD]
+    assert sorted(listing.uid for listing in result.listings) == [PLUGIN, DASHBOARD]
 
     checked = verify(result.out, world.trusted_root, target="public")
     assert checked.listings == [
-        f"publishers/acme/{APP}/listing.json",
+        f"publishers/acme/{PLUGIN}/listing.json",
         f"publishers/acme/{DASHBOARD}/listing.json",
     ]
     assert set(checked.publishers) == {"acme", "other"}
     assert checked.root_version == 1
     assert checked.snapshot_version == result.snapshot_version
-    # Two listings: each listing.json, three files for the app, one for the dashboard.
+    # Two listings: each listing.json, three files for the plug-in, one for the
+    # dashboard.
     assert checked.files == 2 + 3 + 2
 
 
@@ -50,19 +51,19 @@ def test_repository_layout(world: World) -> None:
         ]
     )
 
-    app = next(listing for listing in result.listings if listing.uid == APP)
-    entry = app.entry
+    plugin = next(listing for listing in result.listings if listing.uid == PLUGIN)
+    entry = plugin.entry
     avatar_sha = entry["avatar"]["sha256"]
     assert entry["avatar"]["path"] == f"assets/{avatar_sha}.png"
     assert entry["versions"][0]["manifest"] == "1.0.0/manifest.json"
-    assert set(app.targets) == {
-        f"publishers/acme/{APP}/listing.json",
-        f"publishers/acme/{APP}/1.0.0/manifest.json",
-        f"publishers/acme/{APP}/assets/{avatar_sha}.png",
-        f"publishers/acme/{APP}/assets/{entry['images'][0]['sha256']}.png",
+    assert set(plugin.targets) == {
+        f"publishers/acme/{PLUGIN}/listing.json",
+        f"publishers/acme/{PLUGIN}/1.0.0/manifest.json",
+        f"publishers/acme/{PLUGIN}/assets/{avatar_sha}.png",
+        f"publishers/acme/{PLUGIN}/assets/{entry['images'][0]['sha256']}.png",
     }
-    listing_blob = app.targets[f"publishers/acme/{APP}/listing.json"]
-    served = result.out / "targets" / "publishers" / "acme" / APP
+    listing_blob = plugin.targets[f"publishers/acme/{PLUGIN}/listing.json"]
+    served = result.out / "targets" / "publishers" / "acme" / PLUGIN
     assert (
         served / f"{listing_blob.sha256}.listing.json"
     ).read_bytes() == listing_blob.data
@@ -116,7 +117,7 @@ def _sectored(document: dict) -> None:
 
 @pytest.mark.parametrize("change", [_priced, _sectored], ids=["priced", "sectored"])
 def test_public_target_refuses_priced_and_sectored(world: World, change) -> None:
-    world.edit_listing(APP, change)
+    world.edit_listing(PLUGIN, change)
     with pytest.raises(
         RegistryError, match="public target takes no priced or sectored"
     ):
@@ -126,7 +127,7 @@ def test_public_target_refuses_priced_and_sectored(world: World, change) -> None
 
 @pytest.mark.parametrize("change", [_priced, _sectored], ids=["priced", "sectored"])
 def test_hosted_target_accepts_priced_and_sectored(world: World, change) -> None:
-    world.edit_listing(APP, change)
+    world.edit_listing(PLUGIN, change)
     result = world.build(target="hosted")
     verify(result.out, world.trusted_root, target="hosted")
     with pytest.raises(RegistryError, match="public target excludes"):
@@ -134,14 +135,14 @@ def test_hosted_target_accepts_priced_and_sectored(world: World, change) -> None
 
 
 def test_prefix_must_match_publisher(world: World) -> None:
-    world.edit_listing(APP, lambda d: d.update(public_id="other.tracker"))
+    world.edit_listing(PLUGIN, lambda d: d.update(public_id="other.tracker"))
     with pytest.raises(RegistryError, match="must start with its publisher"):
         world.build()
 
 
 def test_listing_must_sit_under_its_publisher(world: World) -> None:
     world.edit_listing(
-        APP, lambda d: d.update(publisher="other", public_id="other.tracker")
+        PLUGIN, lambda d: d.update(publisher="other", public_id="other.tracker")
     )
     with pytest.raises(RegistryError, match="is under acme/ but names publisher"):
         world.build()
@@ -156,7 +157,7 @@ def test_listing_must_sit_under_its_publisher(world: World) -> None:
     ids=["publisher", "public_id"],
 )
 def test_core_is_refused(world: World, change) -> None:
-    world.edit_listing(APP, change)
+    world.edit_listing(PLUGIN, change)
     with pytest.raises(RegistryError, match="'core' prefix is reserved"):
         world.build()
 
@@ -170,14 +171,14 @@ def test_core_publisher_record_is_refused(world: World) -> None:
 
 
 def test_source_digest_mismatch_is_refused(world: World) -> None:
-    world.edit_listing(APP, lambda d: d["avatar"].update(sha256="0" * 64))
+    world.edit_listing(PLUGIN, lambda d: d["avatar"].update(sha256="0" * 64))
     with pytest.raises(RegistryError, match="hashes to"):
         world.build()
 
 
 def test_source_version_gives_no_digest(world: World) -> None:
     """The build writes each manifest target, so a source cannot pin its digest."""
-    world.edit_listing(APP, lambda d: d["versions"][0].update(sha256="f" * 64))
+    world.edit_listing(PLUGIN, lambda d: d["versions"][0].update(sha256="f" * 64))
     with pytest.raises(RegistryError, match="'sha256' was unexpected"):
         world.build()
 
@@ -185,7 +186,7 @@ def test_source_version_gives_no_digest(world: World) -> None:
 def test_changed_target_file_is_refused_by_verify(world: World) -> None:
     result = world.build()
     served = next(
-        (result.out / "targets" / "publishers" / "acme" / APP).glob("*.listing.json")
+        (result.out / "targets" / "publishers" / "acme" / PLUGIN).glob("*.listing.json")
     )
     served.write_bytes(served.read_bytes().replace(b"Acme Tracker", b"Acme Trackr!"))
     with pytest.raises(RegistryError, match="failed verification"):
@@ -195,10 +196,10 @@ def test_changed_target_file_is_refused_by_verify(world: World) -> None:
 def test_entry_digest_mismatch_is_refused_by_verify(world: World) -> None:
     """A publisher's key signs a listing whose digest for its avatar is wrong."""
     result = world.build()
-    path = f"publishers/acme/{APP}/listing.json"
+    path = f"publishers/acme/{PLUGIN}/listing.json"
 
     def change(role) -> None:
-        blob = next(b for b in result.listings if b.uid == APP).targets[path]
+        blob = next(b for b in result.listings if b.uid == PLUGIN).targets[path]
         entry = json.loads(blob.data)
         entry["avatar"]["sha256"] = entry["images"][0]["sha256"]
         entry["avatar"]["path"] = entry["images"][0]["path"]
@@ -322,8 +323,8 @@ def test_listing_for_an_unknown_publisher_is_refused(world: World) -> None:
         world.build()
 
 
-def test_app_without_registration_is_refused(world: World) -> None:
-    world.edit_listing(APP, lambda d: d.pop("registration"))
+def test_plugin_without_registration_is_refused(world: World) -> None:
+    world.edit_listing(PLUGIN, lambda d: d.pop("registration"))
     with pytest.raises(RegistryError, match="registration"):
         world.build()
 
@@ -337,23 +338,30 @@ def test_app_without_registration_is_refused(world: World) -> None:
     ],
     ids=["keys", "location", "hosted"],
 )
-def test_an_app_is_a_container_with_no_location_or_keys(
+def test_a_plugin_is_a_container_with_no_location_or_keys(
     world: World, fields: dict
 ) -> None:
     """Each deployment runs its own copy, and gives its location and keys."""
-    world.edit_listing(APP, lambda d: d["registration"].update(fields))
+    world.edit_listing(PLUGIN, lambda d: d["registration"].update(fields))
     with pytest.raises(RegistryError, match=r"listing\.schema\.json"):
         world.build()
 
 
 @pytest.mark.parametrize(
     ("scope", "accepted"),
-    [("apps:other.tool", True), ("apps:other.", False), ("apps:Other.tool", False)],
+    [
+        ("plugins:other.tool", True),
+        ("plugins:other.", False),
+        ("plugins:Other.tool", False),
+        ("apps:other.tool", False),
+    ],
 )
-def test_a_ceiling_may_name_another_app(
+def test_a_ceiling_may_name_another_plugin(
     world: World, scope: str, accepted: bool
 ) -> None:
-    world.edit_listing(APP, lambda d: d["registration"]["scope_ceiling"].append(scope))
+    world.edit_listing(
+        PLUGIN, lambda d: d["registration"]["scope_ceiling"].append(scope)
+    )
     if accepted:
         world.build()
     else:
@@ -398,11 +406,11 @@ def test_a_registration_may_carry_a_compose_snippet(
 ) -> None:
     compose = {**COMPOSE, **change}
     compose = {key: value for key, value in compose.items() if value is not None}
-    world.edit_listing(APP, lambda d: d["registration"].update(compose=compose))
+    world.edit_listing(PLUGIN, lambda d: d["registration"].update(compose=compose))
     if accepted:
         result = world.build()
-        app = next(listing for listing in result.listings if listing.uid == APP)
-        signed = app.targets[f"publishers/acme/{APP}/listing.json"]
+        plugin = next(listing for listing in result.listings if listing.uid == PLUGIN)
+        signed = plugin.targets[f"publishers/acme/{PLUGIN}/listing.json"]
         assert json.loads(signed.data)["registration"]["compose"] == compose
     else:
         with pytest.raises(RegistryError, match=r"listing\.schema\.json"):
@@ -412,17 +420,17 @@ def test_a_registration_may_carry_a_compose_snippet(
 DECLARATIVE = {"kind": "declarative", "scope_ceiling": [], "reference_sectors": []}
 
 
-def test_a_declarative_app_registers_no_image(world: World) -> None:
+def test_a_declarative_plugin_registers_no_image(world: World) -> None:
     """Initiative runs it from its kit manifest, which names no service."""
-    kit = world.sources / "acme" / APP / "1.0.0" / "manifest.json"
+    kit = world.sources / "acme" / PLUGIN / "1.0.0" / "manifest.json"
     document = json.loads(kit.read_text())
     del document["service"]
     kit.write_text(json.dumps(document))
-    world.edit_listing(APP, lambda d: d.update(registration=DECLARATIVE))
+    world.edit_listing(PLUGIN, lambda d: d.update(registration=DECLARATIVE))
     result = world.build()
     verify(result.out, world.trusted_root, target="public")
-    app = next(listing for listing in result.listings if listing.uid == APP)
-    signed = app.targets[f"publishers/acme/{APP}/listing.json"]
+    plugin = next(listing for listing in result.listings if listing.uid == PLUGIN)
+    signed = plugin.targets[f"publishers/acme/{PLUGIN}/listing.json"]
     assert json.loads(signed.data)["registration"] == DECLARATIVE
 
 
@@ -439,13 +447,13 @@ def test_a_declarative_app_registers_no_image(world: World) -> None:
 def test_a_registration_fits_its_kind(
     world: World, registration: dict, match: str
 ) -> None:
-    world.edit_listing(APP, lambda d: d.update(registration=registration))
+    world.edit_listing(PLUGIN, lambda d: d.update(registration=registration))
     with pytest.raises(RegistryError, match=match):
         world.build()
 
 
 def test_content_with_registration_is_refused(world: World) -> None:
-    registration = json.loads(world.listing(APP).read_text())["registration"]
+    registration = json.loads(world.listing(PLUGIN).read_text())["registration"]
     world.edit_listing(DASHBOARD, lambda d: d.update(registration=registration))
     with pytest.raises(RegistryError, match=r"listing\.schema\.json"):
         world.build()
@@ -453,7 +461,7 @@ def test_content_with_registration_is_refused(world: World) -> None:
 
 def test_asset_outside_the_listing_is_refused(world: World) -> None:
     world.edit_listing(
-        APP, lambda d: d["avatar"].update(path="../0ACME000000002/assets/avatar.png")
+        PLUGIN, lambda d: d["avatar"].update(path="../0ACME000000002/assets/avatar.png")
     )
     with pytest.raises(RegistryError, match=r"listing\.schema\.json"):
         world.build()

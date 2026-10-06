@@ -3,20 +3,20 @@
   "uid": "XTEAP993JW1E94",
   "public_id": "morelitea.github",
   "publisher": "morelitea",
-  "kind": "app",
+  "kind": "plugin",
   "name": "GitHub",
   "summary": "Your organization's issues, reviews and dependency alerts, on a dashboard and in your automations.",
-  "description": "Bring a GitHub organization into your community.\n\nAn admin connects the organization once, on GitHub's own install page, and picks the repositories the app may see. Dashboards then show open issues, pull requests waiting on review, Dependabot alerts and a fortnight of throughput for everyone, with nobody pasting a token.\n\nMembers who connect their own GitHub account get their own review queue, and automations can open, comment on, close, label and move issues as them.",
+  "description": "Bring a GitHub organization into your community.\n\nAn admin connects the organization once, on GitHub's own install page, and picks the repositories the plug-in may see. Dashboards then show open issues, pull requests waiting on review, Dependabot alerts and a fortnight of throughput for everyone, with nobody pasting a token.\n\nMembers who connect their own GitHub account get their own review queue, and automations can open, comment on, close, label and move issues as them.",
   "avatar": {
     "path": "assets/avatar.png",
     "sha256": "1822301f8187e240ae4610afd9146be43e2ba8422437b7ddba5637264b97c744"
   },
   "versions": [
     {
-      "version": "3.1.0",
-      "definition": "3.1.0/manifest.json",
+      "version": "4.0.0",
+      "definition": "4.0.0/manifest.json",
       "min_app_version": "0.75.0",
-      "release_notes": "Connecting an organization's installation needs an admin of that organization, and a personal account's needs that account. Needs Initiative 0.75.0."
+      "release_notes": "Renamed for Initiative's plug-ins: the endpoint and event ids are now plugin.morelitea.github.*, and another plug-in asks for plugins:morelitea.github. Needs an Initiative that speaks plug-ins."
     }
   ],
   "registration": {

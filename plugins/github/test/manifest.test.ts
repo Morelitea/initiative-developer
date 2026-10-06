@@ -13,7 +13,7 @@ import { describe, expect, it } from "vitest";
 import { ACCOUNT, LISTING_UID, READ, READ_IDS, WORKSPACE } from "../src/vocabulary.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
-const source = join(root, "..", "..", "registry", "sources", "morelitea", LISTING_UID);
+const source = join(root, "..", "..", "registry", "sources", "beyonders-studio", LISTING_UID);
 const read = <T>(path: string) => JSON.parse(readFileSync(path, "utf-8")) as T;
 const packageVersion = read<{ version: string }>(join(root, "package.json")).version;
 const manifest = read<Manifest>(join(root, "manifest.json"));
@@ -26,7 +26,7 @@ const service = read<Manifest>(join(source, "2.6.0", "manifest.json"));
 
 /** A value with every endpoint id reduced to its bare name, so 2.6.0's and this version's compare. */
 function unprefixed<T>(value: T): T {
-  if (typeof value === "string") return value.replace(/^(app|plugin)\.morelitea\.github\./, "") as T;
+  if (typeof value === "string") return value.replace(/^(app|plugin)\.beyonders-studio\.github\./, "") as T;
   if (Array.isArray(value)) return value.map(unprefixed) as T;
   if (value && typeof value === "object") {
     return Object.fromEntries(Object.entries(value).map(([key, inner]) => [key, unprefixed(inner)])) as T;
@@ -184,7 +184,7 @@ describe("manifest", () => {
       kind: "github_app_manifest",
       app: {
         name: "Initiative",
-        url: "https://github.com/Morelitea/initiative-developer/tree/main/plugins/github",
+        url: "https://github.com/beyonders-studio/initiative-developer/tree/main/plugins/github",
         public: false,
         default_permissions: {
           issues: "write",
@@ -209,7 +209,7 @@ describe("manifest", () => {
 
   it("is listed in the registry, with a registration by declaration", () => {
     const listing = read<Record<string, any>>(join(source, "listing.json"));
-    expect(listing).toMatchObject({ uid: LISTING_UID, public_id: "morelitea.github", publisher: "morelitea" });
+    expect(listing).toMatchObject({ uid: LISTING_UID, public_id: "beyonders-studio.github", publisher: "beyonders-studio" });
     expect(listing.registration).toEqual({ kind: "declarative", scope_ceiling: [], reference_sectors: [] });
     // Between releases the plug-in runs ahead of what the listing publishes, never behind it.
     expect(packageVersion === listing.versions[0].version || later(packageVersion, listing.versions[0].version)).toBe(true);

@@ -5,12 +5,18 @@ from datetime import timedelta
 from pathlib import Path
 
 import pytest
+from tuf.api.metadata import Metadata, Targets
 
 from initiative_registry import RegistryError, layout
 from initiative_registry.keys import generate, signer_from_path
 from initiative_registry.offline import init_root, sign_offline
-from initiative_registry.repo import utc_now
-from initiative_registry.sources import load_publisher
+from initiative_registry.repo import (
+    TARGETS_FILE,
+    load_root_chain,
+    top_level_targets,
+    utc_now,
+)
+from initiative_registry.sources import load_publisher, load_publishers
 from initiative_registry.verify import verify
 
 from .conftest import World, write_publisher
@@ -106,9 +112,11 @@ def test_nothing_to_sign(world: World) -> None:
 
 
 def test_placeholder_key_is_explained(tmp_path: Path) -> None:
-    record = json.loads((layout.DEFAULT_PUBLISHERS_DIR / "morelitea.json").read_text())
+    record = json.loads(
+        (layout.DEFAULT_PUBLISHERS_DIR / "beyonders-studio.json").read_text()
+    )
     record["key"] = "PLACEHOLDER: paste the keygen output here"
-    path = tmp_path / "morelitea.json"
+    path = tmp_path / "beyonders-studio.json"
     path.write_text(json.dumps(record))
     with pytest.raises(RegistryError, match="still a placeholder"):
         load_publisher(path)
@@ -116,22 +124,43 @@ def test_placeholder_key_is_explained(tmp_path: Path) -> None:
 
 def test_committed_record_is_valid() -> None:
     assert (
-        load_publisher(layout.DEFAULT_PUBLISHERS_DIR / "morelitea.json").prefix
-        == "morelitea"
+        load_publisher(layout.DEFAULT_PUBLISHERS_DIR / "beyonders-studio.json").prefix
+        == "beyonders-studio"
     )
 
 
+def test_committed_targets_delegates_the_committed_publishers() -> None:
+    # The signed targets a client fetches, checked from the root it ships with,
+    # must delegate exactly the records in publishers/: a renamed or added
+    # publisher needs targets re-signed before the build can serve it.
+    root = load_root_chain(layout.DEFAULT_METADATA_DIR)[-1].metadata.signed
+    data = (layout.DEFAULT_METADATA_DIR / TARGETS_FILE).read_bytes()
+    signed = Metadata[Targets].from_bytes(data)
+    root.verify_delegate(layout.TARGETS, signed.signed_bytes, signed.signatures)
+    expected = top_level_targets(
+        load_publishers([layout.DEFAULT_PUBLISHERS_DIR]),
+        version=signed.signed.version,
+        now=utc_now(),
+    )
+    assert signed.signed.delegations == expected.delegations
+    assert signed.signed.targets == expected.targets
+
+
 def test_seed_record_is_otherwise_valid(tmp_path: Path) -> None:
-    generate("morelitea", tmp_path / "keys")
-    record = json.loads((layout.DEFAULT_PUBLISHERS_DIR / "morelitea.json").read_text())
-    record["key"] = json.loads((tmp_path / "keys" / "morelitea.pub.json").read_text())
-    path = tmp_path / "morelitea.json"
+    generate("beyonders-studio", tmp_path / "keys")
+    record = json.loads(
+        (layout.DEFAULT_PUBLISHERS_DIR / "beyonders-studio.json").read_text()
+    )
+    record["key"] = json.loads(
+        (tmp_path / "keys" / "beyonders-studio.pub.json").read_text()
+    )
+    path = tmp_path / "beyonders-studio.json"
     path.write_text(json.dumps(record))
     publisher = load_publisher(path)
-    assert publisher.prefix == "morelitea"
+    assert publisher.prefix == "beyonders-studio"
     assert (
         publisher.key.keyid
-        == signer_from_path(tmp_path / "keys" / "morelitea.pem").public_key.keyid
+        == signer_from_path(tmp_path / "keys" / "beyonders-studio.pem").public_key.keyid
     )
 
 

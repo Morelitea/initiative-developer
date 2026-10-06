@@ -1,5 +1,26 @@
 # Changelog
 
+## [5.0.0]
+
+Published under BeyondersStudio, the organization's new name.
+
+### Changed
+
+- The plug-in's public id is `beyonders-studio.github`, where it was
+  `morelitea.github`. Every endpoint and announcement id starts
+  `plugin.beyonders-studio.github.`, another plug-in the community lets use
+  GitHub is granted `plugins:beyonders-studio.github`, and the dashboard is
+  `beyonders-studio.github-overview`.
+- The registry lists it under the publisher `beyonders-studio`.
+- The webhook URL is `{APP_URL}/api/v1/plugin-hooks/beyonders-studio.github`.
+
+### Upgrading
+
+- An Initiative sees this as a different plug-in from `morelitea.github`.
+  Install it afresh and reconnect the GitHub organization; automations and
+  dashboards that call `plugin.morelitea.github.*` need pointing at the new
+  ids. In the GitHub App's settings, change the webhook URL to the one above.
+
 ## [4.0.0]
 
 Renamed for Initiative's plug-ins.
@@ -10,7 +31,7 @@ Renamed for Initiative's plug-ins.
   `plugin.morelitea.github.` instead of `app.morelitea.github.`.
 - Another plug-in the community lets use GitHub is granted
   `plugins:morelitea.github`.
-- Built on [initiative-plugin-sdk](https://github.com/Morelitea/initiative-plugin-sdk)
+- Built on [initiative-plugin-sdk](https://github.com/beyonders-studio/initiative-plugin-sdk)
   2.0.0.
 
 ### Upgrading

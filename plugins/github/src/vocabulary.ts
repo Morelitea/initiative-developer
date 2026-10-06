@@ -7,7 +7,7 @@
 
 import type { LocalizedText, ParamSpec, ParamType, ReturnSpec, ReturnValueType } from "initiative-plugin-sdk/manifest";
 
-export const PUBLIC_ID = "morelitea.github";
+export const PUBLIC_ID = "beyonders-studio.github";
 
 /** The catalog listing's uid, and the bundled dashboard's. Immutable. */
 export const LISTING_UID = "XTEAP993JW1E94";

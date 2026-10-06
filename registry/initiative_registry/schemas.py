@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import json
+import re
+from collections.abc import Iterator
 from functools import cache
 from typing import Any
 
-from jsonschema import Draft202012Validator
+from jsonschema import Draft202012Validator, ValidationError, validators
 from referencing import Registry, Resource
 
 from .errors import RegistryError
@@ -22,6 +24,31 @@ _SUBSCHEMAS = {MANIFEST: "urn:initiative-registry:schema:entry#/$defs/manifest"}
 
 
 @cache
+def _compiled(pattern: str) -> re.Pattern[str]:
+    return re.compile(pattern)
+
+
+def _whole_pattern(
+    validator: Any, pattern: str, instance: Any, schema: dict[str, Any]
+) -> Iterator[ValidationError]:
+    """``pattern``, matched against the whole string.
+
+    jsonschema applies ``pattern`` with ``re.search``, where ``$`` also matches
+    before a final newline, so ``^[0-9]+$`` would take ``"4\\n"``. ECMA-262's
+    ``$`` does not. Every pattern in these schemas is anchored ``^...$``, so a
+    full match gives them the meaning the schema states, in standard regex.
+    """
+    if validator.is_type(instance, "string") and not _compiled(pattern).fullmatch(
+        instance
+    ):
+        yield ValidationError(f"{instance!r} does not match {pattern!r}")
+
+
+#: Draft 2020-12, with ``pattern`` matching the whole string.
+Validator = validators.extend(Draft202012Validator, {"pattern": _whole_pattern})
+
+
+@cache
 def _documents() -> dict[str, dict[str, Any]]:
     documents = {}
     for name in (LISTING, ENTRY, PUBLISHER):
@@ -31,7 +58,7 @@ def _documents() -> dict[str, dict[str, Any]]:
 
 
 @cache
-def _validator(name: str) -> Draft202012Validator:
+def _validator(name: str) -> Any:
     documents = _documents()
     registry: Registry = Registry().with_resources(
         (document["$id"], Resource.from_contents(document))
@@ -41,8 +68,8 @@ def _validator(name: str) -> Draft202012Validator:
         schema = {"$ref": _SUBSCHEMAS[name]}
     else:
         schema = documents[name]
-        Draft202012Validator.check_schema(schema)
-    return Draft202012Validator(schema, registry=registry)
+        Validator.check_schema(schema)
+    return Validator(schema, registry=registry)
 
 
 def problems(name: str, document: Any) -> list[str]:

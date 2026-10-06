@@ -70,7 +70,12 @@
           "type": "string"
         },
         "definition": {
-          "type": "object"
+          "type": "object",
+          "properties": {
+            "min_plugin_api": {
+              "$ref": "urn:initiative-registry:schema:listing#/$defs/plugin_api_version"
+            }
+          }
         },
         "example": {
           "type": "object"

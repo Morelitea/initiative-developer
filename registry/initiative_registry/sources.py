@@ -250,6 +250,15 @@ def _publish_version(
         )
     manifest = manifest_document(listing, kind, definition, example)
     schemas.validate(schemas.MANIFEST, manifest, what=f"{what} manifest")
+    if (
+        "min_plugin_api" in version
+        and "min_plugin_api" in definition
+        and version["min_plugin_api"] != definition["min_plugin_api"]
+    ):
+        raise RegistryError(
+            f"{what}: min_plugin_api {version['min_plugin_api']!r} differs from "
+            f"its kit manifest's {definition['min_plugin_api']!r}"
+        )
     data = dumps(manifest)
     target = layout.manifest_target(listing.publisher, listing.uid, number)
     listing.targets[target] = Blob(target, data)

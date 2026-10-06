@@ -76,6 +76,15 @@ them:
     "service"`. A container's `service.public_id` is the listing's
     `public_id`; a declarative plug-in's manifest has no `service` block;
   - for a tool's content, that tool's definition.
+- **`versions[].min_plugin_api`** is optional: the oldest plug-in API contract
+  the version needs, as `MAJOR.MINOR` (such as `"4.1"`). The contract version
+  is the plug-in SDK's version, and an Initiative serving contract `S` runs the
+  version when `S` has the same major and is at least that minor. It sits
+  beside `min_app_version` and passes into the published entry unchanged, so a
+  client can tell which versions its Initiative can run without fetching their
+  manifests. A kit manifest may carry the same field, checked against the same
+  pattern; when both give it, they must agree. Left out, the version runs on
+  any contract.
 - **`versions[].example`** is optional, and only for a tool's content: the
   filled-in example shown beside the listing, as a path or inline.
 - **`registration`** is required for a plug-in and not allowed for anything

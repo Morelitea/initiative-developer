@@ -13,7 +13,7 @@
  * widget can say why. A write is refused with the code.
  */
 
-import type { Endpoint, ErrorRule, Expression, Paging, VendorRequest } from "initiative-app-sdk/manifest";
+import type { Endpoint, ErrorRule, Expression, Paging, VendorRequest } from "initiative-plugin-sdk/manifest";
 
 import { ACCOUNT, WORKSPACE } from "../vocabulary.js";
 

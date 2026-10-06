@@ -1,4 +1,4 @@
-import { defineEndpoint } from "initiative-app-sdk/manifest";
+import { defineEndpoint } from "initiative-plugin-sdk/manifest";
 
 import {
   BOARD,

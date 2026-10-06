@@ -1,5 +1,5 @@
 {
-  "app_kind": "service",
+  "plugin_kind": "service",
   "features": [
     "dashboards",
     "endpoints",

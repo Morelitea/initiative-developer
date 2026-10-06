@@ -39,7 +39,7 @@ def _registration(world: World) -> dict:
     return json.loads(world.listing(APP).read_text())["registration"]
 
 
-def test_app_manifest_carries_the_kit_manifest(world: World) -> None:
+def test_plugin_manifest_carries_the_kit_manifest(world: World) -> None:
     result = world.build()
     manifest = _manifest(result, APP, "1.0.0")
     kit = json.loads(
@@ -74,7 +74,7 @@ def test_entry_names_the_manifest_instead_of_the_definition(world: World) -> Non
     assert version["sha256"] == manifest.sha256
 
 
-def test_app_definition_must_name_the_listings_service(world: World) -> None:
+def test_plugin_definition_must_name_the_listings_service(world: World) -> None:
     kit = world.sources / "acme" / APP / "1.0.0" / "manifest.json"
     document = json.loads(kit.read_text())
     document["service"]["public_id"] = "acme.other"
@@ -85,9 +85,9 @@ def test_app_definition_must_name_the_listings_service(world: World) -> None:
         world.build()
 
 
-def test_app_definition_must_be_a_service_app(world: World) -> None:
+def test_plugin_definition_must_be_a_service_plugin(world: World) -> None:
     world.edit_listing(
-        APP, lambda d: d["versions"][0].update(definition={"app_kind": "embed"})
+        APP, lambda d: d["versions"][0].update(definition={"plugin_kind": "embed"})
     )
     with pytest.raises(RegistryError, match="it is None"):
         world.build()
@@ -105,7 +105,7 @@ def test_a_version_needs_a_definition(world: World) -> None:
         world.build()
 
 
-def test_an_app_takes_no_example(world: World) -> None:
+def test_a_plugin_takes_no_example(world: World) -> None:
     world.edit_listing(APP, lambda d: d["versions"][0].update(example={}))
     with pytest.raises(RegistryError, match=r"listing\.schema\.json"):
         world.build()
@@ -173,7 +173,7 @@ def test_profile_pack_takes_no_registration(world: World) -> None:
         world.build()
 
 
-def test_only_an_app_carries_a_registration(world: World) -> None:
+def test_only_a_plugin_carries_a_registration(world: World) -> None:
     world.edit_listing(APP, lambda d: d.update(kind="auto"))
     with pytest.raises(RegistryError, match=r"listing\.schema\.json"):
         world.build()

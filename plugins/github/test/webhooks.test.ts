@@ -4,7 +4,7 @@
  * installation being removed, suspended or restored.
  */
 
-import { runWebhook } from "initiative-app-sdk/testing";
+import { runWebhook } from "initiative-plugin-sdk/testing";
 import { describe, expect, it } from "vitest";
 
 import app from "../src/app.js";

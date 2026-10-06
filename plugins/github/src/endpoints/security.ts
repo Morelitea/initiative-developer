@@ -1,4 +1,4 @@
-import { defineEndpoint } from "initiative-app-sdk/manifest";
+import { defineEndpoint } from "initiative-plugin-sdk/manifest";
 
 import { COUNT_OUT, many, out, REPO, text, TOTAL_OUT, UNAVAILABLE, URL_OUT } from "../vocabulary.js";
 import { graphql, needs, NEEDS_REPO, PAGE, PUBLIC_READ, quote, REPO_VARIABLES, WEB } from "./support.js";

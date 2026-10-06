@@ -184,7 +184,7 @@ def _document(listing: Listing, value: Any, *, what: str) -> dict[str, Any]:
 
 def service_public_id(definition: dict[str, Any]) -> str | None:
     """The app service a kit manifest names, if it is a service app."""
-    if definition.get("app_kind") != "service":
+    if definition.get("plugin_kind") != "service":
         return None
     service = definition.get("service")
     if not isinstance(service, dict):
@@ -202,7 +202,7 @@ def definition_matches(
     no service block.
     """
     if registration.get("kind") == "declarative":
-        return definition.get("app_kind") == "service" and "service" not in definition
+        return definition.get("plugin_kind") == "service" and "service" not in definition
     return service_public_id(definition) == public_id
 
 

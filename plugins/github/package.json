@@ -12,9 +12,9 @@
     "typecheck": "tsc --noEmit",
     "test": "node scripts/run-tests.mjs",
     "test:watch": "vitest",
-    "manifest": "initiative-app build",
-    "manifest:check": "initiative-app build --check",
-    "listing": "initiative-app build --registry ../../registry/sources"
+    "manifest": "initiative-plugin build",
+    "manifest:check": "initiative-plugin build --check",
+    "listing": "initiative-plugin build --registry ../../registry/sources"
   },
   "devDependencies": {
     "@types/node": "^26.6.2",
@@ -23,6 +23,6 @@
     "vitest": "^5.0.1"
   },
   "dependencies": {
-    "initiative-app-sdk": "1.8.0"
+    "initiative-plugin-sdk": "1.8.0"
   }
 }

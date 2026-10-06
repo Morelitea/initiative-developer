@@ -6,7 +6,7 @@
  * carries exactly the returns it declares.
  */
 
-import { defineEndpoint, type EmittedEndpoint, type Expression } from "initiative-app-sdk/manifest";
+import { defineEndpoint, type EmittedEndpoint, type Expression } from "initiative-plugin-sdk/manifest";
 
 import { EMIT, ISSUE_IDENTITY, many, out, RELEASE_IDENTITY, TAG_IDENTITY, text } from "../vocabulary.js";
 import { quote, TEXT } from "./support.js";

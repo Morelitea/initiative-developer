@@ -4,7 +4,7 @@
  * account, and asking GitHub whether the installation still exists.
  */
 
-import { runAfterConnect, runHealth } from "initiative-app-sdk/testing";
+import { runAfterConnect, runHealth } from "initiative-plugin-sdk/testing";
 import { describe, expect, it } from "vitest";
 
 import app from "../src/app.js";

@@ -3,7 +3,7 @@
  * so in words rather than drawing a zero.
  */
 
-import type { Scene } from "initiative-app-sdk/widget";
+import type { Scene } from "initiative-plugin-sdk/widget";
 
 const WHY: Record<string, string> = {
   "repository-required": "Choose a repository for this tile",

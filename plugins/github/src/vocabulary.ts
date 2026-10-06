@@ -5,7 +5,7 @@
  * ships.
  */
 
-import type { LocalizedText, ParamSpec, ParamType, ReturnSpec, ReturnValueType } from "initiative-app-sdk/manifest";
+import type { LocalizedText, ParamSpec, ParamType, ReturnSpec, ReturnValueType } from "initiative-plugin-sdk/manifest";
 
 export const PUBLIC_ID = "morelitea.github";
 

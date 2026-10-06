@@ -322,7 +322,7 @@ def test_listing_for_an_unknown_publisher_is_refused(world: World) -> None:
         world.build()
 
 
-def test_app_without_registration_is_refused(world: World) -> None:
+def test_plugin_without_registration_is_refused(world: World) -> None:
     world.edit_listing(APP, lambda d: d.pop("registration"))
     with pytest.raises(RegistryError, match="registration"):
         world.build()
@@ -337,7 +337,7 @@ def test_app_without_registration_is_refused(world: World) -> None:
     ],
     ids=["keys", "location", "hosted"],
 )
-def test_an_app_is_a_container_with_no_location_or_keys(
+def test_a_plugin_is_a_container_with_no_location_or_keys(
     world: World, fields: dict
 ) -> None:
     """Each deployment runs its own copy, and gives its location and keys."""
@@ -350,7 +350,7 @@ def test_an_app_is_a_container_with_no_location_or_keys(
     ("scope", "accepted"),
     [("apps:other.tool", True), ("apps:other.", False), ("apps:Other.tool", False)],
 )
-def test_a_ceiling_may_name_another_app(
+def test_a_ceiling_may_name_another_plugin(
     world: World, scope: str, accepted: bool
 ) -> None:
     world.edit_listing(APP, lambda d: d["registration"]["scope_ceiling"].append(scope))
@@ -412,7 +412,7 @@ def test_a_registration_may_carry_a_compose_snippet(
 DECLARATIVE = {"kind": "declarative", "scope_ceiling": [], "reference_sectors": []}
 
 
-def test_a_declarative_app_registers_no_image(world: World) -> None:
+def test_a_declarative_plugin_registers_no_image(world: World) -> None:
     """Initiative runs it from its kit manifest, which names no service."""
     kit = world.sources / "acme" / APP / "1.0.0" / "manifest.json"
     document = json.loads(kit.read_text())

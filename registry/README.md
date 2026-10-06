@@ -72,7 +72,7 @@ them:
   checks the file against it. If you leave it out, the build computes it.
 - **`versions[].definition`** is what the version installs, as a path to a JSON
   file or an object inline:
-  - for an app, its kit manifest (`manifest.json`), with `"app_kind":
+  - for an app, its kit manifest (`manifest.json`), with `"plugin_kind":
     "service"`. A container's `service.public_id` is the listing's
     `public_id`; a declarative app's manifest has no `service` block;
   - for a tool's content, that tool's definition.
@@ -111,7 +111,7 @@ Each version's definition and example move into its own target,
   "uid": "0ACME000000001",
   "public_id": "acme.tracker",
   "kind": "app",
-  "definition": {"app_kind": "service", "service": {"public_id": "acme.tracker", "protocol": 1}, "features": []},
+  "definition": {"plugin_kind": "service", "service": {"public_id": "acme.tracker", "protocol": 1}, "features": []},
   "example": {"…": "only when the source gives one"}
 }
 ```

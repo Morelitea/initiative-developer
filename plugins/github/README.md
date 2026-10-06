@@ -75,11 +75,11 @@ address:
 
 | Setting | Value |
 |---|---|
-| Callback URL | `{APP_URL}/api/v1/app-connections/callback` |
+| Callback URL | `{APP_URL}/api/v1/plugin-connections/callback` |
 | Expire user authorization tokens | on |
 | Request user authorization (OAuth) during installation | off |
-| Setup URL | `{APP_URL}/api/v1/app-connections/setup` |
-| Webhook URL | `{APP_URL}/api/v1/app-hooks/morelitea.github` |
+| Setup URL | `{APP_URL}/api/v1/plugin-connections/setup` |
+| Webhook URL | `{APP_URL}/api/v1/plugin-hooks/morelitea.github` |
 | Webhook secret | a long random value |
 | Repository permissions | Issues: read and write · Pull requests: read and write · Contents: read · Dependabot alerts: read · Metadata: read |
 | Organization permissions | Projects: read and write |
@@ -131,7 +131,7 @@ the Contents permission and the Release and Create events.
 
 ## Working on it
 
-The app is built on [initiative-app-sdk](https://github.com/Morelitea/initiative-app-sdk):
+The app is built on [initiative-plugin-sdk](https://github.com/Morelitea/initiative-plugin-sdk):
 `src/app.ts` declares everything it does. Each endpoint is a request to GitHub
 and a [JSONata](https://jsonata.org) mapping of the answer; the tests run them
 against GitHub's recorded answers in `test/fixtures/`.

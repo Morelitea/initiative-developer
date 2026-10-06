@@ -1,6 +1,6 @@
 /** Open dependency alerts by severity, worst first. */
 
-import type { Scene, WidgetData } from "initiative-app-sdk/widget";
+import type { Scene, WidgetData } from "initiative-plugin-sdk/widget";
 
 import type { listAlerts } from "../endpoints/security.js";
 import { missing } from "./missing.js";

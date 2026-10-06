@@ -8,7 +8,7 @@ Where Initiative's apps are built and published.
   repository, so a deployment only ever installs what the keys it already
   trusts have signed, and can tell a stale catalogue from a current one.
 - **`apps/`** holds the apps we publish, built on
-  [initiative-app-sdk](https://github.com/Morelitea/initiative-app-sdk).
+  [initiative-plugin-sdk](https://github.com/Morelitea/initiative-plugin-sdk).
 
 A listing is added by a pull request that adds its source under
 `registry/sources/<publisher>/<listing>/`. Merging it publishes it.

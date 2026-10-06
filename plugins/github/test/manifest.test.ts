@@ -1,5 +1,5 @@
 /**
- * The manifest `initiative-app build` wrote from the app's definition, and the
+ * The manifest `initiative-plugin build` wrote from the app's definition, and the
  * registry listing.
  */
 
@@ -7,7 +7,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { validateManifest, type Manifest } from "initiative-app-sdk/manifest";
+import { validateManifest, type Manifest } from "initiative-plugin-sdk/manifest";
 import { describe, expect, it } from "vitest";
 
 import { ACCOUNT, LISTING_UID, READ_IDS, WORKSPACE } from "../src/vocabulary.js";

@@ -1,6 +1,6 @@
 /** Pull requests that asked for the viewer's review. */
 
-import type { Scene, WidgetData } from "initiative-app-sdk/widget";
+import type { Scene, WidgetData } from "initiative-plugin-sdk/widget";
 
 import type { reviewQueue } from "../endpoints/pulls.js";
 import { missing } from "./missing.js";

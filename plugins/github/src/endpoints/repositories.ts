@@ -1,4 +1,4 @@
-import { defineEndpoint } from "initiative-app-sdk/manifest";
+import { defineEndpoint } from "initiative-plugin-sdk/manifest";
 
 import { COUNT_OUT, many, out, OWNER_OUT, REPO, text, TOTAL_OUT, UNAVAILABLE } from "../vocabulary.js";
 import {

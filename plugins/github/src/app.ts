@@ -8,7 +8,7 @@
  * Nothing of the app runs anywhere: Initiative makes every call itself.
  */
 
-import { defineApp, type ConnectionFlow, type GithubPermissionLevel, type Paging } from "initiative-app-sdk/manifest";
+import { definePlugin, type ConnectionFlow, type GithubPermissionLevel, type Paging } from "initiative-plugin-sdk/manifest";
 
 import { EMIT_ENDPOINTS, EVENTS } from "./endpoints/emissions.js";
 import { closeIssue, comment, findIssues, getIssue, label, listLabels, listMilestones, openIssue, reopenIssue } from "./endpoints/issues.js";
@@ -61,7 +61,7 @@ const pages = (items: string): Paging => ({
 const installation = (action: string) =>
   `headers."x-github-event" = "installation" and payload.action = ${quote(action)}`;
 
-export default defineApp({
+export default definePlugin({
   publicId: PUBLIC_ID,
   uid: LISTING_UID,
   name: "GitHub",
@@ -167,7 +167,7 @@ export default defineApp({
       ],
       flow: {
         ...GITHUB_OAUTH,
-        install_url: `${WEB}/apps/{vendor.app_slug}/installations/new`,
+        install_url: `${WEB}/plugins/{vendor.app_slug}/installations/new`,
         after_connect: {
           steps: [
             {

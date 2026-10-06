@@ -186,3 +186,71 @@ def test_auto_needs_no_registration(world: World) -> None:
 
     world.edit_listing(PLUGIN, change)
     world.build()
+
+
+def _kit_path(world: World):
+    return world.sources / "acme" / PLUGIN / "1.0.0" / "manifest.json"
+
+
+def _set_kit_min_plugin_api(world: World, value: str) -> None:
+    kit = _kit_path(world)
+    document = json.loads(kit.read_text())
+    document["min_plugin_api"] = value
+    kit.write_text(json.dumps(document))
+
+
+def _published_version(result, uid: str) -> dict:
+    listing = next(listing for listing in result.listings if listing.uid == uid)
+    return json.loads(listing.targets[layout.listing_target("acme", uid)].data)[
+        "versions"
+    ][0]
+
+
+def test_min_plugin_api_passes_into_the_entry_and_manifest_unchanged(
+    world: World,
+) -> None:
+    world.edit_listing(PLUGIN, lambda d: d["versions"][0].update(min_plugin_api="4.1"))
+    _set_kit_min_plugin_api(world, "4.1")
+    result = world.build()
+
+    version = _published_version(result, PLUGIN)
+    assert version["min_plugin_api"] == "4.1"
+    assert version["min_app_version"] == "0.73.0"
+    assert _manifest(result, PLUGIN, "1.0.0")["definition"]["min_plugin_api"] == "4.1"
+    verify(result.out, world.trusted_root, target="public")
+
+
+def test_min_plugin_api_is_optional(world: World) -> None:
+    result = world.build()
+    assert "min_plugin_api" not in _published_version(result, PLUGIN)
+    assert "min_plugin_api" not in _manifest(result, PLUGIN, "1.0.0")["definition"]
+
+
+@pytest.mark.parametrize("value", ["4", "4.1.1", "v4.1", "4.x", "", " 4.1"])
+def test_a_listing_version_min_plugin_api_must_be_major_minor(
+    world: World, value: str
+) -> None:
+    world.edit_listing(PLUGIN, lambda d: d["versions"][0].update(min_plugin_api=value))
+    with pytest.raises(
+        RegistryError, match=r"listing\.schema\.json[\s\S]*min_plugin_api"
+    ):
+        world.build()
+
+
+@pytest.mark.parametrize("value", ["4", "4.1.1", "v4.1"])
+def test_a_kit_manifest_min_plugin_api_must_be_major_minor(
+    world: World, value: str
+) -> None:
+    _set_kit_min_plugin_api(world, value)
+    with pytest.raises(
+        RegistryError,
+        match=r"entry\.schema\.json#/\$defs/manifest[\s\S]*min_plugin_api",
+    ):
+        world.build()
+
+
+def test_min_plugin_api_must_agree_with_the_kit_manifest(world: World) -> None:
+    world.edit_listing(PLUGIN, lambda d: d["versions"][0].update(min_plugin_api="4.1"))
+    _set_kit_min_plugin_api(world, "4.2")
+    with pytest.raises(RegistryError, match=r"differs from its kit manifest's '4\.2'"):
+        world.build()

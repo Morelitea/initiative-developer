@@ -1,5 +1,23 @@
 # Changelog
 
+## [4.0.0]
+
+Renamed for Initiative's plug-ins.
+
+### Changed
+
+- The listing is a `plugin`, and every endpoint and announcement id starts
+  `plugin.morelitea.github.` instead of `app.morelitea.github.`.
+- Another plug-in the community lets use GitHub is granted
+  `plugins:morelitea.github`.
+- Built on [initiative-plugin-sdk](https://github.com/Morelitea/initiative-plugin-sdk)
+  2.0.0.
+
+### Upgrading
+
+- Needs an Initiative that speaks plug-ins. An older one refuses this
+  manifest.
+
 ## [3.1.0]
 
 Connecting an installation asks who controls its account.
@@ -74,8 +92,8 @@ The app keeps its own key.
 
 ### Changed
 
-- With no `INITIATIVE_PLUGIN_PRIVATE_KEY`, the app makes a signing key on first
-  start and keeps it in `/data` (`INITIATIVE_PLUGIN_DATA_DIR`). Mount a volume
+- With no `INITIATIVE_APP_PRIVATE_KEY`, the app makes a signing key on first
+  start and keeps it in `/data` (`INITIATIVE_APP_DATA_DIR`). Mount a volume
   there so the key survives a restart.
 - Every start logs `app key fingerprint: <thumbprint> (kid <kid>)`, to check
   against the fingerprint Initiative shows when it pins the app's keys.
@@ -124,7 +142,7 @@ Initiative receives GitHub's webhooks.
 
 - Needs an Initiative that receives app webhooks.
 - On the GitHub App, set the webhook URL to
-  `{APP_URL}/api/v1/plugin-hooks/morelitea.github`. Nothing else changes there.
+  `{APP_URL}/api/v1/app-hooks/morelitea.github`. Nothing else changes there.
 - Enter the GitHub App's webhook secret as the *Webhook secret* vendor value
   on the app's registration, and remove `GITHUB_WEBHOOK_SECRET` from the app's
   settings.
@@ -170,12 +188,12 @@ Initiative runs the GitHub connections.
 ### Upgrading
 
 - Needs an Initiative that runs app connections. On the GitHub App, the
-  callback URL becomes `{APP_URL}/api/v1/plugin-connections/callback` and the
-  setup URL `{APP_URL}/api/v1/plugin-connections/setup`; the GitHub App's client
+  callback URL becomes `{APP_URL}/api/v1/app-connections/callback` and the
+  setup URL `{APP_URL}/api/v1/app-connections/setup`; the GitHub App's client
   ID, client secret, slug, app ID and private key are entered on the app's
   registration in Initiative.
 - Members connect their GitHub account again, once.
-- `PLUGIN_PUBLIC_URL`, `GITHUB_APP_PRIVATE_KEY` and `GITHUB_APP_SLUG` are no
+- `APP_PUBLIC_URL`, `GITHUB_APP_PRIVATE_KEY` and `GITHUB_APP_SLUG` are no
   longer read.
 
 ## [1.0.0]
@@ -203,6 +221,6 @@ Rewritten on the installation-token platform.
 - On the GitHub App's settings, the setup URL and webhook URL change to the
   ones listed in the README, and the Contents permission and the Release and
   Create events are no longer needed.
-- `DATABASE_URL`, `PLUGIN_ENCRYPTION_KEY`, `INITIATIVE_PLUGIN_SECRET` and
-  `OUTBOX_INTERVAL_SECONDS` are no longer read. `INITIATIVE_PLUGIN_PRIVATE_KEY`
-  and `INITIATIVE_PLUGIN_KEY_ID` are new.
+- `DATABASE_URL`, `APP_ENCRYPTION_KEY`, `INITIATIVE_APP_SECRET` and
+  `OUTBOX_INTERVAL_SECONDS` are no longer read. `INITIATIVE_APP_PRIVATE_KEY`
+  and `INITIATIVE_APP_KEY_ID` are new.

@@ -167,7 +167,7 @@ def _check_manifest(path: str, data: bytes, entry: dict) -> None:
         registration, entry["public_id"], manifest["definition"]
     ):
         raise RegistryError(
-            f"{path}: its definition is not the {registration['kind']} app "
+            f"{path}: its definition is not the {registration['kind']} plug-in "
             f"{entry['public_id']!r}"
         )
 

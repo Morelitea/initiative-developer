@@ -1,4 +1,4 @@
-"""Build, sign and verify the TUF repository of Initiative apps and content."""
+"""Build, sign and verify the TUF repository of Initiative plug-ins and content."""
 
 from .errors import RegistryError
 

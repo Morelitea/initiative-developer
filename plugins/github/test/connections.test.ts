@@ -7,7 +7,7 @@
 import { runAfterConnect, runHealth } from "initiative-plugin-sdk/testing";
 import { describe, expect, it } from "vitest";
 
-import app from "../src/app.js";
+import plugin from "../src/plugin.js";
 import { ACCOUNT, WORKSPACE } from "../src/vocabulary.js";
 import { recorded } from "./fixtures.js";
 
@@ -27,7 +27,7 @@ const installed = (
     memberships?: unknown;
   } = {}
 ) =>
-  runAfterConnect(app, WORKSPACE, {
+  runAfterConnect(plugin, WORKSPACE, {
     params: { installation_id: installationId },
     responses: [...installations, memberships, recorded("rest/user")].map((body) => ({ body })),
   });
@@ -83,7 +83,7 @@ describe("after_connect for the organization", () => {
 
 describe("after_connect for a member", () => {
   it("names the connection by the account's login", async () => {
-    const run = await runAfterConnect(app, ACCOUNT, { responses: [{ body: recorded("rest/user") }] });
+    const run = await runAfterConnect(plugin, ACCOUNT, { responses: [{ body: recorded("rest/user") }] });
     expect(run.requests.map((request) => request.url)).toEqual([`${API}/user`]);
     expect(run).toMatchObject({ result: { account_label: "alice" } });
   });
@@ -91,7 +91,7 @@ describe("after_connect for a member", () => {
 
 describe("the organization's health", () => {
   const health = (status: number, body?: unknown) =>
-    runHealth(app, WORKSPACE, { fields: { owner: "acme", installation_id: 42 }, responses: [{ status, body }] });
+    runHealth(plugin, WORKSPACE, { fields: { owner: "acme", installation_id: 42 }, responses: [{ status, body }] });
 
   it("asks for one of the installation's repositories", async () => {
     const run = await health(200, recorded("rest/installation-repositories"));

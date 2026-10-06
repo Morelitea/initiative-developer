@@ -13,7 +13,7 @@ from initiative_registry.verify import verify
 
 from .conftest import FIXTURES, World, resign_role
 
-APP = "0ACME000000001"
+PLUGIN = "0ACME000000001"
 DASHBOARD = "0ACME000000002"
 
 TOOL_KINDS = (
@@ -36,19 +36,19 @@ def _manifest(result, uid: str, version: str) -> dict:
 
 
 def _registration(world: World) -> dict:
-    return json.loads(world.listing(APP).read_text())["registration"]
+    return json.loads(world.listing(PLUGIN).read_text())["registration"]
 
 
 def test_plugin_manifest_carries_the_kit_manifest(world: World) -> None:
     result = world.build()
-    manifest = _manifest(result, APP, "1.0.0")
+    manifest = _manifest(result, PLUGIN, "1.0.0")
     kit = json.loads(
-        (FIXTURES / "sources" / "acme" / APP / "1.0.0" / "manifest.json").read_text()
+        (FIXTURES / "sources" / "acme" / PLUGIN / "1.0.0" / "manifest.json").read_text()
     )
     assert manifest == {
-        "uid": APP,
+        "uid": PLUGIN,
         "public_id": "acme.tracker",
-        "kind": "app",
+        "kind": "plugin",
         "definition": kit,
     }
     assert manifest["definition"]["service"]["public_id"] == "acme.tracker"
@@ -75,7 +75,7 @@ def test_entry_names_the_manifest_instead_of_the_definition(world: World) -> Non
 
 
 def test_plugin_definition_must_name_the_listings_service(world: World) -> None:
-    kit = world.sources / "acme" / APP / "1.0.0" / "manifest.json"
+    kit = world.sources / "acme" / PLUGIN / "1.0.0" / "manifest.json"
     document = json.loads(kit.read_text())
     document["service"]["public_id"] = "acme.other"
     kit.write_text(json.dumps(document))
@@ -87,14 +87,14 @@ def test_plugin_definition_must_name_the_listings_service(world: World) -> None:
 
 def test_plugin_definition_must_be_a_service_plugin(world: World) -> None:
     world.edit_listing(
-        APP, lambda d: d["versions"][0].update(definition={"plugin_kind": "embed"})
+        PLUGIN, lambda d: d["versions"][0].update(definition={"plugin_kind": "embed"})
     )
     with pytest.raises(RegistryError, match="it is None"):
         world.build()
 
 
 def test_definition_file_must_be_an_object(world: World) -> None:
-    (world.sources / "acme" / APP / "1.0.0" / "manifest.json").write_text("[]")
+    (world.sources / "acme" / PLUGIN / "1.0.0" / "manifest.json").write_text("[]")
     with pytest.raises(RegistryError, match="must be a JSON object"):
         world.build()
 
@@ -106,7 +106,7 @@ def test_a_version_needs_a_definition(world: World) -> None:
 
 
 def test_a_plugin_takes_no_example(world: World) -> None:
-    world.edit_listing(APP, lambda d: d["versions"][0].update(example={}))
+    world.edit_listing(PLUGIN, lambda d: d["versions"][0].update(example={}))
     with pytest.raises(RegistryError, match=r"listing\.schema\.json"):
         world.build()
 
@@ -145,7 +145,7 @@ def test_every_tool_kind_is_a_listing_kind(world: World, kind: str) -> None:
     verify(result.out, world.trusted_root)
 
 
-@pytest.mark.parametrize("kind", ["art_pack", "widget", "apps"])
+@pytest.mark.parametrize("kind", ["art_pack", "widget", "app", "plugins"])
 def test_other_kinds_are_refused(world: World, kind: str) -> None:
     world.edit_listing(DASHBOARD, lambda d: d.update(kind=kind))
     with pytest.raises(RegistryError, match="is not one of"):
@@ -174,7 +174,7 @@ def test_profile_pack_takes_no_registration(world: World) -> None:
 
 
 def test_only_a_plugin_carries_a_registration(world: World) -> None:
-    world.edit_listing(APP, lambda d: d.update(kind="auto"))
+    world.edit_listing(PLUGIN, lambda d: d.update(kind="auto"))
     with pytest.raises(RegistryError, match=r"listing\.schema\.json"):
         world.build()
 
@@ -184,5 +184,5 @@ def test_auto_needs_no_registration(world: World) -> None:
         document.update(kind="auto")
         document.pop("registration")
 
-    world.edit_listing(APP, change)
+    world.edit_listing(PLUGIN, change)
     world.build()

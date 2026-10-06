@@ -1,5 +1,5 @@
 {
-  "plugin_kind": "service",
+  "app_kind": "service",
   "service": {
     "public_id": "morelitea.github",
     "protocol": 1,

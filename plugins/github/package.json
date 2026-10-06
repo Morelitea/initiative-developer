@@ -1,6 +1,6 @@
 {
   "name": "initiative-github",
-  "version": "3.1.0",
+  "version": "4.0.0",
   "private": true,
   "description": "A GitHub organization's issues, reviews and dependency alerts in an Initiative community: endpoints an automation can call, widgets a dashboard can draw.",
   "license": "MIT",
@@ -23,6 +23,6 @@
     "vitest": "^5.0.1"
   },
   "dependencies": {
-    "initiative-plugin-sdk": "1.8.0"
+    "initiative-plugin-sdk": "2.0.0"
   }
 }

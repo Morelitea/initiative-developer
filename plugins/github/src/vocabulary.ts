@@ -19,15 +19,15 @@ export const WORKSPACE = "workspace";
 export const ACCOUNT = "account";
 
 export function declare(name: string): string {
-  return `app.${PUBLIC_ID}.${name}`;
+  return `plugin.${PUBLIC_ID}.${name}`;
 }
 
-/** Each name's manifest id, `app.<public id>.<name>`. */
+/** Each name's manifest id, `plugin.<public id>.<name>`. */
 function ids<const T extends Record<string, string>>(names: T): { [K in keyof T]: string } {
   return Object.fromEntries(Object.entries(names).map(([key, name]) => [key, declare(name)])) as { [K in keyof T]: string };
 }
 
-/** The endpoints, by the names the app's definition keys them by. */
+/** The endpoints, by the names the plug-in's definition keys them by. */
 export const READ = {
   listRepositories: "list-repositories",
   listAssignees: "list-assignees",

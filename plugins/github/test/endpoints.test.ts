@@ -7,7 +7,7 @@
 import { runEndpoint, type RecordedResponse } from "initiative-plugin-sdk/testing";
 import { describe, expect, it } from "vitest";
 
-import app from "../src/app.js";
+import plugin from "../src/plugin.js";
 import { READ, WRITE } from "../src/vocabulary.js";
 import { recorded } from "./fixtures.js";
 
@@ -22,7 +22,7 @@ const HEADERS = {
 
 /** One endpoint, called with `params`, answered in turn by each recorded body or answer. */
 function call(name: string, params: Record<string, unknown>, ...answers: Array<string | RecordedResponse>) {
-  return runEndpoint(app, name, {
+  return runEndpoint(plugin, name, {
     params,
     connections: CONNECTIONS,
     now: NOW,

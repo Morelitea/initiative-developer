@@ -20,7 +20,7 @@ TOOL_KINDS = (
     "calendar",
     "counter_group",
     "dashboard",
-    "document",
+    "file",
     "gallery",
     "post",
     "project",

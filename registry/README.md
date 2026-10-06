@@ -63,7 +63,7 @@ them:
   - `plugin`, a plug-in;
   - `auto`, an automation;
   - `profile_pack`, a pack of profile decorations, art included;
-  - a tool's content: `calendar`, `counter_group`, `dashboard`, `document`,
+  - a tool's content: `calendar`, `counter_group`, `dashboard`, `file`,
     `gallery`, `post`, `project`, `queue` or `wiki`.
 - **Paths** (`avatar`, `images`, a definition or an example) are relative to the
   listing's directory and stay inside it. Images are PNG, JPEG, WebP, GIF, AVIF

@@ -8,7 +8,7 @@ on:
   pull_request:
     paths:
       - "plugins/github/**"
-      - "registry/sources/morelitea/XTEAP993JW1E94/**"
+      - "registry/sources/beyonders-studio/XTEAP993JW1E94/**"
       - ".github/workflows/github-plugin.yml"
   push:
     branches: [main]

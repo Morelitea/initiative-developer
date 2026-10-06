@@ -190,13 +190,13 @@ add `--passphrase`: it prompts for one, or reads `REGISTRY_KEY_PASSPHRASE`.
 
 ```sh
 keys=~/.config/initiative-registry
-for role in root targets snapshot timestamp morelitea; do
+for role in root targets snapshot timestamp beyonders-studio; do
   uv run initiative-registry keygen --role $role --out $keys
 done
 ```
 
-1. Paste `morelitea.pub.json` over the placeholder `key` in
-   `publishers/morelitea.json`.
+1. Paste `beyonders-studio.pub.json` over the placeholder `key` in
+   `publishers/beyonders-studio.json`.
 2. Sign the offline metadata:
    ```sh
    uv run initiative-registry init-root \
@@ -206,7 +206,7 @@ done
 3. Store the PEM text of each online key as a repository secret:
    - `REGISTRY_SNAPSHOT_KEY`;
    - `REGISTRY_TIMESTAMP_KEY`;
-   - `REGISTRY_PUBLISHER_KEY_MORELITEA`. A publisher's variable is
+   - `REGISTRY_PUBLISHER_KEY_BEYONDERS_STUDIO`. A publisher's variable is
      `REGISTRY_PUBLISHER_KEY_` followed by its prefix in capitals, with any
      other character as `_`.
 4. Commit `metadata/` and the publisher record, then move `root.pem` and

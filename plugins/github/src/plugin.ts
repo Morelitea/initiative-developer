@@ -122,7 +122,7 @@ export default definePlugin({
       kind: "github_app_manifest",
       app: {
         name: "Initiative",
-        url: "https://github.com/Morelitea/initiative-developer/tree/main/plugins/github",
+        url: "https://github.com/beyonders-studio/initiative-developer/tree/main/plugins/github",
         public: false,
         default_permissions: { ...PERMISSIONS },
         default_events: [...WEBHOOK_EVENTS],
@@ -384,7 +384,7 @@ export default definePlugin({
   dashboards: [
     {
       uid: DASHBOARD_UID,
-      public_id: "morelitea.github-overview",
+      public_id: "beyonders-studio.github-overview",
       name: "GitHub overview",
       description: "A repository at a glance: open issues, reviews, alerts and throughput.",
       layout: { columns: 12 },
@@ -428,7 +428,7 @@ export default definePlugin({
   // of its own: it is bundled in the manifest, and a deployment publishes it
   // from there.
   listing: {
-    publisher: "morelitea",
+    publisher: "beyonders-studio",
     summary: "Your organization's issues, reviews and dependency alerts, on a dashboard and in your automations.",
     description: [
       "Bring a GitHub organization into your community.",
@@ -443,6 +443,6 @@ export default definePlugin({
     // after_connect in steps; an older one refuses this manifest.
     minAppVersion: "0.75.0",
     releaseNotes:
-      "Renamed for Initiative's plug-ins: the endpoint and event ids are now plugin.morelitea.github.*, and another plug-in asks for plugins:morelitea.github. Needs an Initiative that speaks plug-ins.",
+      "Renamed for Initiative's plug-ins: the endpoint and event ids are now plugin.beyonders-studio.github.*, and another plug-in asks for plugins:beyonders-studio.github. Needs an Initiative that speaks plug-ins.",
   },
 });

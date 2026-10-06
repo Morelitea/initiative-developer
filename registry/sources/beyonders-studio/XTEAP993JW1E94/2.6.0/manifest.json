@@ -1,7 +1,7 @@
 {
   "app_kind": "service",
   "service": {
-    "public_id": "morelitea.github",
+    "public_id": "beyonders-studio.github",
     "protocol": 1,
     "scopes": [
       "projects:read",
@@ -80,8 +80,49 @@
           "es": "Clave privada",
           "fr": "Clé privée"
         }
+      },
+      {
+        "key": "webhook_secret",
+        "type": "secret",
+        "required": true,
+        "label": {
+          "en": "Webhook secret",
+          "de": "Webhook-Secret",
+          "es": "Secreto del webhook",
+          "fr": "Secret du webhook"
+        }
       }
-    ]
+    ],
+    "setup": {
+      "kind": "github_app_manifest",
+      "app": {
+        "name": "Initiative",
+        "url": "https://github.com/beyonders-studio/initiative-developer/tree/main/apps/github",
+        "public": false,
+        "default_permissions": {
+          "issues": "write",
+          "pull_requests": "write",
+          "contents": "read",
+          "vulnerability_alerts": "read",
+          "organization_projects": "write",
+          "metadata": "read"
+        },
+        "default_events": [
+          "issues",
+          "pull_request",
+          "release",
+          "create"
+        ]
+      },
+      "values": {
+        "client_id": "client_id",
+        "client_secret": "client_secret",
+        "app_slug": "slug",
+        "app_id": "id",
+        "private_key": "pem",
+        "webhook_secret": "webhook_secret"
+      }
+    }
   },
   "connections": [
     {
@@ -156,7 +197,8 @@
         "client_secret": "{vendor.client_secret}",
         "pkce": true,
         "after_connect": true,
-        "revoke": "hook"
+        "revoke": "github_grant",
+        "revoke_url": "https://api.github.com/applications/{vendor.client_id}/grant"
       },
       "access_hint": {
         "api": "GitHub",
@@ -171,9 +213,30 @@
       }
     }
   ],
+  "webhooks": {
+    "verify": {
+      "scheme": "hmac_sha256",
+      "header": "X-Hub-Signature-256",
+      "prefix": "sha256=",
+      "encoding": "hex",
+      "secret": "{vendor.webhook_secret}"
+    },
+    "dedup": "X-GitHub-Delivery",
+    "route": {
+      "path": "installation.id",
+      "connection": "workspace",
+      "field": "installation_id"
+    }
+  },
+  "schedules": [
+    {
+      "id": "check-installation",
+      "every": "15m"
+    }
+  ],
   "endpoints": [
     {
-      "id": "app.morelitea.github.list-repositories",
+      "id": "app.beyonders-studio.github.list-repositories",
       "direction": "read",
       "label": {
         "en": "Repositories",
@@ -238,7 +301,7 @@
       }
     },
     {
-      "id": "app.morelitea.github.list-assignees",
+      "id": "app.beyonders-studio.github.list-assignees",
       "direction": "read",
       "label": {
         "en": "Who can be assigned",
@@ -270,7 +333,7 @@
             "fr": "Dépôt"
           },
           "options_from": {
-            "endpoint": "app.morelitea.github.list-repositories",
+            "endpoint": "app.beyonders-studio.github.list-repositories",
             "key": "names"
           }
         }
@@ -325,7 +388,7 @@
       }
     },
     {
-      "id": "app.morelitea.github.list-branches",
+      "id": "app.beyonders-studio.github.list-branches",
       "direction": "read",
       "label": {
         "en": "Branches",
@@ -357,7 +420,7 @@
             "fr": "Dépôt"
           },
           "options_from": {
-            "endpoint": "app.morelitea.github.list-repositories",
+            "endpoint": "app.beyonders-studio.github.list-repositories",
             "key": "names"
           }
         }
@@ -412,7 +475,7 @@
       }
     },
     {
-      "id": "app.morelitea.github.list-labels",
+      "id": "app.beyonders-studio.github.list-labels",
       "direction": "read",
       "label": {
         "en": "Labels",
@@ -444,7 +507,7 @@
             "fr": "Dépôt"
           },
           "options_from": {
-            "endpoint": "app.morelitea.github.list-repositories",
+            "endpoint": "app.beyonders-studio.github.list-repositories",
             "key": "names"
           }
         }
@@ -499,7 +562,7 @@
       }
     },
     {
-      "id": "app.morelitea.github.list-milestones",
+      "id": "app.beyonders-studio.github.list-milestones",
       "direction": "read",
       "label": {
         "en": "Milestones",
@@ -531,7 +594,7 @@
             "fr": "Dépôt"
           },
           "options_from": {
-            "endpoint": "app.morelitea.github.list-repositories",
+            "endpoint": "app.beyonders-studio.github.list-repositories",
             "key": "names"
           }
         }
@@ -597,7 +660,7 @@
       }
     },
     {
-      "id": "app.morelitea.github.get-issue",
+      "id": "app.beyonders-studio.github.get-issue",
       "direction": "read",
       "label": {
         "en": "Get an issue",
@@ -629,7 +692,7 @@
             "fr": "Dépôt"
           },
           "options_from": {
-            "endpoint": "app.morelitea.github.list-repositories",
+            "endpoint": "app.beyonders-studio.github.list-repositories",
             "key": "names"
           }
         },
@@ -747,7 +810,7 @@
       }
     },
     {
-      "id": "app.morelitea.github.find-issues",
+      "id": "app.beyonders-studio.github.find-issues",
       "direction": "read",
       "label": {
         "en": "Find issues",
@@ -779,7 +842,7 @@
             "fr": "Dépôt"
           },
           "options_from": {
-            "endpoint": "app.morelitea.github.list-repositories",
+            "endpoint": "app.beyonders-studio.github.list-repositories",
             "key": "names"
           }
         },
@@ -809,7 +872,7 @@
           },
           "list": true,
           "options_from": {
-            "endpoint": "app.morelitea.github.list-labels",
+            "endpoint": "app.beyonders-studio.github.list-labels",
             "key": "names",
             "needs": {
               "repo": "repo"
@@ -826,7 +889,7 @@
             "fr": "Personne assignée"
           },
           "options_from": {
-            "endpoint": "app.morelitea.github.list-assignees",
+            "endpoint": "app.beyonders-studio.github.list-assignees",
             "key": "logins",
             "needs": {
               "repo": "repo"
@@ -843,7 +906,7 @@
             "fr": "Jalon"
           },
           "options_from": {
-            "endpoint": "app.morelitea.github.list-milestones",
+            "endpoint": "app.beyonders-studio.github.list-milestones",
             "key": "numbers",
             "label_key": "titles",
             "needs": {
@@ -997,7 +1060,7 @@
       }
     },
     {
-      "id": "app.morelitea.github.get-pull-request",
+      "id": "app.beyonders-studio.github.get-pull-request",
       "direction": "read",
       "label": {
         "en": "Get a pull request",
@@ -1029,7 +1092,7 @@
             "fr": "Dépôt"
           },
           "options_from": {
-            "endpoint": "app.morelitea.github.list-repositories",
+            "endpoint": "app.beyonders-studio.github.list-repositories",
             "key": "names"
           }
         },
@@ -1173,7 +1236,7 @@
       }
     },
     {
-      "id": "app.morelitea.github.find-pull-requests",
+      "id": "app.beyonders-studio.github.find-pull-requests",
       "direction": "read",
       "label": {
         "en": "Find pull requests",
@@ -1205,7 +1268,7 @@
             "fr": "Dépôt"
           },
           "options_from": {
-            "endpoint": "app.morelitea.github.list-repositories",
+            "endpoint": "app.beyonders-studio.github.list-repositories",
             "key": "names"
           }
         },
@@ -1236,7 +1299,7 @@
           },
           "list": true,
           "options_from": {
-            "endpoint": "app.morelitea.github.list-labels",
+            "endpoint": "app.beyonders-studio.github.list-labels",
             "key": "names",
             "needs": {
               "repo": "repo"
@@ -1273,7 +1336,7 @@
             "fr": "En attente de"
           },
           "options_from": {
-            "endpoint": "app.morelitea.github.list-assignees",
+            "endpoint": "app.beyonders-studio.github.list-assignees",
             "key": "logins",
             "needs": {
               "repo": "repo"
@@ -1407,7 +1470,7 @@
       }
     },
     {
-      "id": "app.morelitea.github.list-alerts",
+      "id": "app.beyonders-studio.github.list-alerts",
       "direction": "read",
       "label": {
         "en": "Dependabot alerts",
@@ -1439,7 +1502,7 @@
             "fr": "Dépôt"
           },
           "options_from": {
-            "endpoint": "app.morelitea.github.list-repositories",
+            "endpoint": "app.beyonders-studio.github.list-repositories",
             "key": "names"
           }
         }
@@ -1513,7 +1576,7 @@
       }
     },
     {
-      "id": "app.morelitea.github.list-projects",
+      "id": "app.beyonders-studio.github.list-projects",
       "direction": "read",
       "label": {
         "en": "Project boards",
@@ -1599,7 +1662,7 @@
       }
     },
     {
-      "id": "app.morelitea.github.list-project-fields",
+      "id": "app.beyonders-studio.github.list-project-fields",
       "direction": "read",
       "label": {
         "en": "Project fields",
@@ -1631,7 +1694,7 @@
             "fr": "Projet"
           },
           "options_from": {
-            "endpoint": "app.morelitea.github.list-projects",
+            "endpoint": "app.beyonders-studio.github.list-projects",
             "key": "ids",
             "label_key": "titles"
           }
@@ -1688,7 +1751,7 @@
       }
     },
     {
-      "id": "app.morelitea.github.list-project-options",
+      "id": "app.beyonders-studio.github.list-project-options",
       "direction": "read",
       "label": {
         "en": "Project field values",
@@ -1720,7 +1783,7 @@
             "fr": "Projet"
           },
           "options_from": {
-            "endpoint": "app.morelitea.github.list-projects",
+            "endpoint": "app.beyonders-studio.github.list-projects",
             "key": "ids",
             "label_key": "titles"
           }
@@ -1735,7 +1798,7 @@
             "fr": "Champ"
           },
           "options_from": {
-            "endpoint": "app.morelitea.github.list-project-fields",
+            "endpoint": "app.beyonders-studio.github.list-project-fields",
             "key": "ids",
             "label_key": "names",
             "needs": {
@@ -1793,7 +1856,7 @@
       }
     },
     {
-      "id": "app.morelitea.github.find-project-item",
+      "id": "app.beyonders-studio.github.find-project-item",
       "direction": "read",
       "label": {
         "en": "Find a project card",
@@ -1825,7 +1888,7 @@
             "fr": "Projet"
           },
           "options_from": {
-            "endpoint": "app.morelitea.github.list-projects",
+            "endpoint": "app.beyonders-studio.github.list-projects",
             "key": "ids",
             "label_key": "titles"
           }
@@ -1840,7 +1903,7 @@
             "fr": "Dépôt"
           },
           "options_from": {
-            "endpoint": "app.morelitea.github.list-repositories",
+            "endpoint": "app.beyonders-studio.github.list-repositories",
             "key": "names"
           }
         },
@@ -1896,7 +1959,7 @@
       }
     },
     {
-      "id": "app.morelitea.github.open-issue",
+      "id": "app.beyonders-studio.github.open-issue",
       "direction": "write",
       "label": {
         "en": "Open an issue",
@@ -1932,7 +1995,7 @@
             "fr": "Dépôt"
           },
           "options_from": {
-            "endpoint": "app.morelitea.github.list-repositories",
+            "endpoint": "app.beyonders-studio.github.list-repositories",
             "key": "names"
           }
         },
@@ -1968,7 +2031,7 @@
           },
           "list": true,
           "options_from": {
-            "endpoint": "app.morelitea.github.list-labels",
+            "endpoint": "app.beyonders-studio.github.list-labels",
             "key": "names",
             "needs": {
               "repo": "repo"
@@ -1986,7 +2049,7 @@
           },
           "list": true,
           "options_from": {
-            "endpoint": "app.morelitea.github.list-assignees",
+            "endpoint": "app.beyonders-studio.github.list-assignees",
             "key": "logins",
             "needs": {
               "repo": "repo"
@@ -2033,7 +2096,7 @@
       }
     },
     {
-      "id": "app.morelitea.github.comment",
+      "id": "app.beyonders-studio.github.comment",
       "direction": "write",
       "label": {
         "en": "Comment",
@@ -2069,7 +2132,7 @@
             "fr": "Dépôt"
           },
           "options_from": {
-            "endpoint": "app.morelitea.github.list-repositories",
+            "endpoint": "app.beyonders-studio.github.list-repositories",
             "key": "names"
           }
         },
@@ -2134,7 +2197,7 @@
       }
     },
     {
-      "id": "app.morelitea.github.close-issue",
+      "id": "app.beyonders-studio.github.close-issue",
       "direction": "write",
       "label": {
         "en": "Close an issue",
@@ -2170,7 +2233,7 @@
             "fr": "Dépôt"
           },
           "options_from": {
-            "endpoint": "app.morelitea.github.list-repositories",
+            "endpoint": "app.beyonders-studio.github.list-repositories",
             "key": "names"
           }
         },
@@ -2232,7 +2295,7 @@
       }
     },
     {
-      "id": "app.morelitea.github.reopen-issue",
+      "id": "app.beyonders-studio.github.reopen-issue",
       "direction": "write",
       "label": {
         "en": "Reopen an issue",
@@ -2268,7 +2331,7 @@
             "fr": "Dépôt"
           },
           "options_from": {
-            "endpoint": "app.morelitea.github.list-repositories",
+            "endpoint": "app.beyonders-studio.github.list-repositories",
             "key": "names"
           }
         },
@@ -2316,7 +2379,7 @@
       }
     },
     {
-      "id": "app.morelitea.github.label",
+      "id": "app.beyonders-studio.github.label",
       "direction": "write",
       "label": {
         "en": "Change labels",
@@ -2352,7 +2415,7 @@
             "fr": "Dépôt"
           },
           "options_from": {
-            "endpoint": "app.morelitea.github.list-repositories",
+            "endpoint": "app.beyonders-studio.github.list-repositories",
             "key": "names"
           }
         },
@@ -2377,7 +2440,7 @@
           },
           "list": true,
           "options_from": {
-            "endpoint": "app.morelitea.github.list-labels",
+            "endpoint": "app.beyonders-studio.github.list-labels",
             "key": "names",
             "needs": {
               "repo": "repo"
@@ -2395,7 +2458,7 @@
           },
           "list": true,
           "options_from": {
-            "endpoint": "app.morelitea.github.list-labels",
+            "endpoint": "app.beyonders-studio.github.list-labels",
             "key": "names",
             "needs": {
               "repo": "repo"
@@ -2422,7 +2485,7 @@
       }
     },
     {
-      "id": "app.morelitea.github.request-review",
+      "id": "app.beyonders-studio.github.request-review",
       "direction": "write",
       "label": {
         "en": "Request a review",
@@ -2458,7 +2521,7 @@
             "fr": "Dépôt"
           },
           "options_from": {
-            "endpoint": "app.morelitea.github.list-repositories",
+            "endpoint": "app.beyonders-studio.github.list-repositories",
             "key": "names"
           }
         },
@@ -2483,7 +2546,7 @@
           },
           "list": true,
           "options_from": {
-            "endpoint": "app.morelitea.github.list-assignees",
+            "endpoint": "app.beyonders-studio.github.list-assignees",
             "key": "logins",
             "needs": {
               "repo": "repo"
@@ -2531,7 +2594,7 @@
       }
     },
     {
-      "id": "app.morelitea.github.move-project-item",
+      "id": "app.beyonders-studio.github.move-project-item",
       "direction": "write",
       "label": {
         "en": "Move a project card",
@@ -2567,7 +2630,7 @@
             "fr": "Projet"
           },
           "options_from": {
-            "endpoint": "app.morelitea.github.list-projects",
+            "endpoint": "app.beyonders-studio.github.list-projects",
             "key": "ids",
             "label_key": "titles"
           }
@@ -2592,7 +2655,7 @@
             "fr": "Champ"
           },
           "options_from": {
-            "endpoint": "app.morelitea.github.list-project-fields",
+            "endpoint": "app.beyonders-studio.github.list-project-fields",
             "key": "ids",
             "label_key": "names",
             "needs": {
@@ -2610,7 +2673,7 @@
             "fr": "Valeur"
           },
           "options_from": {
-            "endpoint": "app.morelitea.github.list-project-options",
+            "endpoint": "app.beyonders-studio.github.list-project-options",
             "key": "option_ids",
             "label_key": "option_names",
             "needs": {
@@ -2640,7 +2703,7 @@
       }
     },
     {
-      "id": "app.morelitea.github.issue-opened",
+      "id": "app.beyonders-studio.github.issue-opened",
       "direction": "emit",
       "label": {
         "en": "An issue was opened",
@@ -2695,7 +2758,7 @@
       }
     },
     {
-      "id": "app.morelitea.github.issue-closed",
+      "id": "app.beyonders-studio.github.issue-closed",
       "direction": "emit",
       "label": {
         "en": "An issue was closed",
@@ -2750,7 +2813,7 @@
       }
     },
     {
-      "id": "app.morelitea.github.review-requested",
+      "id": "app.beyonders-studio.github.review-requested",
       "direction": "emit",
       "label": {
         "en": "A review was requested",
@@ -2804,7 +2867,7 @@
       }
     },
     {
-      "id": "app.morelitea.github.release-published",
+      "id": "app.beyonders-studio.github.release-published",
       "direction": "emit",
       "label": {
         "en": "A release was published",
@@ -2870,7 +2933,7 @@
       }
     },
     {
-      "id": "app.morelitea.github.prerelease-published",
+      "id": "app.beyonders-studio.github.prerelease-published",
       "direction": "emit",
       "label": {
         "en": "A pre-release was published",
@@ -2936,7 +2999,7 @@
       }
     },
     {
-      "id": "app.morelitea.github.tag-created",
+      "id": "app.beyonders-studio.github.tag-created",
       "direction": "emit",
       "label": {
         "en": "A tag was pushed",
@@ -3000,11 +3063,11 @@
         }
       },
       "endpoints": [
-        "app.morelitea.github.find-issues"
+        "app.beyonders-studio.github.find-issues"
       ],
-      "module_source": "var WHY = {\n  \"repository-required\": \"Choose a repository for this tile\",\n  \"repository-not-listed\": \"This tile names a repository the installation does not cover\",\n  \"not-configured\": \"No GitHub organization is connected yet\",\n  \"installation-unavailable\": \"GitHub would not let the app into the organization\",\n  \"not-connected\": \"Connect your GitHub account to see this\",\n  \"not-found\": \"That repository is not there, or not visible to the app\",\n  \"forbidden\": \"The organization has not granted the app this\",\n  \"vendor-error\": \"GitHub did not answer\",\n  \"rate-limited\": \"GitHub is limiting requests; this tile will fill in shortly\"\n};\n\nfunction missing(data) {\n  var why = (data.values || {}).unavailable;\n  if (!why) return null;\n  return { v: 1, scene: { kind: \"empty\", message: WHY[why] || \"There is nothing to show\" } };\n}\n\nfunction render(data) {\n  var nothing = missing(data);\n  if (nothing) return nothing;\n  var values = data.values || {};\n  return {\n    v: 1,\n    scene: {\n      kind: \"metric\",\n      value: typeof values.total === \"number\" ? values.total : (data.rows || []).length,\n      label: \"Open issues\"\n    }\n  };\n}",
+      "module_source": "(() => {\n  // src/widgets/missing.ts\n  var WHY = {\n    \"repository-required\": \"Choose a repository for this tile\",\n    \"repository-not-listed\": \"This tile names a repository the installation does not cover\",\n    \"not-configured\": \"No GitHub organization is connected yet\",\n    \"installation-unavailable\": \"GitHub would not let the app into the organization\",\n    \"not-connected\": \"Connect your GitHub account to see this\",\n    \"not-found\": \"That repository is not there, or not visible to the app\",\n    forbidden: \"The organization has not granted the app this\",\n    \"vendor-error\": \"GitHub did not answer\",\n    \"rate-limited\": \"GitHub is limiting requests; this tile will fill in shortly\"\n  };\n  function missing(values) {\n    const why = values.unavailable;\n    if (!why) return null;\n    return { v: 1, scene: { kind: \"empty\", message: WHY[why] || \"There is nothing to show\" } };\n  }\n\n  // src/widgets/open-issues.ts\n  function render(data) {\n    const nothing = missing(data.values);\n    if (nothing) return nothing;\n    const total = data.values.total;\n    return { v: 1, scene: { kind: \"metric\", value: typeof total === \"number\" ? total : data.rows.length, label: \"Open issues\" } };\n  }\n\n  // widget.js\n  globalThis.render = render;\n})();",
       "sample_data": {
-        "app.morelitea.github.find-issues": {
+        "app.beyonders-studio.github.find-issues": {
           "numbers": [
             812
           ],
@@ -3038,11 +3101,11 @@
         }
       },
       "endpoints": [
-        "app.morelitea.github.find-pull-requests"
+        "app.beyonders-studio.github.find-pull-requests"
       ],
-      "module_source": "var WHY = {\n  \"repository-required\": \"Choose a repository for this tile\",\n  \"repository-not-listed\": \"This tile names a repository the installation does not cover\",\n  \"not-configured\": \"No GitHub organization is connected yet\",\n  \"installation-unavailable\": \"GitHub would not let the app into the organization\",\n  \"not-connected\": \"Connect your GitHub account to see this\",\n  \"not-found\": \"That repository is not there, or not visible to the app\",\n  \"forbidden\": \"The organization has not granted the app this\",\n  \"vendor-error\": \"GitHub did not answer\",\n  \"rate-limited\": \"GitHub is limiting requests; this tile will fill in shortly\"\n};\n\nfunction missing(data) {\n  var why = (data.values || {}).unavailable;\n  if (!why) return null;\n  return { v: 1, scene: { kind: \"empty\", message: WHY[why] || \"There is nothing to show\" } };\n}\n\nfunction render(data) {\n  var nothing = missing(data);\n  if (nothing) return nothing;\n  var rows = data.rows || [];\n  if (!rows.length) return { v: 1, scene: { kind: \"empty\", message: \"Nothing is waiting on you\" } };\n  return {\n    v: 1,\n    scene: {\n      kind: \"table\",\n      columns: [\n        { key: \"number\", label: \"#\", align: \"end\" },\n        { key: \"title\", label: \"Pull request\" }\n      ],\n      rows: rows.slice(0, 10).map(function (row) {\n        return { number: row.numbers || \"\", title: row.titles || \"\" };\n      })\n    }\n  };\n}",
+      "module_source": "(() => {\n  // src/widgets/missing.ts\n  var WHY = {\n    \"repository-required\": \"Choose a repository for this tile\",\n    \"repository-not-listed\": \"This tile names a repository the installation does not cover\",\n    \"not-configured\": \"No GitHub organization is connected yet\",\n    \"installation-unavailable\": \"GitHub would not let the app into the organization\",\n    \"not-connected\": \"Connect your GitHub account to see this\",\n    \"not-found\": \"That repository is not there, or not visible to the app\",\n    forbidden: \"The organization has not granted the app this\",\n    \"vendor-error\": \"GitHub did not answer\",\n    \"rate-limited\": \"GitHub is limiting requests; this tile will fill in shortly\"\n  };\n  function missing(values) {\n    const why = values.unavailable;\n    if (!why) return null;\n    return { v: 1, scene: { kind: \"empty\", message: WHY[why] || \"There is nothing to show\" } };\n  }\n\n  // src/widgets/review-queue.ts\n  function render(data) {\n    const nothing = missing(data.values);\n    if (nothing) return nothing;\n    if (!data.rows.length) return { v: 1, scene: { kind: \"empty\", message: \"Nothing is waiting on you\" } };\n    return {\n      v: 1,\n      scene: {\n        kind: \"table\",\n        columns: [\n          { key: \"number\", label: \"#\", align: \"end\" },\n          { key: \"title\", label: \"Pull request\" }\n        ],\n        rows: data.rows.slice(0, 10).map((row) => ({ number: row.numbers || \"\", title: row.titles || \"\" }))\n      }\n    };\n  }\n\n  // widget.js\n  globalThis.render = render;\n})();",
       "sample_data": {
-        "app.morelitea.github.find-pull-requests": {
+        "app.beyonders-studio.github.find-pull-requests": {
           "numbers": [
             812,
             809
@@ -3083,11 +3146,11 @@
         }
       },
       "endpoints": [
-        "app.morelitea.github.list-alerts"
+        "app.beyonders-studio.github.list-alerts"
       ],
-      "module_source": "var WHY = {\n  \"repository-required\": \"Choose a repository for this tile\",\n  \"repository-not-listed\": \"This tile names a repository the installation does not cover\",\n  \"not-configured\": \"No GitHub organization is connected yet\",\n  \"installation-unavailable\": \"GitHub would not let the app into the organization\",\n  \"not-connected\": \"Connect your GitHub account to see this\",\n  \"not-found\": \"That repository is not there, or not visible to the app\",\n  \"forbidden\": \"The organization has not granted the app this\",\n  \"vendor-error\": \"GitHub did not answer\",\n  \"rate-limited\": \"GitHub is limiting requests; this tile will fill in shortly\"\n};\n\nfunction missing(data) {\n  var why = (data.values || {}).unavailable;\n  if (!why) return null;\n  return { v: 1, scene: { kind: \"empty\", message: WHY[why] || \"There is nothing to show\" } };\n}\n\nfunction render(data) {\n  var nothing = missing(data);\n  if (nothing) return nothing;\n  var counts = {};\n  (data.rows || []).forEach(function (row) {\n    if (row.severities) counts[row.severities] = (counts[row.severities] || 0) + 1;\n  });\n  var shown = [\"critical\", \"high\", \"medium\", \"low\"].filter(function (s) { return counts[s]; });\n  if (!shown.length) return { v: 1, scene: { kind: \"empty\", message: \"No open Dependabot alerts\" } };\n  return {\n    v: 1,\n    scene: {\n      kind: \"series\",\n      mark: \"bar\",\n      series: [{\n        name: \"Alerts\",\n        points: shown.map(function (s) {\n          return { x: s.charAt(0).toUpperCase() + s.slice(1), y: counts[s] };\n        })\n      }]\n    }\n  };\n}",
+      "module_source": "(() => {\n  // src/widgets/missing.ts\n  var WHY = {\n    \"repository-required\": \"Choose a repository for this tile\",\n    \"repository-not-listed\": \"This tile names a repository the installation does not cover\",\n    \"not-configured\": \"No GitHub organization is connected yet\",\n    \"installation-unavailable\": \"GitHub would not let the app into the organization\",\n    \"not-connected\": \"Connect your GitHub account to see this\",\n    \"not-found\": \"That repository is not there, or not visible to the app\",\n    forbidden: \"The organization has not granted the app this\",\n    \"vendor-error\": \"GitHub did not answer\",\n    \"rate-limited\": \"GitHub is limiting requests; this tile will fill in shortly\"\n  };\n  function missing(values) {\n    const why = values.unavailable;\n    if (!why) return null;\n    return { v: 1, scene: { kind: \"empty\", message: WHY[why] || \"There is nothing to show\" } };\n  }\n\n  // src/widgets/dependabot-alerts.ts\n  function render(data) {\n    const nothing = missing(data.values);\n    if (nothing) return nothing;\n    const counts = {};\n    for (const row of data.rows) {\n      if (row.severities) counts[row.severities] = (counts[row.severities] || 0) + 1;\n    }\n    const shown = [\"critical\", \"high\", \"medium\", \"low\"].filter((severity) => counts[severity]);\n    if (!shown.length) return { v: 1, scene: { kind: \"empty\", message: \"No open Dependabot alerts\" } };\n    return {\n      v: 1,\n      scene: {\n        kind: \"series\",\n        mark: \"bar\",\n        series: [\n          {\n            name: \"Alerts\",\n            points: shown.map((severity) => ({ x: severity.charAt(0).toUpperCase() + severity.slice(1), y: counts[severity] }))\n          }\n        ]\n      }\n    };\n  }\n\n  // widget.js\n  globalThis.render = render;\n})();",
       "sample_data": {
-        "app.morelitea.github.list-alerts": {
+        "app.beyonders-studio.github.list-alerts": {
           "severities": [
             "critical",
             "high",
@@ -3134,11 +3197,11 @@
         }
       },
       "endpoints": [
-        "app.morelitea.github.find-issues"
+        "app.beyonders-studio.github.find-issues"
       ],
-      "module_source": "var WHY = {\n  \"repository-required\": \"Choose a repository for this tile\",\n  \"repository-not-listed\": \"This tile names a repository the installation does not cover\",\n  \"not-configured\": \"No GitHub organization is connected yet\",\n  \"installation-unavailable\": \"GitHub would not let the app into the organization\",\n  \"not-connected\": \"Connect your GitHub account to see this\",\n  \"not-found\": \"That repository is not there, or not visible to the app\",\n  \"forbidden\": \"The organization has not granted the app this\",\n  \"vendor-error\": \"GitHub did not answer\",\n  \"rate-limited\": \"GitHub is limiting requests; this tile will fill in shortly\"\n};\n\nfunction missing(data) {\n  var why = (data.values || {}).unavailable;\n  if (!why) return null;\n  return { v: 1, scene: { kind: \"empty\", message: WHY[why] || \"There is nothing to show\" } };\n}\n\nfunction render(data) {\n  var nothing = missing(data);\n  if (nothing) return nothing;\n  var days = {};\n  function bucket(iso) {\n    var day = String(iso).slice(0, 10);\n    if (!days[day]) days[day] = { opened: 0, closed: 0 };\n    return days[day];\n  }\n  (data.rows || []).forEach(function (row) {\n    if (row.created_at) bucket(row.created_at).opened += 1;\n    if (row.closed_at) bucket(row.closed_at).closed += 1;\n  });\n  var ordered = Object.keys(days).sort();\n  if (!ordered.length) {\n    return { v: 1, scene: { kind: \"empty\", message: \"Nothing opened or closed in this window\" } };\n  }\n  return {\n    v: 1,\n    scene: {\n      kind: \"series\",\n      mark: \"line\",\n      series: [\n        { name: \"Opened\", points: ordered.map(function (d) { return { x: d, y: days[d].opened }; }) },\n        { name: \"Closed\", points: ordered.map(function (d) { return { x: d, y: days[d].closed }; }) }\n      ]\n    }\n  };\n}",
+      "module_source": "(() => {\n  // src/widgets/missing.ts\n  var WHY = {\n    \"repository-required\": \"Choose a repository for this tile\",\n    \"repository-not-listed\": \"This tile names a repository the installation does not cover\",\n    \"not-configured\": \"No GitHub organization is connected yet\",\n    \"installation-unavailable\": \"GitHub would not let the app into the organization\",\n    \"not-connected\": \"Connect your GitHub account to see this\",\n    \"not-found\": \"That repository is not there, or not visible to the app\",\n    forbidden: \"The organization has not granted the app this\",\n    \"vendor-error\": \"GitHub did not answer\",\n    \"rate-limited\": \"GitHub is limiting requests; this tile will fill in shortly\"\n  };\n  function missing(values) {\n    const why = values.unavailable;\n    if (!why) return null;\n    return { v: 1, scene: { kind: \"empty\", message: WHY[why] || \"There is nothing to show\" } };\n  }\n\n  // src/widgets/issue-throughput.ts\n  function render(data) {\n    const nothing = missing(data.values);\n    if (nothing) return nothing;\n    const days = {};\n    const bucket = (iso) => {\n      const day = String(iso).slice(0, 10);\n      if (!days[day]) days[day] = { opened: 0, closed: 0 };\n      return days[day];\n    };\n    for (const row of data.rows) {\n      if (row.created_at) bucket(row.created_at).opened += 1;\n      if (row.closed_at) bucket(row.closed_at).closed += 1;\n    }\n    const ordered = Object.keys(days).sort();\n    if (!ordered.length) return { v: 1, scene: { kind: \"empty\", message: \"Nothing opened or closed in this window\" } };\n    return {\n      v: 1,\n      scene: {\n        kind: \"series\",\n        mark: \"line\",\n        series: [\n          { name: \"Opened\", points: ordered.map((day) => ({ x: day, y: days[day].opened })) },\n          { name: \"Closed\", points: ordered.map((day) => ({ x: day, y: days[day].closed })) }\n        ]\n      }\n    };\n  }\n\n  // widget.js\n  globalThis.render = render;\n})();",
       "sample_data": {
-        "app.morelitea.github.find-issues": {
+        "app.beyonders-studio.github.find-issues": {
           "created_at": [
             "2026-08-17T09:00:00Z",
             "2026-08-17T11:00:00Z",
@@ -3165,7 +3228,7 @@
   "dashboards": [
     {
       "uid": "YB67VZS8NB161S",
-      "public_id": "morelitea.github-overview",
+      "public_id": "beyonders-studio.github-overview",
       "name": "GitHub overview",
       "description": "A repository at a glance: open issues, reviews, alerts and throughput.",
       "layout": {
@@ -3183,7 +3246,7 @@
             "h": 3
           },
           "binding": {
-            "endpoint_id": "app.morelitea.github.find-issues",
+            "endpoint_id": "app.beyonders-studio.github.find-issues",
             "params": {
               "state": "open",
               "limit": 1
@@ -3201,7 +3264,7 @@
             "h": 3
           },
           "binding": {
-            "endpoint_id": "app.morelitea.github.find-pull-requests",
+            "endpoint_id": "app.beyonders-studio.github.find-pull-requests",
             "params": {
               "review_requested": "@me",
               "state": "open",
@@ -3220,7 +3283,7 @@
             "h": 3
           },
           "binding": {
-            "endpoint_id": "app.morelitea.github.list-alerts"
+            "endpoint_id": "app.beyonders-studio.github.list-alerts"
           }
         },
         {
@@ -3234,7 +3297,7 @@
             "h": 4
           },
           "binding": {
-            "endpoint_id": "app.morelitea.github.find-issues",
+            "endpoint_id": "app.beyonders-studio.github.find-issues",
             "params": {
               "state": "all",
               "since_days": 14,

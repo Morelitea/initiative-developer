@@ -8,7 +8,7 @@ Where Initiative's plug-ins are built and published.
   repository, so a deployment only ever installs what the keys it already
   trusts have signed, and can tell a stale catalogue from a current one.
 - **`plugins/`** holds the plug-ins we publish, built on
-  [initiative-plugin-sdk](https://github.com/Morelitea/initiative-plugin-sdk).
+  [initiative-plugin-sdk](https://github.com/beyonders-studio/initiative-plugin-sdk).
 
 A listing is added by a pull request that adds its source under
 `registry/sources/<publisher>/<listing>/`. Merging it publishes it.

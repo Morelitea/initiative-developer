@@ -1,8 +1,8 @@
 {
   "schema": 1,
   "uid": "XTEAP993JW1E94",
-  "public_id": "morelitea.github",
-  "publisher": "morelitea",
+  "public_id": "beyonders-studio.github",
+  "publisher": "beyonders-studio",
   "kind": "plugin",
   "name": "GitHub",
   "summary": "Your organization's issues, reviews and dependency alerts, on a dashboard and in your automations.",
@@ -16,7 +16,7 @@
       "version": "4.0.0",
       "definition": "4.0.0/manifest.json",
       "min_app_version": "0.75.0",
-      "release_notes": "Renamed for Initiative's plug-ins: the endpoint and event ids are now plugin.morelitea.github.*, and another plug-in asks for plugins:morelitea.github. Needs an Initiative that speaks plug-ins."
+      "release_notes": "Renamed for Initiative's plug-ins: the endpoint and event ids are now plugin.beyonders-studio.github.*, and another plug-in asks for plugins:beyonders-studio.github. Needs an Initiative that speaks plug-ins."
     }
   ],
   "registration": {

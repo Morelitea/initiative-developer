@@ -2,7 +2,7 @@
  "signatures": [
   {
    "keyid": "69a87c1eebbf08d8d14d10440534a5e821b40d6a0eee4b09fa85358a7216cd3b",
-   "sig": "83561c971240abe665131b2562c8a913aa27a8280db0b3f4fd23e7819ede9cb89236fde237b08f8340854584b6f3f51e72a140a0cbc3d8bb1d94e02dd680bf00"
+   "sig": "e42c03a12f85b305b735a15008bddb696dc56a536e31718fc4d5535bfe44755d0822f26ba80fce9c36daa75de90999e6da67780f8e9cdc4b03b7cf95247f6103"
   }
  ],
  "signed": {
@@ -22,27 +22,27 @@
      "keyids": [
       "d93bb9f91a22e29193f2e2c6e68435716b2134ffacc0823abb5a9b2c616899da"
      ],
-     "name": "morelitea",
+     "name": "beyonders-studio",
      "paths": [
-      "publishers/morelitea/*/listing.json",
-      "publishers/morelitea/*/*/manifest.json",
-      "publishers/morelitea/*/assets/*"
+      "publishers/beyonders-studio/*/listing.json",
+      "publishers/beyonders-studio/*/*/manifest.json",
+      "publishers/beyonders-studio/*/assets/*"
      ],
      "terminating": true,
      "threshold": 1
     }
    ]
   },
-  "expires": "2027-09-24T22:20:00Z",
+  "expires": "2027-10-06T20:15:50Z",
   "spec_version": "1.0.31",
   "targets": {
-   "publishers/morelitea.json": {
+   "publishers/beyonders-studio.json": {
     "hashes": {
-     "sha256": "62be7266b4e2aa3618c3618015460009216356114ef79ee20608cccd78f53ba2"
+     "sha256": "fe4d19e22119992f119de8da14a141c12ed2531f952ce7c58ab5911d9fd695c9"
     },
-    "length": 380
+    "length": 400
    }
   },
-  "version": 1
+  "version": 2
  }
 }

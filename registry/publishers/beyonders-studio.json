@@ -1,9 +1,9 @@
 {
   "schema": 1,
-  "prefix": "morelitea",
-  "name": "Morelitea",
+  "prefix": "beyonders-studio",
+  "name": "BeyondersStudio",
   "verified": true,
-  "url": "https://github.com/Morelitea",
+  "url": "https://github.com/beyonders-studio",
   "key": {
     "keyid": "d93bb9f91a22e29193f2e2c6e68435716b2134ffacc0823abb5a9b2c616899da",
     "keytype": "ed25519",

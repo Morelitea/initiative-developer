@@ -1,7 +1,7 @@
 # GitHub for Initiative
 
 Brings a GitHub organization's issues, pull requests and Dependabot alerts into
-an [Initiative](https://github.com/Morelitea/initiative) community, as dashboard
+an [Initiative](https://github.com/beyonders-studio/initiative) community, as dashboard
 tiles and as steps an automation can call.
 
 It runs inside Initiative: the plug-in is a manifest that says which GitHub calls
@@ -42,7 +42,7 @@ turns GitHub's webhook deliveries into the six announcements, and checks every
 15 minutes that GitHub still has each organization's installation.
 
 **Other plug-ins use it through Initiative.** Every read and write is public:
-a plug-in the community has let use GitHub (`plugins:morelitea.github`) calls it
+a plug-in the community has let use GitHub (`plugins:beyonders-studio.github`) calls it
 through Initiative, as the community or as one of its members. A read takes
 either and answers on the organization's installation, except the review
 queue, which takes a member and asks GitHub as them. A write takes only a
@@ -79,7 +79,7 @@ address:
 | Expire user authorization tokens | on |
 | Request user authorization (OAuth) during installation | off |
 | Setup URL | `{APP_URL}/api/v1/plugin-connections/setup` |
-| Webhook URL | `{APP_URL}/api/v1/plugin-hooks/morelitea.github` |
+| Webhook URL | `{APP_URL}/api/v1/plugin-hooks/beyonders-studio.github` |
 | Webhook secret | a long random value |
 | Repository permissions | Issues: read and write · Pull requests: read and write · Contents: read · Dependabot alerts: read · Metadata: read |
 | Organization permissions | Projects: read and write |
@@ -131,7 +131,7 @@ the Contents permission and the Release and Create events.
 
 ## Working on it
 
-The plug-in is built on [initiative-plugin-sdk](https://github.com/Morelitea/initiative-plugin-sdk):
+The plug-in is built on [initiative-plugin-sdk](https://github.com/beyonders-studio/initiative-plugin-sdk):
 `src/plugin.ts` declares everything it does. Each endpoint is a request to GitHub
 and a [JSONata](https://jsonata.org) mapping of the answer; the tests run them
 against GitHub's recorded answers in `test/fixtures/`.
@@ -146,7 +146,7 @@ npm run listing          # at a release: manifest.json and the registry source
 ```
 
 `npm run listing` writes the plug-in's registry source under
-`registry/sources/morelitea/<uid>/`: the listing, this version's manifest and
+`registry/sources/beyonders-studio/<uid>/`: the listing, this version's manifest and
 `assets/avatar.png`. It writes it only while the listing in `src/plugin.ts` names
 the version in `package.json`, so run it once the release has bumped both.
 

@@ -64,8 +64,13 @@ describe("manifest", () => {
           .filter((key) => key !== "service" && key !== "schedules")
           .map((key) => (key === "app_kind" ? "plugin_kind" : key)),
         "hosts",
+        "min_plugin_api",
       ].sort()
     );
+  });
+
+  it("needs plug-in API contract 4.2, the SDK it is built against", () => {
+    expect(manifest.min_plugin_api).toBe("4.2");
   });
 
   it("keeps every endpoint 2.6.0 had as it was, and adds the review queue", () => {

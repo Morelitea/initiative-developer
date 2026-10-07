@@ -1,5 +1,13 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+
+- Built on `initiative-plugin-sdk` 4.2, and the manifest names the oldest
+  plug-in API contract it needs: `min_plugin_api` `"4.2"`. An Initiative
+  serving an older 4.x contract, or another major, refuses to install it.
+
 ## [5.0.0]
 
 Published under BeyondersStudio, the organization's new name.

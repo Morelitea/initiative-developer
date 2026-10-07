@@ -6,6 +6,7 @@
     "widgets"
   ],
   "default_name": "GitHub",
+  "min_plugin_api": "4.2",
   "hosts": [
     "api.github.com"
   ],

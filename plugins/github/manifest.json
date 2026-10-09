@@ -1590,6 +1590,59 @@
           }
         },
         {
+          "key": "labels",
+          "type": "string",
+          "label": {
+            "en": "Labels",
+            "de": "Labels",
+            "es": "Etiquetas",
+            "fr": "Étiquettes"
+          },
+          "list": true,
+          "options_from": {
+            "endpoint": "plugin.beyonders-studio.github.list-labels",
+            "key": "names",
+            "needs": {
+              "repo": "repo"
+            }
+          }
+        },
+        {
+          "key": "assignee",
+          "type": "string",
+          "label": {
+            "en": "Assignee",
+            "de": "Zuständige Person",
+            "es": "Persona asignada",
+            "fr": "Personne assignée"
+          },
+          "options_from": {
+            "endpoint": "plugin.beyonders-studio.github.list-assignees",
+            "key": "logins",
+            "needs": {
+              "repo": "repo"
+            }
+          }
+        },
+        {
+          "key": "milestone",
+          "type": "int",
+          "label": {
+            "en": "Milestone",
+            "de": "Meilenstein",
+            "es": "Hito",
+            "fr": "Jalon"
+          },
+          "options_from": {
+            "endpoint": "plugin.beyonders-studio.github.list-milestones",
+            "key": "numbers",
+            "label_key": "titles",
+            "needs": {
+              "repo": "repo"
+            }
+          }
+        },
+        {
           "key": "since_days",
           "type": "int",
           "label": {
@@ -1665,7 +1718,7 @@
         },
         "graphql": {
           "query": "query Throughput($owner: String!, $repo: String!, $first: Int!, $filter: IssueFilters, $order: IssueOrder!) { repository(owner: $owner, name: $repo) { issues(first: $first, filterBy: $filter, orderBy: $order) { nodes { createdAt closedAt } } } }",
-          "variables": "{\n      \"owner\": connections.workspace.owner, \"repo\": (\n  $repo := params.repo;\n  $type($repo) = \"string\" and $length($repo) <= 100 and $contains($repo, /^[A-Za-z0-9._-]+$/) and $not($repo in [\".\", \"..\"])\n    ? $repo : \"\"\n),\n      \"first\": ($exists(params.limit) ? $min([$max([params.limit, 1]), 100]) : 30),\n      \"order\": {\"field\": \"UPDATED_AT\", \"direction\": \"DESC\"},\n      \"filter\": ($since := (\n  params.since ? $fromMillis($toMillis(params.since))\n  : params.since_days > 0 ? $fromMillis($millis() - params.since_days * 86400000)\n); $since ? {\"since\": $since} : {})\n    }"
+          "variables": "{\n      \"owner\": connections.workspace.owner, \"repo\": (\n  $repo := params.repo;\n  $type($repo) = \"string\" and $length($repo) <= 100 and $contains($repo, /^[A-Za-z0-9._-]+$/) and $not($repo in [\".\", \"..\"])\n    ? $repo : \"\"\n),\n      \"first\": ($exists(params.limit) ? $min([$max([params.limit, 1]), 100]) : 30),\n      \"order\": {\"field\": \"UPDATED_AT\", \"direction\": \"DESC\"},\n      \"filter\": $merge([\n        $count(params.labels) ? {\"labels\": [params.labels]},\n        params.assignee ? {\"assignee\": params.assignee},\n        $exists(params.milestone) ? {\"milestoneNumber\": $string(params.milestone)},\n        ($since := (\n  params.since ? $fromMillis($toMillis(params.since))\n  : params.since_days > 0 ? $fromMillis($millis() - params.since_days * 86400000)\n); $since ? {\"since\": $since})\n      ])\n    }"
         },
         "connection": "workspace"
       },

@@ -105,7 +105,7 @@ const READS: ReadCase[] = [
   {
     // Two opened on the first, one of them closed on the third.
     name: READ.issueThroughput,
-    params: { repo: "widgets", since_days: 14, limit: 100 },
+    params: { repo: "widgets", labels: ["bug"], since_days: 14, limit: 100 },
     answers: ["graphql/issues"],
     result: { days: ["2026-09-01", "2026-09-03"], opened: [2, 0], closed: [0, 1] },
   },

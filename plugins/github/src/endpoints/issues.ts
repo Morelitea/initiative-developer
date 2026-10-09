@@ -193,6 +193,20 @@ export const getIssue = defineEndpoint({
 
 const ISSUE_STATES = ["open", "closed", "all"] as const;
 
+/** Which issues count: by label, by who they are assigned to, by milestone. */
+const ISSUE_FILTERS = {
+  ...LABELS_IN,
+  assignee: param("string", text("Assignee", "Zuständige Person", "Persona asignada", "Personne assignée"), {
+    options_from: PEOPLE_OF,
+  }),
+  milestone: param("int", text("Milestone", "Meilenstein", "Hito", "Jalon"), { options_from: MILESTONES_OF }),
+};
+
+/** {@link ISSUE_FILTERS} as GitHub's `IssueFilters`, for a `$merge`. */
+const ISSUE_FILTER = `$count(params.labels) ? {"labels": [params.labels]},
+        params.assignee ? {"assignee": params.assignee},
+        $exists(params.milestone) ? {"milestoneNumber": $string(params.milestone)}`;
+
 export const findIssues = defineEndpoint({
   direction: "read",
   label: text("Find issues", "Issues suchen", "Buscar incidencias", "Rechercher des tickets"),
@@ -208,11 +222,7 @@ export const findIssues = defineEndpoint({
   params: {
     ...REPO,
     state: param("select", text("State", "Status", "Estado", "État"), { options: [...ISSUE_STATES] }),
-    ...LABELS_IN,
-    assignee: param("string", text("Assignee", "Zuständige Person", "Persona asignada", "Personne assignée"), {
-      options_from: PEOPLE_OF,
-    }),
-    milestone: param("int", text("Milestone", "Meilenstein", "Hito", "Jalon"), { options_from: MILESTONES_OF }),
+    ...ISSUE_FILTERS,
     ...SINCE_IN,
     ...SINCE_DAYS_IN,
     ...SORT_IN,
@@ -232,9 +242,7 @@ export const findIssues = defineEndpoint({
       "order": ${ORDERING},
       "filter": $merge([
         {"states": params.state = "all" ? null : params.state = "closed" ? ["CLOSED"] : ["OPEN"]},
-        $count(params.labels) ? {"labels": [params.labels]},
-        params.assignee ? {"assignee": params.assignee},
-        $exists(params.milestone) ? {"milestoneNumber": $string(params.milestone)},
+        ${ISSUE_FILTER},
         ($since := ${SINCE}; $since ? {"since": $since})
       ])
     }`
@@ -262,7 +270,7 @@ export const issueThroughput = defineEndpoint({
   group: "issues",
   ...PUBLIC_READ,
   cache_ttl_seconds: 300,
-  params: { ...REPO, ...SINCE_DAYS_IN, ...LIMIT_IN },
+  params: { ...REPO, ...ISSUE_FILTERS, ...SINCE_DAYS_IN, ...LIMIT_IN },
   returns: {
     days: many(out("string", { label: text("Day", "Tag", "Día", "Jour") })),
     opened: many(out("int", { label: text("Opened", "Geöffnet", "Abiertas", "Ouverts") })),
@@ -279,7 +287,10 @@ export const issueThroughput = defineEndpoint({
       ${REPO_VARIABLES},
       "first": ${LIMIT},
       "order": {"field": "UPDATED_AT", "direction": "DESC"},
-      "filter": ($since := ${SINCE}; $since ? {"since": $since} : {})
+      "filter": $merge([
+        ${ISSUE_FILTER},
+        ($since := ${SINCE}; $since ? {"since": $since})
+      ])
     }`
   ),
   ...needs(NEEDS_REPO),

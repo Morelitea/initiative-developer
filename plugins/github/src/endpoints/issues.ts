@@ -246,6 +246,61 @@ export const findIssues = defineEndpoint({
   )`,
 });
 
+/**
+ * Issues opened and closed each day since `since_days` ago: the throughput
+ * tile's data, counted here so the tile only draws it.
+ */
+export const issueThroughput = defineEndpoint({
+  direction: "read",
+  label: text("Issue throughput", "Issue-Durchsatz", "Ritmo de incidencias", "Débit des tickets"),
+  description: text(
+    "How many issues were opened and closed on each day.",
+    "Wie viele Issues an jedem Tag geöffnet und geschlossen wurden.",
+    "Cuántas incidencias se abrieron y cerraron cada día.",
+    "Combien de tickets ont été ouverts et fermés chaque jour."
+  ),
+  group: "issues",
+  ...PUBLIC_READ,
+  cache_ttl_seconds: 300,
+  params: { ...REPO, ...SINCE_DAYS_IN, ...LIMIT_IN },
+  returns: {
+    days: many(out("string", { label: text("Day", "Tag", "Día", "Jour") })),
+    opened: many(out("int", { label: text("Opened", "Geöffnet", "Abiertas", "Ouverts") })),
+    closed: many(out("int", { label: text("Closed", "Geschlossen", "Cerradas", "Fermés") })),
+    ...UNAVAILABLE,
+  },
+  request: graphql(
+    `query Throughput($owner: String!, $repo: String!, $first: Int!, $filter: IssueFilters, $order: IssueOrder!) {
+       repository(owner: $owner, name: $repo) {
+         issues(first: $first, filterBy: $filter, orderBy: $order) { nodes { createdAt closedAt } }
+       }
+     }`,
+    `{
+      ${REPO_VARIABLES},
+      "first": ${LIMIT},
+      "order": {"field": "UPDATED_AT", "direction": "DESC"},
+      "filter": ($since := ${SINCE}; $since ? {"since": $since} : {})
+    }`
+  ),
+  ...needs(NEEDS_REPO),
+  // Each day anything happened, oldest first, with how many issues it opened
+  // and closed. A timestamp's first ten characters are its UTC day.
+  map: `(
+    $issues := response.body.data.repository.issues;
+    $issues ? (
+      $nodes := $issues.nodes[$type($) = "object"];
+      $opened := [$nodes.createdAt[$type($) = "string"].$substring($, 0, 10)];
+      $closed := [$nodes.closedAt[$type($) = "string"].$substring($, 0, 10)];
+      $days := [$sort($distinct($append($opened, $closed)))];
+      {
+        "days": $days,
+        "opened": [$days.($day := $; $count($opened[$ = $day]))],
+        "closed": [$days.($day := $; $count($closed[$ = $day]))]
+      }
+    ) : {"unavailable": "not-found"}
+  )`,
+});
+
 /** An issue's state changed as the member, with GitHub's reason when it closes. */
 function setState(closing: boolean) {
   return {

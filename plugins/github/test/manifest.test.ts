@@ -50,10 +50,10 @@ describe("manifest", () => {
     expect(validateManifest(manifest)).toEqual([]);
   });
 
-  it("declares fifteen reads, seven writes and six announcements", () => {
+  it("declares sixteen reads, seven writes and six announcements", () => {
     const counts: Record<string, number> = {};
     for (const endpoint of manifest.endpoints ?? []) counts[endpoint.direction] = (counts[endpoint.direction] ?? 0) + 1;
-    expect(counts).toEqual({ read: 15, write: 7, emit: 6 });
+    expect(counts).toEqual({ read: 16, write: 7, emit: 6 });
   });
 
   it("is declarative: Initiative calls GitHub itself, and runs no service", () => {
@@ -73,12 +73,14 @@ describe("manifest", () => {
     expect(manifest.min_plugin_api).toBe("4.2");
   });
 
-  it("keeps every endpoint 2.6.0 had as it was, and adds the review queue", () => {
+  it("keeps every endpoint 2.6.0 had as it was, and adds the review queue and the throughput", () => {
     const terms = ({ id, direction, params, returns, public: open, actors, identity }: NonNullable<Manifest["endpoints"]>[number]) =>
       ({ id, direction, params, returns, public: open, actors, identity });
     const before = unprefixed(service.endpoints!.map(terms));
     const after = unprefixed(manifest.endpoints!.map(terms));
-    expect(after.filter((endpoint) => endpoint.id !== READ.reviewQueue)).toEqual(before);
+    expect(
+      after.filter((endpoint) => endpoint.id !== READ.reviewQueue && endpoint.id !== READ.issueThroughput)
+    ).toEqual(before);
     expect(after.find((endpoint) => endpoint.id === READ.reviewQueue)).toEqual({
       ...before.find((endpoint) => endpoint.id === READ.findPullRequests),
       id: READ.reviewQueue,

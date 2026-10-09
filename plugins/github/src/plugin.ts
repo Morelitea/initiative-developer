@@ -11,7 +11,18 @@
 import { definePlugin, type ConnectionFlow, type GithubPermissionLevel, type Paging } from "initiative-plugin-sdk/manifest";
 
 import { EMIT_ENDPOINTS, EVENTS } from "./endpoints/emissions.js";
-import { closeIssue, comment, findIssues, getIssue, label, listLabels, listMilestones, openIssue, reopenIssue } from "./endpoints/issues.js";
+import {
+  closeIssue,
+  comment,
+  findIssues,
+  getIssue,
+  issueThroughput,
+  label,
+  listLabels,
+  listMilestones,
+  openIssue,
+  reopenIssue,
+} from "./endpoints/issues.js";
 import { findProjectItem, listProjectFields, listProjectOptions, listProjects, moveProjectItem } from "./endpoints/projects.js";
 import { findPullRequests, getPullRequest, requestReview, reviewQueue } from "./endpoints/pulls.js";
 import { listAssignees, listBranches, listRepositories } from "./endpoints/repositories.js";
@@ -60,6 +71,29 @@ const pages = (items: string): Paging => ({
 /** A delivery about the GitHub App's installation itself. */
 const installation = (action: string) =>
   `headers."x-github-event" = "installation" and payload.action = ${quote(action)}`;
+
+/** Why a tile has nothing to draw: each read's `unavailable` codes, in words. */
+const WHY_NOTHING = {
+  repository_required: text(
+    "Choose a repository for this tile",
+    "Wähle ein Repository für diese Kachel",
+    "Elige un repositorio para este mosaico",
+    "Choisissez un dépôt pour cette tuile"
+  ),
+  not_found: text(
+    "That repository is not there, or not visible to the plug-in",
+    "Dieses Repository gibt es nicht, oder das Plug-in sieht es nicht",
+    "Ese repositorio no existe o el plug-in no lo ve",
+    "Ce dépôt n'existe pas, ou le plug-in ne le voit pas"
+  ),
+  not_authorized: text(
+    "The organization has not granted the plug-in this",
+    "Die Organisation hat dem Plug-in das nicht erlaubt",
+    "La organización no ha concedido esto al plug-in",
+    "L'organisation n'a pas accordé cela au plug-in"
+  ),
+  nothing: text("There is nothing to show", "Es gibt nichts anzuzeigen", "No hay nada que mostrar", "Il n'y a rien à afficher"),
+};
 
 export default definePlugin({
   publicId: PUBLIC_ID,
@@ -269,6 +303,7 @@ export default definePlugin({
     [READ.listMilestones]: listMilestones,
     [READ.getIssue]: getIssue,
     [READ.findIssues]: findIssues,
+    [READ.issueThroughput]: issueThroughput,
     [READ.getPullRequest]: getPullRequest,
     [READ.findPullRequests]: findPullRequests,
     [READ.reviewQueue]: reviewQueue,
@@ -287,8 +322,9 @@ export default definePlugin({
     ...EMIT_ENDPOINTS,
   },
 
-  // The four dashboard tiles. Each module runs in Initiative's sandbox with
-  // one data source, the endpoint its tile is bound to, and returns a scene.
+  // The four dashboard tiles. Each is one read endpoint, drawn by its template
+  // (src/widgets/*.html) in Initiative; the endpoint shapes the data and the
+  // template lays it out, in the widget's own words.
   widgets: {
     "open-issues": {
       meta: {
@@ -300,11 +336,13 @@ export default definePlugin({
           fr: "Combien de tickets sont ouverts.",
         },
       },
-      endpoints: [READ.findIssues],
-      module: "src/widgets/open-issues.ts",
-      sample_data: {
-        [READ.findIssues]: { numbers: [812], titles: ["Cache the issue counts"], count: 1, total: 42 },
+      endpoint: READ.findIssues,
+      template: "src/widgets/open-issues.html",
+      strings: {
+        ...WHY_NOTHING,
+        open_issues: text("Open issues", "Offene Issues", "Incidencias abiertas", "Tickets ouverts"),
       },
+      sample_data: { numbers: [812], titles: ["Cache the issue counts"], count: 1, total: 42 },
       requires: { all_of: [WORKSPACE] },
     },
     "review-queue": {
@@ -317,16 +355,24 @@ export default definePlugin({
           fr: "Pull requests qui ont demandé votre revue.",
         },
       },
-      endpoints: [READ.reviewQueue],
-      module: "src/widgets/review-queue.ts",
+      endpoint: READ.reviewQueue,
+      template: "src/widgets/review-queue.html",
+      strings: {
+        ...WHY_NOTHING,
+        pull_request: text("Pull request", "Pull Request", "Pull request", "Pull request"),
+        nothing_waiting: text(
+          "Nothing is waiting on you",
+          "Nichts wartet auf dich",
+          "Nada te está esperando",
+          "Rien ne vous attend"
+        ),
+      },
       sample_data: {
-        [READ.reviewQueue]: {
-          numbers: [812, 809],
-          titles: ["Cache the issue counts", "Drop the unused index"],
-          urls: ["#", "#"],
-          count: 2,
-          total: 2,
-        },
+        numbers: [812, 809],
+        titles: ["Cache the issue counts", "Drop the unused index"],
+        urls: ["#", "#"],
+        count: 2,
+        total: 2,
       },
       requires: { all_of: [WORKSPACE, ACCOUNT] },
     },
@@ -340,16 +386,28 @@ export default definePlugin({
           fr: "Alertes de dépendances ouvertes par gravité, les pires d'abord.",
         },
       },
-      endpoints: [READ.listAlerts],
-      module: "src/widgets/dependabot-alerts.ts",
+      endpoint: READ.listAlerts,
+      template: "src/widgets/dependabot-alerts.html",
+      strings: {
+        ...WHY_NOTHING,
+        alerts: text("Alerts", "Warnungen", "Alertas", "Alertes"),
+        critical: text("Critical", "Kritisch", "Crítica", "Critique"),
+        high: text("High", "Hoch", "Alta", "Haute"),
+        medium: text("Medium", "Mittel", "Media", "Moyenne"),
+        low: text("Low", "Niedrig", "Baja", "Faible"),
+        no_alerts: text(
+          "No open Dependabot alerts",
+          "Keine offenen Dependabot-Warnungen",
+          "No hay alertas de Dependabot abiertas",
+          "Aucune alerte Dependabot ouverte"
+        ),
+      },
       sample_data: {
-        [READ.listAlerts]: {
-          severities: ["critical", "high", "high", "medium", "medium", "medium", "medium"],
-          packages: ["left-pad", "lodash", "lodash", "minimist", "minimist", "qs", "qs"],
-          count: 7,
-          total: 7,
-          url: "#",
-        },
+        severities: ["critical", "high", "high", "medium", "medium", "medium", "medium"],
+        packages: ["left-pad", "lodash", "lodash", "minimist", "minimist", "qs", "qs"],
+        count: 7,
+        total: 7,
+        url: "#",
       },
       requires: { all_of: [WORKSPACE] },
     },
@@ -368,16 +426,20 @@ export default definePlugin({
           fr: "Deux semaines d'ouvertures contre fermetures.",
         },
       },
-      endpoints: [READ.findIssues],
-      module: "src/widgets/issue-throughput.ts",
-      sample_data: {
-        [READ.findIssues]: {
-          created_at: ["2026-08-17T09:00:00Z", "2026-08-17T11:00:00Z", "2026-08-18T09:00:00Z", "2026-08-19T09:00:00Z"],
-          closed_at: ["2026-08-17T15:00:00Z", "2026-08-19T15:00:00Z", "", ""],
-          count: 4,
-          total: 4,
-        },
+      endpoint: READ.issueThroughput,
+      template: "src/widgets/issue-throughput.html",
+      strings: {
+        ...WHY_NOTHING,
+        opened: text("Opened", "Geöffnet", "Abiertas", "Ouverts"),
+        closed: text("Closed", "Geschlossen", "Cerradas", "Fermés"),
+        quiet: text(
+          "Nothing opened or closed in this window",
+          "In diesem Zeitraum wurde nichts geöffnet oder geschlossen",
+          "No se abrió ni cerró nada en este periodo",
+          "Rien n'a été ouvert ni fermé sur cette période"
+        ),
       },
+      sample_data: { days: ["2026-08-17", "2026-08-18", "2026-08-19"], opened: [2, 1, 1], closed: [1, 0, 1] },
       requires: { all_of: [WORKSPACE] },
     },
   },
@@ -418,10 +480,7 @@ export default definePlugin({
           type: "issue-throughput",
           title: "Opened and closed",
           grid: { x: 0, y: 3, w: 12, h: 4 },
-          binding: {
-            endpoint_id: READ.findIssues,
-            params: { state: "all", since_days: 14, limit: 100, sort: "updated" },
-          },
+          binding: { endpoint_id: READ.issueThroughput, params: { since_days: 14, limit: 100 } },
         },
       ],
     },

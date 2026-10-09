@@ -1548,6 +1548,165 @@
       "map": "(\n    $issues := response.body.data.repository.issues;\n    $issues ? (\n    $rows := $issues.nodes[$type($) = \"object\"];\n    {\n      \"numbers\": [$rows.(number ? number : 0)],\n      \"titles\": [$rows.(title ? title : \"\")],\n      \"urls\": [$rows.(url ? url : \"\")],\n      \"states\": [$rows.(state ? $lowercase(state) : \"\")],\n      \"created_at\": [$rows.(createdAt ? createdAt : \"\")],\n      \"updated_at\": [$rows.(updatedAt ? updatedAt : \"\")],\n      \"closed_at\": [$rows.(closedAt ? closedAt : \"\")],\n      \"count\": $count($rows),\n      \"total\": $issues.totalCount\n    }\n  ) : {\"unavailable\": \"not-found\"}\n  )"
     },
     {
+      "id": "plugin.beyonders-studio.github.issue-throughput",
+      "direction": "read",
+      "label": {
+        "en": "Issue throughput",
+        "de": "Issue-Durchsatz",
+        "es": "Ritmo de incidencias",
+        "fr": "Débit des tickets"
+      },
+      "description": {
+        "en": "How many issues were opened and closed on each day.",
+        "de": "Wie viele Issues an jedem Tag geöffnet und geschlossen wurden.",
+        "es": "Cuántas incidencias se abrieron y cerraron cada día.",
+        "fr": "Combien de tickets ont été ouverts et fermés chaque jour."
+      },
+      "group": "issues",
+      "public": true,
+      "actors": [
+        "installation",
+        "member"
+      ],
+      "requires": {
+        "all_of": [
+          "workspace"
+        ]
+      },
+      "cache_ttl_seconds": 300,
+      "params": [
+        {
+          "key": "repo",
+          "type": "string",
+          "label": {
+            "en": "Repository",
+            "de": "Repository",
+            "es": "Repositorio",
+            "fr": "Dépôt"
+          },
+          "options_from": {
+            "endpoint": "plugin.beyonders-studio.github.list-repositories",
+            "key": "names"
+          }
+        },
+        {
+          "key": "since_days",
+          "type": "int",
+          "label": {
+            "en": "Days back",
+            "de": "Tage zurück",
+            "es": "Días atrás",
+            "fr": "Jours en arrière"
+          }
+        },
+        {
+          "key": "limit",
+          "type": "int",
+          "label": {
+            "en": "How many",
+            "de": "Wie viele",
+            "es": "Cuántos",
+            "fr": "Combien"
+          }
+        }
+      ],
+      "returns": [
+        {
+          "key": "days",
+          "type": "string",
+          "label": {
+            "en": "Day",
+            "de": "Tag",
+            "es": "Día",
+            "fr": "Jour"
+          },
+          "list": true
+        },
+        {
+          "key": "opened",
+          "type": "int",
+          "label": {
+            "en": "Opened",
+            "de": "Geöffnet",
+            "es": "Abiertas",
+            "fr": "Ouverts"
+          },
+          "list": true
+        },
+        {
+          "key": "closed",
+          "type": "int",
+          "label": {
+            "en": "Closed",
+            "de": "Geschlossen",
+            "es": "Cerradas",
+            "fr": "Fermés"
+          },
+          "list": true
+        },
+        {
+          "key": "unavailable",
+          "type": "string",
+          "label": {
+            "en": "Why there is no answer",
+            "de": "Warum es keine Antwort gibt",
+            "es": "Por qué no hay respuesta",
+            "fr": "Pourquoi il n'y a pas de réponse"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "url": "\"https://api.github.com/graphql\"",
+        "headers": {
+          "Accept": "\"application/vnd.github+json\"",
+          "X-GitHub-Api-Version": "\"2022-11-28\"",
+          "User-Agent": "\"initiative-github\""
+        },
+        "graphql": {
+          "query": "query Throughput($owner: String!, $repo: String!, $first: Int!, $filter: IssueFilters, $order: IssueOrder!) { repository(owner: $owner, name: $repo) { issues(first: $first, filterBy: $filter, orderBy: $order) { nodes { createdAt closedAt } } } }",
+          "variables": "{\n      \"owner\": connections.workspace.owner, \"repo\": (\n  $repo := params.repo;\n  $type($repo) = \"string\" and $length($repo) <= 100 and $contains($repo, /^[A-Za-z0-9._-]+$/) and $not($repo in [\".\", \"..\"])\n    ? $repo : \"\"\n),\n      \"first\": ($exists(params.limit) ? $min([$max([params.limit, 1]), 100]) : 30),\n      \"order\": {\"field\": \"UPDATED_AT\", \"direction\": \"DESC\"},\n      \"filter\": ($since := (\n  params.since ? $fromMillis($toMillis(params.since))\n  : params.since_days > 0 ? $fromMillis($millis() - params.since_days * 86400000)\n); $since ? {\"since\": $since} : {})\n    }"
+        },
+        "connection": "workspace"
+      },
+      "unavailable": [
+        "repository-required"
+      ],
+      "errors": [
+        {
+          "status": "2xx",
+          "when": "(\n  $repo := params.repo;\n  $type($repo) = \"string\" and $length($repo) <= 100 and $contains($repo, /^[A-Za-z0-9._-]+$/) and $not($repo in [\".\", \"..\"])\n    ? $repo : \"\"\n) = \"\"",
+          "code": "repository-required"
+        },
+        {
+          "status": "4xx",
+          "when": "(\n  $repo := params.repo;\n  $type($repo) = \"string\" and $length($repo) <= 100 and $contains($repo, /^[A-Za-z0-9._-]+$/) and $not($repo in [\".\", \"..\"])\n    ? $repo : \"\"\n) = \"\"",
+          "code": "repository-required"
+        },
+        {
+          "status": 403,
+          "when": "$exists(response.headers.\"retry-after\") or response.headers.\"x-ratelimit-remaining\" = \"0\"",
+          "code": "transient"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors[type = \"RATE_LIMITED\"]",
+          "code": "transient"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors[type in [\"FORBIDDEN\", \"INSUFFICIENT_SCOPES\"]]",
+          "code": "not-authorized"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors and $not($exists(response.body.data) and $boolean(response.body.data))",
+          "code": "invalid"
+        }
+      ],
+      "map": "(\n    $issues := response.body.data.repository.issues;\n    $issues ? (\n      $nodes := $issues.nodes[$type($) = \"object\"];\n      $opened := [$nodes.createdAt[$type($) = \"string\"].$substring($, 0, 10)];\n      $closed := [$nodes.closedAt[$type($) = \"string\"].$substring($, 0, 10)];\n      $days := [$sort($distinct($append($opened, $closed)))];\n      {\n        \"days\": $days,\n        \"opened\": [$days.($day := $; $count($opened[$ = $day]))],\n        \"closed\": [$days.($day := $; $count($closed[$ = $day]))]\n      }\n    ) : {\"unavailable\": \"not-found\"}\n  )"
+    },
+    {
       "id": "plugin.beyonders-studio.github.get-pull-request",
       "direction": "read",
       "label": {
@@ -4477,21 +4636,49 @@
           "fr": "Combien de tickets sont ouverts."
         }
       },
-      "endpoints": [
-        "plugin.beyonders-studio.github.find-issues"
-      ],
-      "module_source": "(() => {\n  // src/widgets/missing.ts\n  var WHY = {\n    \"repository-required\": \"Choose a repository for this tile\",\n    \"not-found\": \"That repository is not there, or not visible to the plug-in\",\n    \"not-authorized\": \"The organization has not granted the plug-in this\"\n  };\n  function missing(values) {\n    const why = values.unavailable;\n    if (!why) return null;\n    return { v: 1, scene: { kind: \"empty\", message: WHY[why] || \"There is nothing to show\" } };\n  }\n\n  // src/widgets/open-issues.ts\n  function render(data) {\n    const nothing = missing(data.values);\n    if (nothing) return nothing;\n    const total = data.values.total;\n    return { v: 1, scene: { kind: \"metric\", value: typeof total === \"number\" ? total : data.rows.length, label: \"Open issues\" } };\n  }\n\n  // widget.js\n  globalThis.render = render;\n})();",
-      "sample_data": {
-        "plugin.beyonders-studio.github.find-issues": {
-          "numbers": [
-            812
-          ],
-          "titles": [
-            "Cache the issue counts"
-          ],
-          "count": 1,
-          "total": 42
+      "endpoint": "plugin.beyonders-studio.github.find-issues",
+      "template": "<!-- How many issues are open. -->\n<div\n  if=\"has(values.unavailable) && values.unavailable != null && values.unavailable != ''\"\n  class=\"flex h-full w-full items-center justify-center p-4 text-center\"\n>\n  <p class=\"text-sm text-muted-foreground\">{{ values.unavailable == 'repository-required' ? strings.repository_required : values.unavailable == 'not-found' ? strings.not_found : values.unavailable == 'not-authorized' ? strings.not_authorized : strings.nothing }}</p>\n</div>\n<metric\n  else\n  :value=\"has(values.total) && values.total != null ? values.total : size(rows)\"\n  :label=\"strings.open_issues\"\n/>\n",
+      "strings": {
+        "repository_required": {
+          "en": "Choose a repository for this tile",
+          "de": "Wähle ein Repository für diese Kachel",
+          "es": "Elige un repositorio para este mosaico",
+          "fr": "Choisissez un dépôt pour cette tuile"
+        },
+        "not_found": {
+          "en": "That repository is not there, or not visible to the plug-in",
+          "de": "Dieses Repository gibt es nicht, oder das Plug-in sieht es nicht",
+          "es": "Ese repositorio no existe o el plug-in no lo ve",
+          "fr": "Ce dépôt n'existe pas, ou le plug-in ne le voit pas"
+        },
+        "not_authorized": {
+          "en": "The organization has not granted the plug-in this",
+          "de": "Die Organisation hat dem Plug-in das nicht erlaubt",
+          "es": "La organización no ha concedido esto al plug-in",
+          "fr": "L'organisation n'a pas accordé cela au plug-in"
+        },
+        "nothing": {
+          "en": "There is nothing to show",
+          "de": "Es gibt nichts anzuzeigen",
+          "es": "No hay nada que mostrar",
+          "fr": "Il n'y a rien à afficher"
+        },
+        "open_issues": {
+          "en": "Open issues",
+          "de": "Offene Issues",
+          "es": "Incidencias abiertas",
+          "fr": "Tickets ouverts"
         }
+      },
+      "sample_data": {
+        "numbers": [
+          812
+        ],
+        "titles": [
+          "Cache the issue counts"
+        ],
+        "count": 1,
+        "total": 42
       },
       "requires": {
         "all_of": [
@@ -4515,27 +4702,61 @@
           "fr": "Pull requests qui ont demandé votre revue."
         }
       },
-      "endpoints": [
-        "plugin.beyonders-studio.github.review-queue"
-      ],
-      "module_source": "(() => {\n  // src/widgets/missing.ts\n  var WHY = {\n    \"repository-required\": \"Choose a repository for this tile\",\n    \"not-found\": \"That repository is not there, or not visible to the plug-in\",\n    \"not-authorized\": \"The organization has not granted the plug-in this\"\n  };\n  function missing(values) {\n    const why = values.unavailable;\n    if (!why) return null;\n    return { v: 1, scene: { kind: \"empty\", message: WHY[why] || \"There is nothing to show\" } };\n  }\n\n  // src/widgets/review-queue.ts\n  function render(data) {\n    const nothing = missing(data.values);\n    if (nothing) return nothing;\n    if (!data.rows.length) return { v: 1, scene: { kind: \"empty\", message: \"Nothing is waiting on you\" } };\n    return {\n      v: 1,\n      scene: {\n        kind: \"table\",\n        columns: [\n          { key: \"number\", label: \"#\", align: \"end\" },\n          { key: \"title\", label: \"Pull request\" }\n        ],\n        rows: data.rows.slice(0, 10).map((row) => ({ number: row.numbers || \"\", title: row.titles || \"\" }))\n      }\n    };\n  }\n\n  // widget.js\n  globalThis.render = render;\n})();",
-      "sample_data": {
-        "plugin.beyonders-studio.github.review-queue": {
-          "numbers": [
-            812,
-            809
-          ],
-          "titles": [
-            "Cache the issue counts",
-            "Drop the unused index"
-          ],
-          "urls": [
-            "#",
-            "#"
-          ],
-          "count": 2,
-          "total": 2
+      "endpoint": "plugin.beyonders-studio.github.review-queue",
+      "template": "<!-- Pull requests that asked for the viewer's review. -->\n<div\n  if=\"has(values.unavailable) && values.unavailable != null && values.unavailable != ''\"\n  class=\"flex h-full w-full items-center justify-center p-4 text-center\"\n>\n  <p class=\"text-sm text-muted-foreground\">{{ values.unavailable == 'repository-required' ? strings.repository_required : values.unavailable == 'not-found' ? strings.not_found : values.unavailable == 'not-authorized' ? strings.not_authorized : strings.nothing }}</p>\n</div>\n<div else-if=\"size(rows) == 0\" class=\"flex h-full w-full items-center justify-center p-4 text-center\">\n  <p class=\"text-sm text-muted-foreground\">{{ strings.nothing_waiting }}</p>\n</div>\n<data-table\n  else\n  :columns=\"[{'key': 'number', 'label': '#', 'align': 'end'}, {'key': 'title', 'label': strings.pull_request}]\"\n  :rows=\"rows.map(r, {'number': r.numbers, 'title': r.titles})\"\n/>\n",
+      "strings": {
+        "repository_required": {
+          "en": "Choose a repository for this tile",
+          "de": "Wähle ein Repository für diese Kachel",
+          "es": "Elige un repositorio para este mosaico",
+          "fr": "Choisissez un dépôt pour cette tuile"
+        },
+        "not_found": {
+          "en": "That repository is not there, or not visible to the plug-in",
+          "de": "Dieses Repository gibt es nicht, oder das Plug-in sieht es nicht",
+          "es": "Ese repositorio no existe o el plug-in no lo ve",
+          "fr": "Ce dépôt n'existe pas, ou le plug-in ne le voit pas"
+        },
+        "not_authorized": {
+          "en": "The organization has not granted the plug-in this",
+          "de": "Die Organisation hat dem Plug-in das nicht erlaubt",
+          "es": "La organización no ha concedido esto al plug-in",
+          "fr": "L'organisation n'a pas accordé cela au plug-in"
+        },
+        "nothing": {
+          "en": "There is nothing to show",
+          "de": "Es gibt nichts anzuzeigen",
+          "es": "No hay nada que mostrar",
+          "fr": "Il n'y a rien à afficher"
+        },
+        "pull_request": {
+          "en": "Pull request",
+          "de": "Pull Request",
+          "es": "Pull request",
+          "fr": "Pull request"
+        },
+        "nothing_waiting": {
+          "en": "Nothing is waiting on you",
+          "de": "Nichts wartet auf dich",
+          "es": "Nada te está esperando",
+          "fr": "Rien ne vous attend"
         }
+      },
+      "sample_data": {
+        "numbers": [
+          812,
+          809
+        ],
+        "titles": [
+          "Cache the issue counts",
+          "Drop the unused index"
+        ],
+        "urls": [
+          "#",
+          "#"
+        ],
+        "count": 2,
+        "total": 2
       },
       "requires": {
         "all_of": [
@@ -4560,34 +4781,92 @@
           "fr": "Alertes de dépendances ouvertes par gravité, les pires d'abord."
         }
       },
-      "endpoints": [
-        "plugin.beyonders-studio.github.list-alerts"
-      ],
-      "module_source": "(() => {\n  // src/widgets/missing.ts\n  var WHY = {\n    \"repository-required\": \"Choose a repository for this tile\",\n    \"not-found\": \"That repository is not there, or not visible to the plug-in\",\n    \"not-authorized\": \"The organization has not granted the plug-in this\"\n  };\n  function missing(values) {\n    const why = values.unavailable;\n    if (!why) return null;\n    return { v: 1, scene: { kind: \"empty\", message: WHY[why] || \"There is nothing to show\" } };\n  }\n\n  // src/widgets/dependabot-alerts.ts\n  function render(data) {\n    const nothing = missing(data.values);\n    if (nothing) return nothing;\n    const counts = {};\n    for (const row of data.rows) {\n      if (row.severities) counts[row.severities] = (counts[row.severities] || 0) + 1;\n    }\n    const shown = [\"critical\", \"high\", \"medium\", \"low\"].filter((severity) => counts[severity]);\n    if (!shown.length) return { v: 1, scene: { kind: \"empty\", message: \"No open Dependabot alerts\" } };\n    return {\n      v: 1,\n      scene: {\n        kind: \"series\",\n        mark: \"bar\",\n        series: [\n          {\n            name: \"Alerts\",\n            points: shown.map((severity) => ({ x: severity.charAt(0).toUpperCase() + severity.slice(1), y: counts[severity] }))\n          }\n        ]\n      }\n    };\n  }\n\n  // widget.js\n  globalThis.render = render;\n})();",
-      "sample_data": {
-        "plugin.beyonders-studio.github.list-alerts": {
-          "severities": [
-            "critical",
-            "high",
-            "high",
-            "medium",
-            "medium",
-            "medium",
-            "medium"
-          ],
-          "packages": [
-            "left-pad",
-            "lodash",
-            "lodash",
-            "minimist",
-            "minimist",
-            "qs",
-            "qs"
-          ],
-          "count": 7,
-          "total": 7,
-          "url": "#"
+      "endpoint": "plugin.beyonders-studio.github.list-alerts",
+      "template": "<!-- Open dependency alerts by severity, worst first. -->\n<div\n  if=\"has(values.unavailable) && values.unavailable != null && values.unavailable != ''\"\n  class=\"flex h-full w-full items-center justify-center p-4 text-center\"\n>\n  <p class=\"text-sm text-muted-foreground\">{{ values.unavailable == 'repository-required' ? strings.repository_required : values.unavailable == 'not-found' ? strings.not_found : values.unavailable == 'not-authorized' ? strings.not_authorized : strings.nothing }}</p>\n</div>\n<div else-if=\"!rows.exists(r, r.severities in ['critical', 'high', 'medium', 'low'])\" class=\"flex h-full w-full items-center justify-center p-4 text-center\">\n  <p class=\"text-sm text-muted-foreground\">{{ strings.no_alerts }}</p>\n</div>\n<chart\n  else\n  mark=\"bar\"\n  :series=\"[{'name': strings.alerts, 'points': [{'x': strings.critical, 'y': size(rows.filter(r, r.severities == 'critical'))}, {'x': strings.high, 'y': size(rows.filter(r, r.severities == 'high'))}, {'x': strings.medium, 'y': size(rows.filter(r, r.severities == 'medium'))}, {'x': strings.low, 'y': size(rows.filter(r, r.severities == 'low'))}].filter(p, p.y > 0)}]\"\n/>\n",
+      "strings": {
+        "repository_required": {
+          "en": "Choose a repository for this tile",
+          "de": "Wähle ein Repository für diese Kachel",
+          "es": "Elige un repositorio para este mosaico",
+          "fr": "Choisissez un dépôt pour cette tuile"
+        },
+        "not_found": {
+          "en": "That repository is not there, or not visible to the plug-in",
+          "de": "Dieses Repository gibt es nicht, oder das Plug-in sieht es nicht",
+          "es": "Ese repositorio no existe o el plug-in no lo ve",
+          "fr": "Ce dépôt n'existe pas, ou le plug-in ne le voit pas"
+        },
+        "not_authorized": {
+          "en": "The organization has not granted the plug-in this",
+          "de": "Die Organisation hat dem Plug-in das nicht erlaubt",
+          "es": "La organización no ha concedido esto al plug-in",
+          "fr": "L'organisation n'a pas accordé cela au plug-in"
+        },
+        "nothing": {
+          "en": "There is nothing to show",
+          "de": "Es gibt nichts anzuzeigen",
+          "es": "No hay nada que mostrar",
+          "fr": "Il n'y a rien à afficher"
+        },
+        "alerts": {
+          "en": "Alerts",
+          "de": "Warnungen",
+          "es": "Alertas",
+          "fr": "Alertes"
+        },
+        "critical": {
+          "en": "Critical",
+          "de": "Kritisch",
+          "es": "Crítica",
+          "fr": "Critique"
+        },
+        "high": {
+          "en": "High",
+          "de": "Hoch",
+          "es": "Alta",
+          "fr": "Haute"
+        },
+        "medium": {
+          "en": "Medium",
+          "de": "Mittel",
+          "es": "Media",
+          "fr": "Moyenne"
+        },
+        "low": {
+          "en": "Low",
+          "de": "Niedrig",
+          "es": "Baja",
+          "fr": "Faible"
+        },
+        "no_alerts": {
+          "en": "No open Dependabot alerts",
+          "de": "Keine offenen Dependabot-Warnungen",
+          "es": "No hay alertas de Dependabot abiertas",
+          "fr": "Aucune alerte Dependabot ouverte"
         }
+      },
+      "sample_data": {
+        "severities": [
+          "critical",
+          "high",
+          "high",
+          "medium",
+          "medium",
+          "medium",
+          "medium"
+        ],
+        "packages": [
+          "left-pad",
+          "lodash",
+          "lodash",
+          "minimist",
+          "minimist",
+          "qs",
+          "qs"
+        ],
+        "count": 7,
+        "total": 7,
+        "url": "#"
       },
       "requires": {
         "all_of": [
@@ -4611,27 +4890,68 @@
           "fr": "Deux semaines d'ouvertures contre fermetures."
         }
       },
-      "endpoints": [
-        "plugin.beyonders-studio.github.find-issues"
-      ],
-      "module_source": "(() => {\n  // src/widgets/missing.ts\n  var WHY = {\n    \"repository-required\": \"Choose a repository for this tile\",\n    \"not-found\": \"That repository is not there, or not visible to the plug-in\",\n    \"not-authorized\": \"The organization has not granted the plug-in this\"\n  };\n  function missing(values) {\n    const why = values.unavailable;\n    if (!why) return null;\n    return { v: 1, scene: { kind: \"empty\", message: WHY[why] || \"There is nothing to show\" } };\n  }\n\n  // src/widgets/issue-throughput.ts\n  function render(data) {\n    const nothing = missing(data.values);\n    if (nothing) return nothing;\n    const days = {};\n    const bucket = (iso) => {\n      const day = String(iso).slice(0, 10);\n      if (!days[day]) days[day] = { opened: 0, closed: 0 };\n      return days[day];\n    };\n    for (const row of data.rows) {\n      if (row.created_at) bucket(row.created_at).opened += 1;\n      if (row.closed_at) bucket(row.closed_at).closed += 1;\n    }\n    const ordered = Object.keys(days).sort();\n    if (!ordered.length) return { v: 1, scene: { kind: \"empty\", message: \"Nothing opened or closed in this window\" } };\n    return {\n      v: 1,\n      scene: {\n        kind: \"series\",\n        mark: \"line\",\n        series: [\n          { name: \"Opened\", points: ordered.map((day) => ({ x: day, y: days[day].opened })) },\n          { name: \"Closed\", points: ordered.map((day) => ({ x: day, y: days[day].closed })) }\n        ]\n      }\n    };\n  }\n\n  // widget.js\n  globalThis.render = render;\n})();",
-      "sample_data": {
-        "plugin.beyonders-studio.github.find-issues": {
-          "created_at": [
-            "2026-08-17T09:00:00Z",
-            "2026-08-17T11:00:00Z",
-            "2026-08-18T09:00:00Z",
-            "2026-08-19T09:00:00Z"
-          ],
-          "closed_at": [
-            "2026-08-17T15:00:00Z",
-            "2026-08-19T15:00:00Z",
-            "",
-            ""
-          ],
-          "count": 4,
-          "total": 4
+      "endpoint": "plugin.beyonders-studio.github.issue-throughput",
+      "template": "<!-- Issues opened against issues closed, by day. -->\n<div\n  if=\"has(values.unavailable) && values.unavailable != null && values.unavailable != ''\"\n  class=\"flex h-full w-full items-center justify-center p-4 text-center\"\n>\n  <p class=\"text-sm text-muted-foreground\">{{ values.unavailable == 'repository-required' ? strings.repository_required : values.unavailable == 'not-found' ? strings.not_found : values.unavailable == 'not-authorized' ? strings.not_authorized : strings.nothing }}</p>\n</div>\n<div else-if=\"size(rows) == 0\" class=\"flex h-full w-full items-center justify-center p-4 text-center\">\n  <p class=\"text-sm text-muted-foreground\">{{ strings.quiet }}</p>\n</div>\n<chart\n  else\n  mark=\"line\"\n  :series=\"[{'name': strings.opened, 'points': rows.map(r, {'x': r.days, 'y': r.opened})}, {'name': strings.closed, 'points': rows.map(r, {'x': r.days, 'y': r.closed})}]\"\n/>\n",
+      "strings": {
+        "repository_required": {
+          "en": "Choose a repository for this tile",
+          "de": "Wähle ein Repository für diese Kachel",
+          "es": "Elige un repositorio para este mosaico",
+          "fr": "Choisissez un dépôt pour cette tuile"
+        },
+        "not_found": {
+          "en": "That repository is not there, or not visible to the plug-in",
+          "de": "Dieses Repository gibt es nicht, oder das Plug-in sieht es nicht",
+          "es": "Ese repositorio no existe o el plug-in no lo ve",
+          "fr": "Ce dépôt n'existe pas, ou le plug-in ne le voit pas"
+        },
+        "not_authorized": {
+          "en": "The organization has not granted the plug-in this",
+          "de": "Die Organisation hat dem Plug-in das nicht erlaubt",
+          "es": "La organización no ha concedido esto al plug-in",
+          "fr": "L'organisation n'a pas accordé cela au plug-in"
+        },
+        "nothing": {
+          "en": "There is nothing to show",
+          "de": "Es gibt nichts anzuzeigen",
+          "es": "No hay nada que mostrar",
+          "fr": "Il n'y a rien à afficher"
+        },
+        "opened": {
+          "en": "Opened",
+          "de": "Geöffnet",
+          "es": "Abiertas",
+          "fr": "Ouverts"
+        },
+        "closed": {
+          "en": "Closed",
+          "de": "Geschlossen",
+          "es": "Cerradas",
+          "fr": "Fermés"
+        },
+        "quiet": {
+          "en": "Nothing opened or closed in this window",
+          "de": "In diesem Zeitraum wurde nichts geöffnet oder geschlossen",
+          "es": "No se abrió ni cerró nada en este periodo",
+          "fr": "Rien n'a été ouvert ni fermé sur cette période"
         }
+      },
+      "sample_data": {
+        "days": [
+          "2026-08-17",
+          "2026-08-18",
+          "2026-08-19"
+        ],
+        "opened": [
+          2,
+          1,
+          1
+        ],
+        "closed": [
+          1,
+          0,
+          1
+        ]
       },
       "requires": {
         "all_of": [
@@ -4711,12 +5031,10 @@
             "h": 4
           },
           "binding": {
-            "endpoint_id": "plugin.beyonders-studio.github.find-issues",
+            "endpoint_id": "plugin.beyonders-studio.github.issue-throughput",
             "params": {
-              "state": "all",
               "since_days": 14,
-              "limit": 100,
-              "sort": "updated"
+              "limit": 100
             }
           }
         }

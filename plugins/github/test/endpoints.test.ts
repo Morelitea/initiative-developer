@@ -103,6 +103,13 @@ const READS: ReadCase[] = [
     },
   },
   {
+    // Two opened on the first, one of them closed on the third.
+    name: READ.issueThroughput,
+    params: { repo: "widgets", since_days: 14, limit: 100 },
+    answers: ["graphql/issues"],
+    result: { days: ["2026-09-01", "2026-09-03"], opened: [2, 0], closed: [0, 1] },
+  },
+  {
     name: READ.findIssues,
     params: { repo: "widgets", state: "all", labels: ["bug"], since_days: 14, limit: 5, sort: "updated" },
     answers: ["graphql/issues"],
@@ -209,7 +216,7 @@ const READS: ReadCase[] = [
 ];
 
 describe("reads", () => {
-  it("covers all fifteen", () => {
+  it("covers all sixteen", () => {
     expect(READS.map((one) => one.name).sort()).toEqual(Object.values(READ).sort());
   });
 

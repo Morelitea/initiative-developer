@@ -36,6 +36,7 @@ export const READ = {
   listMilestones: "list-milestones",
   getIssue: "get-issue",
   findIssues: "find-issues",
+  issueThroughput: "issue-throughput",
   getPullRequest: "get-pull-request",
   findPullRequests: "find-pull-requests",
   reviewQueue: "review-queue",

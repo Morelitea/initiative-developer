@@ -1,0 +1,15 @@
+<!-- Issues opened against issues closed, by day. -->
+<div
+  if="has(values.unavailable) && values.unavailable != null && values.unavailable != ''"
+  class="flex h-full w-full items-center justify-center p-4 text-center"
+>
+  <p class="text-sm text-muted-foreground">{{ values.unavailable == 'repository-required' ? strings.repository_required : values.unavailable == 'not-found' ? strings.not_found : values.unavailable == 'not-authorized' ? strings.not_authorized : strings.nothing }}</p>
+</div>
+<div else-if="size(rows) == 0" class="flex h-full w-full items-center justify-center p-4 text-center">
+  <p class="text-sm text-muted-foreground">{{ strings.quiet }}</p>
+</div>
+<chart
+  else
+  mark="line"
+  :series="[{'name': strings.opened, 'points': rows.map(r, {'x': r.days, 'y': r.opened})}, {'name': strings.closed, 'points': rows.map(r, {'x': r.days, 'y': r.closed})}]"
+/>

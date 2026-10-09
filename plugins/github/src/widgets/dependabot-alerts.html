@@ -1,0 +1,15 @@
+<!-- Open dependency alerts by severity, worst first. -->
+<div
+  if="has(values.unavailable) && values.unavailable != null && values.unavailable != ''"
+  class="flex h-full w-full items-center justify-center p-4 text-center"
+>
+  <p class="text-sm text-muted-foreground">{{ values.unavailable == 'repository-required' ? strings.repository_required : values.unavailable == 'not-found' ? strings.not_found : values.unavailable == 'not-authorized' ? strings.not_authorized : strings.nothing }}</p>
+</div>
+<div else-if="!rows.exists(r, r.severities in ['critical', 'high', 'medium', 'low'])" class="flex h-full w-full items-center justify-center p-4 text-center">
+  <p class="text-sm text-muted-foreground">{{ strings.no_alerts }}</p>
+</div>
+<chart
+  else
+  mark="bar"
+  :series="[{'name': strings.alerts, 'points': [{'x': strings.critical, 'y': size(rows.filter(r, r.severities == 'critical'))}, {'x': strings.high, 'y': size(rows.filter(r, r.severities == 'high'))}, {'x': strings.medium, 'y': size(rows.filter(r, r.severities == 'medium'))}, {'x': strings.low, 'y': size(rows.filter(r, r.severities == 'low'))}].filter(p, p.y > 0)}]"
+/>

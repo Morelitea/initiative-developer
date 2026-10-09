@@ -12,7 +12,7 @@ There is no service to run beside it.
 
 | | |
 |---|---|
-| **Fifteen reads** | Repositories · who can be assigned · branches · labels · milestones · one issue · find issues · one pull request · find pull requests · pull requests waiting on your review · Dependabot alerts · project boards · a board's fields · a field's values · an issue's card |
+| **Sixteen reads** | Repositories · who can be assigned · branches · labels · milestones · one issue · find issues · one pull request · find pull requests · pull requests waiting on your review · issues opened and closed by day · Dependabot alerts · project boards · a board's fields · a field's values · an issue's card |
 | **Seven writes** | Open an issue · comment · close · reopen · change labels · request a review · move a Projects card |
 | **Six announcements** | An issue was opened · an issue was closed · a review was requested · a release was published · a pre-release was published · a tag was pushed |
 | **Four widgets** | Open issues · pull requests waiting on your review · Dependabot alerts by severity · a fortnight of opened against closed |
@@ -140,7 +140,7 @@ against GitHub's recorded answers in `test/fixtures/`.
 npm install
 npm run typecheck
 npm test
-npm run manifest         # rebuild manifest.json from src/plugin.ts, widgets bundled
+npm run manifest         # rebuild manifest.json from src/plugin.ts, widget templates bundled
 npm run manifest:check   # CI: fail if manifest.json is stale
 npm run listing          # at a release: manifest.json and the registry source
 ```

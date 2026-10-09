@@ -7,6 +7,13 @@
 - Built on `initiative-plugin-sdk` 4.2, and the manifest names the oldest
   plug-in API contract it needs: `min_plugin_api` `"4.2"`. An Initiative
   serving an older 4.x contract, or another major, refuses to install it.
+- Each widget is now one of the plug-in's reads drawn by a template, so the
+  plug-in runs no code in anyone's browser. The tiles look as before.
+
+### Added
+
+- A read for the issues opened and closed in a repository each day, which the
+  fortnight widget draws.
 
 ## [5.0.0]
 

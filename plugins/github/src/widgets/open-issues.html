@@ -1,0 +1,12 @@
+<!-- How many issues are open. -->
+<div
+  if="has(values.unavailable) && values.unavailable != null && values.unavailable != ''"
+  class="flex h-full w-full items-center justify-center p-4 text-center"
+>
+  <p class="text-sm text-muted-foreground">{{ values.unavailable == 'repository-required' ? strings.repository_required : values.unavailable == 'not-found' ? strings.not_found : values.unavailable == 'not-authorized' ? strings.not_authorized : strings.nothing }}</p>
+</div>
+<metric
+  else
+  :value="has(values.total) && values.total != null ? values.total : size(rows)"
+  :label="strings.open_issues"
+/>

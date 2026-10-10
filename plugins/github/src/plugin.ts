@@ -441,11 +441,11 @@ export default definePlugin({
       "Members who connect their own GitHub account get their own review queue, and automations can open, comment on, close, label and move issues as them.",
     ].join("\n"),
     avatar: "assets/avatar.png",
-    version: "4.0.0",
+    version: "6.0.0",
     // The oldest Initiative that runs a plug-in's calls to GitHub itself, and an
     // after_connect in steps; an older one refuses this manifest.
     minAppVersion: "0.75.0",
     releaseNotes:
-      "Renamed for Initiative's plug-ins: the endpoint and event ids are now plugin.beyonders-studio.github.*, and another plug-in asks for plugins:beyonders-studio.github. Needs an Initiative that speaks plug-ins.",
+      "Built on initiative-plugin-sdk 6.0. Needs an Initiative serving plug-in API 6.0; an older one refuses to install it.",
   },
 });

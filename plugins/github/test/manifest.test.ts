@@ -69,8 +69,8 @@ describe("manifest", () => {
     );
   });
 
-  it("needs plug-in API contract 4.2, the SDK it is built against", () => {
-    expect(manifest.min_plugin_api).toBe("4.2");
+  it("needs plug-in API contract 6.0, the SDK it is built against", () => {
+    expect(manifest.min_plugin_api).toBe("6.0");
   });
 
   it("keeps every endpoint 2.6.0 had as it was, and adds the review queue", () => {

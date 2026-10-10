@@ -67,7 +67,7 @@ export default definePlugin({
   name: "GitHub",
   // The oldest plug-in API contract this runs on: the SDK release it is built
   // against. A deployment serving another major, or an older minor, refuses it.
-  minPluginApi: "4.2",
+  minPluginApi: "6.0",
   hosts: ["api.github.com"],
 
   // What the operator supplies once per deployment for the GitHub App: the

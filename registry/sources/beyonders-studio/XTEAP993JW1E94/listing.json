@@ -13,10 +13,10 @@
   },
   "versions": [
     {
-      "version": "4.0.0",
-      "definition": "4.0.0/manifest.json",
+      "version": "6.0.0",
+      "definition": "6.0.0/manifest.json",
       "min_app_version": "0.75.0",
-      "release_notes": "Renamed for Initiative's plug-ins: the endpoint and event ids are now plugin.beyonders-studio.github.*, and another plug-in asks for plugins:beyonders-studio.github. Needs an Initiative that speaks plug-ins."
+      "release_notes": "Built on initiative-plugin-sdk 6.0. Needs an Initiative serving plug-in API 6.0; an older one refuses to install it."
     }
   ],
   "registration": {

@@ -1,0 +1,4726 @@
+{
+  "plugin_kind": "service",
+  "features": [
+    "dashboards",
+    "endpoints",
+    "widgets"
+  ],
+  "default_name": "GitHub",
+  "min_plugin_api": "6.0",
+  "hosts": [
+    "api.github.com"
+  ],
+  "vendor": {
+    "label": {
+      "en": "GitHub App",
+      "de": "GitHub-App",
+      "es": "GitHub App",
+      "fr": "GitHub App"
+    },
+    "fields": [
+      {
+        "key": "client_id",
+        "type": "string",
+        "required": true,
+        "label": {
+          "en": "Client ID",
+          "de": "Client-ID",
+          "es": "ID de cliente",
+          "fr": "ID client"
+        }
+      },
+      {
+        "key": "client_secret",
+        "type": "secret",
+        "required": true,
+        "label": {
+          "en": "Client secret",
+          "de": "Client-Secret",
+          "es": "Secreto de cliente",
+          "fr": "Secret client"
+        }
+      },
+      {
+        "key": "app_slug",
+        "type": "string",
+        "required": true,
+        "label": {
+          "en": "App name in its GitHub address",
+          "de": "App-Name in der GitHub-Adresse",
+          "es": "Nombre de la app en su dirección de GitHub",
+          "fr": "Nom de l'app dans son adresse GitHub"
+        }
+      },
+      {
+        "key": "app_id",
+        "type": "string",
+        "required": true,
+        "label": {
+          "en": "App ID",
+          "de": "App-ID",
+          "es": "ID de la app",
+          "fr": "ID de l'app"
+        }
+      },
+      {
+        "key": "private_key",
+        "type": "secret",
+        "required": true,
+        "label": {
+          "en": "Private key",
+          "de": "Privater Schlüssel",
+          "es": "Clave privada",
+          "fr": "Clé privée"
+        }
+      },
+      {
+        "key": "webhook_secret",
+        "type": "secret",
+        "required": true,
+        "label": {
+          "en": "Webhook secret",
+          "de": "Webhook-Secret",
+          "es": "Secreto del webhook",
+          "fr": "Secret du webhook"
+        }
+      }
+    ],
+    "setup": {
+      "kind": "github_app_manifest",
+      "app": {
+        "name": "Initiative",
+        "url": "https://github.com/beyonders-studio/initiative-developer/tree/main/plugins/github",
+        "public": false,
+        "default_permissions": {
+          "issues": "write",
+          "pull_requests": "write",
+          "contents": "read",
+          "vulnerability_alerts": "read",
+          "organization_projects": "write",
+          "metadata": "read"
+        },
+        "default_events": [
+          "issues",
+          "pull_request",
+          "release",
+          "create"
+        ]
+      },
+      "values": {
+        "client_id": "client_id",
+        "client_secret": "client_secret",
+        "app_slug": "slug",
+        "app_id": "id",
+        "private_key": "pem",
+        "webhook_secret": "webhook_secret"
+      }
+    }
+  },
+  "connections": [
+    {
+      "id": "workspace",
+      "scope": "static",
+      "label": {
+        "en": "GitHub organization",
+        "de": "GitHub-Organisation",
+        "es": "Organización de GitHub",
+        "fr": "Organisation GitHub"
+      },
+      "fields": [
+        {
+          "key": "owner",
+          "type": "string",
+          "required": true,
+          "managed": true,
+          "label": {
+            "en": "Owner or organization",
+            "de": "Inhaber oder Organisation",
+            "es": "Propietario u organización",
+            "fr": "Propriétaire ou organisation"
+          }
+        },
+        {
+          "key": "installation_id",
+          "type": "int",
+          "required": true,
+          "managed": true,
+          "label": {
+            "en": "Installation",
+            "de": "Installation",
+            "es": "Instalación",
+            "fr": "Installation"
+          }
+        }
+      ],
+      "flow": {
+        "type": "oauth2",
+        "authorize_url": "https://github.com/login/oauth/authorize",
+        "token_url": "https://github.com/login/oauth/access_token",
+        "client_id": "{vendor.client_id}",
+        "client_secret": "{vendor.client_secret}",
+        "pkce": true,
+        "install_url": "https://github.com/apps/{vendor.app_slug}/installations/new",
+        "after_connect": {
+          "steps": [
+            {
+              "name": "installations",
+              "request": {
+                "method": "GET",
+                "url": "\"https://api.github.com\" & \"/user/installations\"",
+                "headers": {
+                  "Accept": "\"application/vnd.github+json\"",
+                  "X-GitHub-Api-Version": "\"2022-11-28\"",
+                  "User-Agent": "\"initiative-github\""
+                },
+                "paging": {
+                  "kind": "page_number",
+                  "page_param": "page",
+                  "per_page_param": "per_page",
+                  "per_page": 100,
+                  "items": "response.body.installations",
+                  "max_pages": 10,
+                  "on_limit": "truncate"
+                }
+              }
+            },
+            {
+              "name": "memberships",
+              "request": {
+                "method": "GET",
+                "url": "\"https://api.github.com\" & \"/user/memberships/orgs\"",
+                "headers": {
+                  "Accept": "\"application/vnd.github+json\"",
+                  "X-GitHub-Api-Version": "\"2022-11-28\"",
+                  "User-Agent": "\"initiative-github\""
+                },
+                "query": {
+                  "state": "\"active\""
+                },
+                "paging": {
+                  "kind": "page_number",
+                  "page_param": "page",
+                  "per_page_param": "per_page",
+                  "per_page": 100,
+                  "items": "response.body",
+                  "max_pages": 10,
+                  "on_limit": "truncate"
+                }
+              }
+            },
+            {
+              "name": "user",
+              "request": {
+                "method": "GET",
+                "url": "\"https://api.github.com\" & \"/user\"",
+                "headers": {
+                  "Accept": "\"application/vnd.github+json\"",
+                  "X-GitHub-Api-Version": "\"2022-11-28\"",
+                  "User-Agent": "\"initiative-github\""
+                }
+              }
+            }
+          ],
+          "map": "(\n            $claimed := params.installation_id;\n            $held := steps.installations.body[$string(id) = $claimed][0];\n            $account := $held.account;\n            $controls := $account.type = \"Organization\"\n              ? $exists(steps.memberships.body[organization.id = $account.id and state = \"active\" and role = \"admin\"])\n              : $account.type = \"User\" and $account.id = steps.user.body.id;\n            $controls ? {\"values\": {\"owner\": $account.login, \"installation_id\": $held.id}, \"account_label\": $account.login} : {}\n          )",
+          "refuse_when": "$not($exists(result.values.owner) and $exists(result.values.installation_id))",
+          "code": "installation-not-held"
+        }
+      },
+      "token": {
+        "type": "jwt_bearer",
+        "exchange_url": "https://api.github.com/app/installations/{installation_id}/access_tokens",
+        "iss": "{vendor.app_id}",
+        "key": "{vendor.private_key}",
+        "alg": "RS256",
+        "lifetime": 540
+      },
+      "health": {
+        "request": {
+          "method": "GET",
+          "url": "\"https://api.github.com\" & \"/installation/repositories\"",
+          "headers": {
+            "Accept": "\"application/vnd.github+json\"",
+            "X-GitHub-Api-Version": "\"2022-11-28\"",
+            "User-Agent": "\"initiative-github\""
+          },
+          "query": {
+            "per_page": "\"1\""
+          }
+        },
+        "every": "15m",
+        "states": [
+          {
+            "status": 401,
+            "state": "removed"
+          },
+          {
+            "status": 403,
+            "when": "$contains(response.body.message, /suspended/i)",
+            "state": "suspended"
+          }
+        ]
+      }
+    },
+    {
+      "id": "account",
+      "scope": "interactive",
+      "label": {
+        "en": "Your GitHub account",
+        "de": "Dein GitHub-Konto",
+        "es": "Tu cuenta de GitHub",
+        "fr": "Votre compte GitHub"
+      },
+      "fields": [],
+      "flow": {
+        "type": "oauth2",
+        "authorize_url": "https://github.com/login/oauth/authorize",
+        "token_url": "https://github.com/login/oauth/access_token",
+        "client_id": "{vendor.client_id}",
+        "client_secret": "{vendor.client_secret}",
+        "pkce": true,
+        "after_connect": {
+          "request": {
+            "method": "GET",
+            "url": "\"https://api.github.com\" & \"/user\"",
+            "headers": {
+              "Accept": "\"application/vnd.github+json\"",
+              "X-GitHub-Api-Version": "\"2022-11-28\"",
+              "User-Agent": "\"initiative-github\""
+            }
+          },
+          "map": "{\"account_label\": response.body.login}"
+        },
+        "revoke": "github_grant",
+        "revoke_url": "https://api.github.com/applications/{vendor.client_id}/grant"
+      },
+      "access_hint": {
+        "api": "GitHub",
+        "scopes": [
+          "issues:write",
+          "pull_requests:write",
+          "contents:read",
+          "vulnerability_alerts:read",
+          "organization_projects:write",
+          "metadata:read"
+        ]
+      }
+    }
+  ],
+  "webhooks": {
+    "verify": {
+      "scheme": "hmac_sha256",
+      "header": "X-Hub-Signature-256",
+      "prefix": "sha256=",
+      "encoding": "hex",
+      "secret": "{vendor.webhook_secret}"
+    },
+    "dedup": "X-GitHub-Delivery",
+    "route": {
+      "path": "installation.id",
+      "connection": "workspace",
+      "field": "installation_id"
+    },
+    "events": [
+      {
+        "when": "headers.\"x-github-event\" = \"issues\" and payload.action = \"opened\" and $not($exists(payload.issue.pull_request)) and $type(payload.issue.number) = \"number\" and ($type(payload.repository.name) = \"string\" and payload.repository.name != \"\")",
+        "emit": "plugin.beyonders-studio.github.issue-opened",
+        "map": "(\n    $text := function($value) { $type($value) = \"string\" ? $value : null };\n    {\n      \"repository\": payload.repository.name, \"owner\": $text(payload.repository.owner.login),\n      \"number\": payload.issue.number,\n      \"title\": $text(payload.issue.title),\n      \"url\": $text(payload.issue.html_url),\n      \"author\": $text(payload.issue.user.login),\n      \"labels\": [payload.issue.labels.name[$type($) = \"string\" and $ != \"\"]]\n    }\n  )"
+      },
+      {
+        "when": "headers.\"x-github-event\" = \"issues\" and payload.action = \"closed\" and $not($exists(payload.issue.pull_request)) and $type(payload.issue.number) = \"number\" and ($type(payload.repository.name) = \"string\" and payload.repository.name != \"\")",
+        "emit": "plugin.beyonders-studio.github.issue-closed",
+        "map": "(\n    $text := function($value) { $type($value) = \"string\" ? $value : null };\n    {\n      \"repository\": payload.repository.name, \"owner\": $text(payload.repository.owner.login),\n      \"number\": payload.issue.number,\n      \"title\": $text(payload.issue.title),\n      \"url\": $text(payload.issue.html_url),\n      \"author\": $text(payload.issue.user.login),\n      \"labels\": [payload.issue.labels.name[$type($) = \"string\" and $ != \"\"]]\n    }\n  )"
+      },
+      {
+        "when": "headers.\"x-github-event\" = \"pull_request\" and payload.action = \"review_requested\" and $type(payload.pull_request.number) = \"number\" and ($type(payload.repository.name) = \"string\" and payload.repository.name != \"\")",
+        "emit": "plugin.beyonders-studio.github.review-requested",
+        "map": "(\n    $text := function($value) { $type($value) = \"string\" ? $value : null };\n    {\n      \"repository\": payload.repository.name, \"owner\": $text(payload.repository.owner.login),\n      \"number\": payload.pull_request.number,\n      \"title\": $text(payload.pull_request.title),\n      \"url\": $text(payload.pull_request.html_url),\n      \"author\": $text(payload.pull_request.user.login),\n      \"reviewer\": $type(payload.requested_reviewer.login) = \"string\"\n        ? payload.requested_reviewer.login\n        : $text(payload.requested_team.slug)\n    }\n  )"
+      },
+      {
+        "when": "headers.\"x-github-event\" = \"release\" and payload.action = \"released\" and ($type(payload.repository.name) = \"string\" and payload.repository.name != \"\") and ($type(payload.release.tag_name) = \"string\" and payload.release.tag_name != \"\")",
+        "emit": "plugin.beyonders-studio.github.release-published",
+        "map": "(\n    $text := function($value) { $type($value) = \"string\" ? $value : null };\n    {\n      \"repository\": payload.repository.name, \"owner\": $text(payload.repository.owner.login),\n      \"tag\": payload.release.tag_name,\n      \"name\": $text(payload.release.name),\n      \"branch\": $text(payload.release.target_commitish),\n      \"url\": $text(payload.release.html_url),\n      \"author\": $text(payload.release.author.login)\n    }\n  )"
+      },
+      {
+        "when": "headers.\"x-github-event\" = \"release\" and payload.action = \"prereleased\" and ($type(payload.repository.name) = \"string\" and payload.repository.name != \"\") and ($type(payload.release.tag_name) = \"string\" and payload.release.tag_name != \"\")",
+        "emit": "plugin.beyonders-studio.github.prerelease-published",
+        "map": "(\n    $text := function($value) { $type($value) = \"string\" ? $value : null };\n    {\n      \"repository\": payload.repository.name, \"owner\": $text(payload.repository.owner.login),\n      \"tag\": payload.release.tag_name,\n      \"name\": $text(payload.release.name),\n      \"branch\": $text(payload.release.target_commitish),\n      \"url\": $text(payload.release.html_url),\n      \"author\": $text(payload.release.author.login)\n    }\n  )"
+      },
+      {
+        "when": "headers.\"x-github-event\" = \"create\" and payload.ref_type = \"tag\" and ($type(payload.repository.name) = \"string\" and payload.repository.name != \"\") and ($type(payload.ref) = \"string\" and payload.ref != \"\")",
+        "emit": "plugin.beyonders-studio.github.tag-created",
+        "map": "(\n      $text := function($value) { $type($value) = \"string\" ? $value : null };\n      $home := payload.repository.html_url;\n      {\n        \"repository\": payload.repository.name, \"owner\": $text(payload.repository.owner.login),\n        \"tag\": payload.ref,\n        \"url\": ($type($home) = \"string\" and $home != \"\") ? $encodeUrl($home & \"/tree/\" & payload.ref) : null,\n        \"author\": $text(payload.sender.login)\n      }\n    )"
+      }
+    ],
+    "status": [
+      {
+        "when": "headers.\"x-github-event\" = \"installation\" and payload.action = \"deleted\"",
+        "connection": "workspace",
+        "state": "removed"
+      },
+      {
+        "when": "headers.\"x-github-event\" = \"installation\" and payload.action = \"suspend\"",
+        "connection": "workspace",
+        "state": "suspended"
+      },
+      {
+        "when": "headers.\"x-github-event\" = \"installation\" and payload.action = \"unsuspend\"",
+        "connection": "workspace",
+        "state": "ok"
+      }
+    ]
+  },
+  "endpoints": [
+    {
+      "id": "plugin.beyonders-studio.github.list-repositories",
+      "direction": "read",
+      "label": {
+        "en": "Repositories",
+        "de": "Repositories",
+        "es": "Repositorios",
+        "fr": "Dépôts"
+      },
+      "description": {
+        "en": "The repositories the organization's installation covers.",
+        "de": "Die Repositories, die die Installation der Organisation umfasst.",
+        "es": "Los repositorios que cubre la instalación de la organización.",
+        "fr": "Les dépôts couverts par l'installation de l'organisation."
+      },
+      "group": "repositories",
+      "public": true,
+      "actors": [
+        "installation",
+        "member"
+      ],
+      "requires": {
+        "all_of": [
+          "workspace"
+        ]
+      },
+      "cache_ttl_seconds": 300,
+      "returns": [
+        {
+          "key": "names",
+          "type": "string",
+          "label": {
+            "en": "Repositories",
+            "de": "Repositories",
+            "es": "Repositorios",
+            "fr": "Dépôts"
+          },
+          "list": true
+        },
+        {
+          "key": "owner",
+          "type": "string"
+        },
+        {
+          "key": "count",
+          "type": "int",
+          "label": {
+            "en": "How many",
+            "de": "Wie viele",
+            "es": "Cuántos",
+            "fr": "Combien"
+          }
+        },
+        {
+          "key": "unavailable",
+          "type": "string",
+          "label": {
+            "en": "Why there is no answer",
+            "de": "Warum es keine Antwort gibt",
+            "es": "Por qué no hay respuesta",
+            "fr": "Pourquoi il n'y a pas de réponse"
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "url": "\"https://api.github.com\" & \"/installation/repositories\"",
+        "headers": {
+          "Accept": "\"application/vnd.github+json\"",
+          "X-GitHub-Api-Version": "\"2022-11-28\"",
+          "User-Agent": "\"initiative-github\""
+        },
+        "connection": "workspace",
+        "paging": {
+          "kind": "page_number",
+          "page_param": "page",
+          "per_page_param": "per_page",
+          "per_page": 100,
+          "items": "response.body.repositories",
+          "max_pages": 5,
+          "on_limit": "truncate"
+        }
+      },
+      "errors": [
+        {
+          "status": 403,
+          "when": "$exists(response.headers.\"retry-after\") or response.headers.\"x-ratelimit-remaining\" = \"0\"",
+          "code": "transient"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors[type = \"RATE_LIMITED\"]",
+          "code": "transient"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors[type in [\"FORBIDDEN\", \"INSUFFICIENT_SCOPES\"]]",
+          "code": "not-authorized"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors and $not($exists(response.body.data) and $boolean(response.body.data))",
+          "code": "invalid"
+        }
+      ],
+      "map": "(\n    $names := [response.body.name];\n    {\"names\": $names, \"owner\": connections.workspace.owner, \"count\": $count($names)}\n  )"
+    },
+    {
+      "id": "plugin.beyonders-studio.github.list-assignees",
+      "direction": "read",
+      "label": {
+        "en": "Who can be assigned",
+        "de": "Wer zuständig sein kann",
+        "es": "Quién puede ser asignado",
+        "fr": "Qui peut être assigné"
+      },
+      "description": {
+        "en": "The people a repository's issues and pull requests can be given to.",
+        "de": "Die Personen, denen Issues und Pull Requests eines Repositories zugewiesen werden können.",
+        "es": "Las personas a las que se pueden asignar las incidencias y pull requests de un repositorio.",
+        "fr": "Les personnes à qui les tickets et pull requests d'un dépôt peuvent être confiés."
+      },
+      "group": "repositories",
+      "public": true,
+      "actors": [
+        "installation",
+        "member"
+      ],
+      "requires": {
+        "all_of": [
+          "workspace"
+        ]
+      },
+      "cache_ttl_seconds": 300,
+      "params": [
+        {
+          "key": "repo",
+          "type": "string",
+          "label": {
+            "en": "Repository",
+            "de": "Repository",
+            "es": "Repositorio",
+            "fr": "Dépôt"
+          },
+          "options_from": {
+            "endpoint": "plugin.beyonders-studio.github.list-repositories",
+            "key": "names"
+          }
+        }
+      ],
+      "returns": [
+        {
+          "key": "logins",
+          "type": "string",
+          "label": {
+            "en": "People",
+            "de": "Personen",
+            "es": "Personas",
+            "fr": "Personnes"
+          },
+          "list": true
+        },
+        {
+          "key": "count",
+          "type": "int",
+          "label": {
+            "en": "How many",
+            "de": "Wie viele",
+            "es": "Cuántos",
+            "fr": "Combien"
+          }
+        },
+        {
+          "key": "total",
+          "type": "int",
+          "label": {
+            "en": "How many in all",
+            "de": "Wie viele insgesamt",
+            "es": "Cuántos en total",
+            "fr": "Combien en tout"
+          }
+        },
+        {
+          "key": "unavailable",
+          "type": "string",
+          "label": {
+            "en": "Why there is no answer",
+            "de": "Warum es keine Antwort gibt",
+            "es": "Por qué no hay respuesta",
+            "fr": "Pourquoi il n'y a pas de réponse"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "url": "\"https://api.github.com/graphql\"",
+        "headers": {
+          "Accept": "\"application/vnd.github+json\"",
+          "X-GitHub-Api-Version": "\"2022-11-28\"",
+          "User-Agent": "\"initiative-github\""
+        },
+        "graphql": {
+          "query": "query Assignees($owner: String!, $repo: String!, $first: Int!) { repository(owner: $owner, name: $repo) { assignableUsers(first: $first) { totalCount nodes { login } } } }",
+          "variables": "{\"owner\": connections.workspace.owner, \"repo\": (\n  $repo := params.repo;\n  $type($repo) = \"string\" and $length($repo) <= 100 and $contains($repo, /^[A-Za-z0-9._-]+$/) and $not($repo in [\".\", \"..\"])\n    ? $repo : \"\"\n), \"first\": 100}"
+        },
+        "connection": "workspace"
+      },
+      "unavailable": [
+        "repository-required"
+      ],
+      "errors": [
+        {
+          "status": "2xx",
+          "when": "(\n  $repo := params.repo;\n  $type($repo) = \"string\" and $length($repo) <= 100 and $contains($repo, /^[A-Za-z0-9._-]+$/) and $not($repo in [\".\", \"..\"])\n    ? $repo : \"\"\n) = \"\"",
+          "code": "repository-required"
+        },
+        {
+          "status": "4xx",
+          "when": "(\n  $repo := params.repo;\n  $type($repo) = \"string\" and $length($repo) <= 100 and $contains($repo, /^[A-Za-z0-9._-]+$/) and $not($repo in [\".\", \"..\"])\n    ? $repo : \"\"\n) = \"\"",
+          "code": "repository-required"
+        },
+        {
+          "status": 403,
+          "when": "$exists(response.headers.\"retry-after\") or response.headers.\"x-ratelimit-remaining\" = \"0\"",
+          "code": "transient"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors[type = \"RATE_LIMITED\"]",
+          "code": "transient"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors[type in [\"FORBIDDEN\", \"INSUFFICIENT_SCOPES\"]]",
+          "code": "not-authorized"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors and $not($exists(response.body.data) and $boolean(response.body.data))",
+          "code": "invalid"
+        }
+      ],
+      "map": "(\n    $list := response.body.data.repository.assignableUsers;\n    $list ? (\n      $found := [$list.nodes.login];\n      {\"logins\": $found, \"count\": $count($found), \"total\": $list.totalCount}\n    ) : {\"unavailable\": \"not-found\"}\n  )"
+    },
+    {
+      "id": "plugin.beyonders-studio.github.list-branches",
+      "direction": "read",
+      "label": {
+        "en": "Branches",
+        "de": "Branches",
+        "es": "Ramas",
+        "fr": "Branches"
+      },
+      "description": {
+        "en": "The branches a repository has.",
+        "de": "Die Branches, die ein Repository hat.",
+        "es": "Las ramas que tiene un repositorio.",
+        "fr": "Les branches d'un dépôt."
+      },
+      "group": "repositories",
+      "public": true,
+      "actors": [
+        "installation",
+        "member"
+      ],
+      "requires": {
+        "all_of": [
+          "workspace"
+        ]
+      },
+      "cache_ttl_seconds": 300,
+      "params": [
+        {
+          "key": "repo",
+          "type": "string",
+          "label": {
+            "en": "Repository",
+            "de": "Repository",
+            "es": "Repositorio",
+            "fr": "Dépôt"
+          },
+          "options_from": {
+            "endpoint": "plugin.beyonders-studio.github.list-repositories",
+            "key": "names"
+          }
+        }
+      ],
+      "returns": [
+        {
+          "key": "names",
+          "type": "string",
+          "label": {
+            "en": "Branches",
+            "de": "Branches",
+            "es": "Ramas",
+            "fr": "Branches"
+          },
+          "list": true
+        },
+        {
+          "key": "count",
+          "type": "int",
+          "label": {
+            "en": "How many",
+            "de": "Wie viele",
+            "es": "Cuántos",
+            "fr": "Combien"
+          }
+        },
+        {
+          "key": "total",
+          "type": "int",
+          "label": {
+            "en": "How many in all",
+            "de": "Wie viele insgesamt",
+            "es": "Cuántos en total",
+            "fr": "Combien en tout"
+          }
+        },
+        {
+          "key": "unavailable",
+          "type": "string",
+          "label": {
+            "en": "Why there is no answer",
+            "de": "Warum es keine Antwort gibt",
+            "es": "Por qué no hay respuesta",
+            "fr": "Pourquoi il n'y a pas de réponse"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "url": "\"https://api.github.com/graphql\"",
+        "headers": {
+          "Accept": "\"application/vnd.github+json\"",
+          "X-GitHub-Api-Version": "\"2022-11-28\"",
+          "User-Agent": "\"initiative-github\""
+        },
+        "graphql": {
+          "query": "query Branches($owner: String!, $repo: String!, $first: Int!) { repository(owner: $owner, name: $repo) { refs(refPrefix: \"refs/heads/\", first: $first, orderBy: { field: ALPHABETICAL, direction: ASC }) { totalCount nodes { name } } } }",
+          "variables": "{\"owner\": connections.workspace.owner, \"repo\": (\n  $repo := params.repo;\n  $type($repo) = \"string\" and $length($repo) <= 100 and $contains($repo, /^[A-Za-z0-9._-]+$/) and $not($repo in [\".\", \"..\"])\n    ? $repo : \"\"\n), \"first\": 100}"
+        },
+        "connection": "workspace"
+      },
+      "unavailable": [
+        "repository-required"
+      ],
+      "errors": [
+        {
+          "status": "2xx",
+          "when": "(\n  $repo := params.repo;\n  $type($repo) = \"string\" and $length($repo) <= 100 and $contains($repo, /^[A-Za-z0-9._-]+$/) and $not($repo in [\".\", \"..\"])\n    ? $repo : \"\"\n) = \"\"",
+          "code": "repository-required"
+        },
+        {
+          "status": "4xx",
+          "when": "(\n  $repo := params.repo;\n  $type($repo) = \"string\" and $length($repo) <= 100 and $contains($repo, /^[A-Za-z0-9._-]+$/) and $not($repo in [\".\", \"..\"])\n    ? $repo : \"\"\n) = \"\"",
+          "code": "repository-required"
+        },
+        {
+          "status": 403,
+          "when": "$exists(response.headers.\"retry-after\") or response.headers.\"x-ratelimit-remaining\" = \"0\"",
+          "code": "transient"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors[type = \"RATE_LIMITED\"]",
+          "code": "transient"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors[type in [\"FORBIDDEN\", \"INSUFFICIENT_SCOPES\"]]",
+          "code": "not-authorized"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors and $not($exists(response.body.data) and $boolean(response.body.data))",
+          "code": "invalid"
+        }
+      ],
+      "map": "(\n    $list := response.body.data.repository.refs;\n    $list ? (\n      $found := [$list.nodes.name];\n      {\"names\": $found, \"count\": $count($found), \"total\": $list.totalCount}\n    ) : {\"unavailable\": \"not-found\"}\n  )"
+    },
+    {
+      "id": "plugin.beyonders-studio.github.list-labels",
+      "direction": "read",
+      "label": {
+        "en": "Labels",
+        "de": "Labels",
+        "es": "Etiquetas",
+        "fr": "Étiquettes"
+      },
+      "description": {
+        "en": "Every label that exists on the repository.",
+        "de": "Alle Labels, die es im Repository gibt.",
+        "es": "Todas las etiquetas que existen en el repositorio.",
+        "fr": "Toutes les étiquettes qui existent dans le dépôt."
+      },
+      "group": "issues",
+      "public": true,
+      "actors": [
+        "installation",
+        "member"
+      ],
+      "requires": {
+        "all_of": [
+          "workspace"
+        ]
+      },
+      "cache_ttl_seconds": 300,
+      "params": [
+        {
+          "key": "repo",
+          "type": "string",
+          "label": {
+            "en": "Repository",
+            "de": "Repository",
+            "es": "Repositorio",
+            "fr": "Dépôt"
+          },
+          "options_from": {
+            "endpoint": "plugin.beyonders-studio.github.list-repositories",
+            "key": "names"
+          }
+        }
+      ],
+      "returns": [
+        {
+          "key": "names",
+          "type": "string",
+          "label": {
+            "en": "Labels",
+            "de": "Labels",
+            "es": "Etiquetas",
+            "fr": "Étiquettes"
+          },
+          "list": true
+        },
+        {
+          "key": "count",
+          "type": "int",
+          "label": {
+            "en": "How many",
+            "de": "Wie viele",
+            "es": "Cuántos",
+            "fr": "Combien"
+          }
+        },
+        {
+          "key": "total",
+          "type": "int",
+          "label": {
+            "en": "How many in all",
+            "de": "Wie viele insgesamt",
+            "es": "Cuántos en total",
+            "fr": "Combien en tout"
+          }
+        },
+        {
+          "key": "unavailable",
+          "type": "string",
+          "label": {
+            "en": "Why there is no answer",
+            "de": "Warum es keine Antwort gibt",
+            "es": "Por qué no hay respuesta",
+            "fr": "Pourquoi il n'y a pas de réponse"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "url": "\"https://api.github.com/graphql\"",
+        "headers": {
+          "Accept": "\"application/vnd.github+json\"",
+          "X-GitHub-Api-Version": "\"2022-11-28\"",
+          "User-Agent": "\"initiative-github\""
+        },
+        "graphql": {
+          "query": "query Labels($owner: String!, $repo: String!, $first: Int!) { repository(owner: $owner, name: $repo) { labels(first: $first) { totalCount nodes { name } } } }",
+          "variables": "{\"owner\": connections.workspace.owner, \"repo\": (\n  $repo := params.repo;\n  $type($repo) = \"string\" and $length($repo) <= 100 and $contains($repo, /^[A-Za-z0-9._-]+$/) and $not($repo in [\".\", \"..\"])\n    ? $repo : \"\"\n), \"first\": 100}"
+        },
+        "connection": "workspace"
+      },
+      "unavailable": [
+        "repository-required"
+      ],
+      "errors": [
+        {
+          "status": "2xx",
+          "when": "(\n  $repo := params.repo;\n  $type($repo) = \"string\" and $length($repo) <= 100 and $contains($repo, /^[A-Za-z0-9._-]+$/) and $not($repo in [\".\", \"..\"])\n    ? $repo : \"\"\n) = \"\"",
+          "code": "repository-required"
+        },
+        {
+          "status": "4xx",
+          "when": "(\n  $repo := params.repo;\n  $type($repo) = \"string\" and $length($repo) <= 100 and $contains($repo, /^[A-Za-z0-9._-]+$/) and $not($repo in [\".\", \"..\"])\n    ? $repo : \"\"\n) = \"\"",
+          "code": "repository-required"
+        },
+        {
+          "status": 403,
+          "when": "$exists(response.headers.\"retry-after\") or response.headers.\"x-ratelimit-remaining\" = \"0\"",
+          "code": "transient"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors[type = \"RATE_LIMITED\"]",
+          "code": "transient"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors[type in [\"FORBIDDEN\", \"INSUFFICIENT_SCOPES\"]]",
+          "code": "not-authorized"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors and $not($exists(response.body.data) and $boolean(response.body.data))",
+          "code": "invalid"
+        }
+      ],
+      "map": "(\n    $list := response.body.data.repository.labels;\n    $list ? (\n      $found := [$list.nodes.name];\n      {\"names\": $found, \"count\": $count($found), \"total\": $list.totalCount}\n    ) : {\"unavailable\": \"not-found\"}\n  )"
+    },
+    {
+      "id": "plugin.beyonders-studio.github.list-milestones",
+      "direction": "read",
+      "label": {
+        "en": "Milestones",
+        "de": "Meilensteine",
+        "es": "Hitos",
+        "fr": "Jalons"
+      },
+      "description": {
+        "en": "The milestones a repository is still working towards.",
+        "de": "Die Meilensteine, auf die ein Repository noch hinarbeitet.",
+        "es": "Los hitos hacia los que un repositorio todavía trabaja.",
+        "fr": "Les jalons vers lesquels un dépôt travaille encore."
+      },
+      "group": "issues",
+      "public": true,
+      "actors": [
+        "installation",
+        "member"
+      ],
+      "requires": {
+        "all_of": [
+          "workspace"
+        ]
+      },
+      "cache_ttl_seconds": 300,
+      "params": [
+        {
+          "key": "repo",
+          "type": "string",
+          "label": {
+            "en": "Repository",
+            "de": "Repository",
+            "es": "Repositorio",
+            "fr": "Dépôt"
+          },
+          "options_from": {
+            "endpoint": "plugin.beyonders-studio.github.list-repositories",
+            "key": "names"
+          }
+        }
+      ],
+      "returns": [
+        {
+          "key": "numbers",
+          "type": "int",
+          "label": {
+            "en": "Milestones",
+            "de": "Meilensteine",
+            "es": "Hitos",
+            "fr": "Jalons"
+          },
+          "list": true
+        },
+        {
+          "key": "titles",
+          "type": "string",
+          "label": {
+            "en": "Names",
+            "de": "Namen",
+            "es": "Nombres",
+            "fr": "Noms"
+          },
+          "list": true
+        },
+        {
+          "key": "count",
+          "type": "int",
+          "label": {
+            "en": "How many",
+            "de": "Wie viele",
+            "es": "Cuántos",
+            "fr": "Combien"
+          }
+        },
+        {
+          "key": "total",
+          "type": "int",
+          "label": {
+            "en": "How many in all",
+            "de": "Wie viele insgesamt",
+            "es": "Cuántos en total",
+            "fr": "Combien en tout"
+          }
+        },
+        {
+          "key": "unavailable",
+          "type": "string",
+          "label": {
+            "en": "Why there is no answer",
+            "de": "Warum es keine Antwort gibt",
+            "es": "Por qué no hay respuesta",
+            "fr": "Pourquoi il n'y a pas de réponse"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "url": "\"https://api.github.com/graphql\"",
+        "headers": {
+          "Accept": "\"application/vnd.github+json\"",
+          "X-GitHub-Api-Version": "\"2022-11-28\"",
+          "User-Agent": "\"initiative-github\""
+        },
+        "graphql": {
+          "query": "query Milestones($owner: String!, $repo: String!, $first: Int!) { repository(owner: $owner, name: $repo) { milestones(first: $first, states: [OPEN], orderBy: { field: DUE_DATE, direction: ASC }) { totalCount nodes { number title } } } }",
+          "variables": "{\"owner\": connections.workspace.owner, \"repo\": (\n  $repo := params.repo;\n  $type($repo) = \"string\" and $length($repo) <= 100 and $contains($repo, /^[A-Za-z0-9._-]+$/) and $not($repo in [\".\", \"..\"])\n    ? $repo : \"\"\n), \"first\": 100}"
+        },
+        "connection": "workspace"
+      },
+      "unavailable": [
+        "repository-required"
+      ],
+      "errors": [
+        {
+          "status": "2xx",
+          "when": "(\n  $repo := params.repo;\n  $type($repo) = \"string\" and $length($repo) <= 100 and $contains($repo, /^[A-Za-z0-9._-]+$/) and $not($repo in [\".\", \"..\"])\n    ? $repo : \"\"\n) = \"\"",
+          "code": "repository-required"
+        },
+        {
+          "status": "4xx",
+          "when": "(\n  $repo := params.repo;\n  $type($repo) = \"string\" and $length($repo) <= 100 and $contains($repo, /^[A-Za-z0-9._-]+$/) and $not($repo in [\".\", \"..\"])\n    ? $repo : \"\"\n) = \"\"",
+          "code": "repository-required"
+        },
+        {
+          "status": 403,
+          "when": "$exists(response.headers.\"retry-after\") or response.headers.\"x-ratelimit-remaining\" = \"0\"",
+          "code": "transient"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors[type = \"RATE_LIMITED\"]",
+          "code": "transient"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors[type in [\"FORBIDDEN\", \"INSUFFICIENT_SCOPES\"]]",
+          "code": "not-authorized"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors and $not($exists(response.body.data) and $boolean(response.body.data))",
+          "code": "invalid"
+        }
+      ],
+      "map": "(\n    $list := response.body.data.repository.milestones;\n    $found := $list.nodes[$type(number) = \"number\"];\n    $list ? {\n      \"numbers\": [$found.number],\n      \"titles\": [$found.(title ? title : \"\")],\n      \"count\": $count($found),\n      \"total\": $list.totalCount\n    } : {\"unavailable\": \"not-found\"}\n  )"
+    },
+    {
+      "id": "plugin.beyonders-studio.github.get-issue",
+      "direction": "read",
+      "label": {
+        "en": "Get an issue",
+        "de": "Issue abrufen",
+        "es": "Obtener una incidencia",
+        "fr": "Récupérer un ticket"
+      },
+      "description": {
+        "en": "One issue by number: its state, its labels and who it is assigned to.",
+        "de": "Ein Issue nach Nummer: Status, Labels und zuständige Personen.",
+        "es": "Una incidencia por número: su estado, sus etiquetas y a quién está asignada.",
+        "fr": "Un ticket par numéro : son état, ses étiquettes et à qui il est assigné."
+      },
+      "group": "issues",
+      "public": true,
+      "actors": [
+        "installation",
+        "member"
+      ],
+      "requires": {
+        "all_of": [
+          "workspace"
+        ]
+      },
+      "cache_ttl_seconds": 0,
+      "params": [
+        {
+          "key": "repo",
+          "type": "string",
+          "label": {
+            "en": "Repository",
+            "de": "Repository",
+            "es": "Repositorio",
+            "fr": "Dépôt"
+          },
+          "options_from": {
+            "endpoint": "plugin.beyonders-studio.github.list-repositories",
+            "key": "names"
+          }
+        },
+        {
+          "key": "number",
+          "type": "int",
+          "label": {
+            "en": "Number",
+            "de": "Nummer",
+            "es": "Número",
+            "fr": "Numéro"
+          }
+        }
+      ],
+      "returns": [
+        {
+          "key": "repository",
+          "type": "string"
+        },
+        {
+          "key": "owner",
+          "type": "string"
+        },
+        {
+          "key": "number",
+          "type": "int"
+        },
+        {
+          "key": "title",
+          "type": "string"
+        },
+        {
+          "key": "state",
+          "type": "string"
+        },
+        {
+          "key": "state_reason",
+          "type": "string",
+          "label": {
+            "en": "Why it closed",
+            "de": "Warum geschlossen",
+            "es": "Motivo del cierre",
+            "fr": "Raison de la fermeture"
+          }
+        },
+        {
+          "key": "url",
+          "type": "url"
+        },
+        {
+          "key": "author",
+          "type": "string"
+        },
+        {
+          "key": "labels",
+          "type": "string",
+          "list": true
+        },
+        {
+          "key": "assignees",
+          "type": "string",
+          "list": true
+        },
+        {
+          "key": "milestone",
+          "type": "string"
+        },
+        {
+          "key": "comments",
+          "type": "int"
+        },
+        {
+          "key": "is_pull_request",
+          "type": "bool"
+        },
+        {
+          "key": "created_at",
+          "type": "string",
+          "label": {
+            "en": "Opened",
+            "de": "Geöffnet",
+            "es": "Abierta",
+            "fr": "Ouvert"
+          }
+        },
+        {
+          "key": "updated_at",
+          "type": "string",
+          "label": {
+            "en": "Last updated",
+            "de": "Zuletzt aktualisiert",
+            "es": "Última actualización",
+            "fr": "Dernière mise à jour"
+          }
+        },
+        {
+          "key": "closed_at",
+          "type": "string"
+        },
+        {
+          "key": "unavailable",
+          "type": "string",
+          "label": {
+            "en": "Why there is no answer",
+            "de": "Warum es keine Antwort gibt",
+            "es": "Por qué no hay respuesta",
+            "fr": "Pourquoi il n'y a pas de réponse"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "url": "\"https://api.github.com/graphql\"",
+        "headers": {
+          "Accept": "\"application/vnd.github+json\"",
+          "X-GitHub-Api-Version": "\"2022-11-28\"",
+          "User-Agent": "\"initiative-github\""
+        },
+        "graphql": {
+          "query": "query Subject($owner: String!, $repo: String!, $number: Int!) { repository(owner: $owner, name: $repo) { name owner { login } issueOrPullRequest(number: $number) { __typename ... on Issue { number title url state createdAt updatedAt closedAt author { login } milestone { title } comments { totalCount } labels(first: 50) { nodes { name } } assignees(first: 20) { nodes { login } } stateReason } ... on PullRequest { number title url state createdAt updatedAt closedAt author { login } milestone { title } comments { totalCount } labels(first: 50) { nodes { name } } assignees(first: 20) { nodes { login } } } } } }",
+          "variables": "{\"owner\": connections.workspace.owner, \"repo\": (\n  $repo := params.repo;\n  $type($repo) = \"string\" and $length($repo) <= 100 and $contains($repo, /^[A-Za-z0-9._-]+$/) and $not($repo in [\".\", \"..\"])\n    ? $repo : \"\"\n), \"number\": params.number}"
+        },
+        "connection": "workspace"
+      },
+      "unavailable": [
+        "repository-required",
+        "number-required"
+      ],
+      "errors": [
+        {
+          "status": "2xx",
+          "when": "(\n  $repo := params.repo;\n  $type($repo) = \"string\" and $length($repo) <= 100 and $contains($repo, /^[A-Za-z0-9._-]+$/) and $not($repo in [\".\", \"..\"])\n    ? $repo : \"\"\n) = \"\"",
+          "code": "repository-required"
+        },
+        {
+          "status": "4xx",
+          "when": "(\n  $repo := params.repo;\n  $type($repo) = \"string\" and $length($repo) <= 100 and $contains($repo, /^[A-Za-z0-9._-]+$/) and $not($repo in [\".\", \"..\"])\n    ? $repo : \"\"\n) = \"\"",
+          "code": "repository-required"
+        },
+        {
+          "status": "2xx",
+          "when": "$not($exists(params.number)) or params.number = \"\"",
+          "code": "number-required"
+        },
+        {
+          "status": "4xx",
+          "when": "$not($exists(params.number)) or params.number = \"\"",
+          "code": "number-required"
+        },
+        {
+          "status": 403,
+          "when": "$exists(response.headers.\"retry-after\") or response.headers.\"x-ratelimit-remaining\" = \"0\"",
+          "code": "transient"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors[type = \"RATE_LIMITED\"]",
+          "code": "transient"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors[type in [\"FORBIDDEN\", \"INSUFFICIENT_SCOPES\"]]",
+          "code": "not-authorized"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors and $not($exists(response.body.data) and $boolean(response.body.data))",
+          "code": "invalid"
+        }
+      ],
+      "map": "(\n    $text := function($value) { $type($value) = \"string\" ? $value : null };\n    $repository := response.body.data.repository;\n    $node := $repository.issueOrPullRequest;\n    $node ? $merge([\n      {\n        \"repository\": $repository.name,\n        \"owner\": $repository.owner.login,\n        \"number\": $node.number,\n        \"title\": $text($node.title),\n        \"state\": $node.state ? $lowercase($node.state) : null,\n        \"url\": $text($node.url),\n        \"author\": $text($node.author.login),\n        \"labels\": [$node.labels.nodes.name],\n        \"assignees\": [$node.assignees.nodes.login],\n        \"milestone\": $text($node.milestone.title),\n        \"comments\": $node.comments.totalCount ? $node.comments.totalCount : 0,\n        \"created_at\": $text($node.createdAt),\n        \"updated_at\": $text($node.updatedAt),\n        \"closed_at\": $text($node.closedAt)\n      },\n      {\n      \"state_reason\": $node.stateReason ? $lowercase($node.stateReason) : null,\n      \"is_pull_request\": $node.__typename = \"PullRequest\"\n    }\n    ]) : {\"unavailable\": \"not-found\"}\n  )"
+    },
+    {
+      "id": "plugin.beyonders-studio.github.find-issues",
+      "direction": "read",
+      "label": {
+        "en": "Find issues",
+        "de": "Issues suchen",
+        "es": "Buscar incidencias",
+        "fr": "Rechercher des tickets"
+      },
+      "description": {
+        "en": "The issues matching a question, as the numbers to act on.",
+        "de": "Die Issues, die zu einer Frage passen, als die Nummern, mit denen man weiterarbeitet.",
+        "es": "Las incidencias que coinciden con una consulta, como los números sobre los que actuar.",
+        "fr": "Les tickets correspondant à une question, sous forme des numéros sur lesquels agir."
+      },
+      "group": "issues",
+      "public": true,
+      "actors": [
+        "installation",
+        "member"
+      ],
+      "requires": {
+        "all_of": [
+          "workspace"
+        ]
+      },
+      "cache_ttl_seconds": 60,
+      "params": [
+        {
+          "key": "repo",
+          "type": "string",
+          "label": {
+            "en": "Repository",
+            "de": "Repository",
+            "es": "Repositorio",
+            "fr": "Dépôt"
+          },
+          "options_from": {
+            "endpoint": "plugin.beyonders-studio.github.list-repositories",
+            "key": "names"
+          }
+        },
+        {
+          "key": "state",
+          "type": "select",
+          "label": {
+            "en": "State",
+            "de": "Status",
+            "es": "Estado",
+            "fr": "État"
+          },
+          "options": [
+            "open",
+            "closed",
+            "all"
+          ]
+        },
+        {
+          "key": "labels",
+          "type": "string",
+          "label": {
+            "en": "Labels",
+            "de": "Labels",
+            "es": "Etiquetas",
+            "fr": "Étiquettes"
+          },
+          "list": true,
+          "options_from": {
+            "endpoint": "plugin.beyonders-studio.github.list-labels",
+            "key": "names",
+            "needs": {
+              "repo": "repo"
+            }
+          }
+        },
+        {
+          "key": "assignee",
+          "type": "string",
+          "label": {
+            "en": "Assignee",
+            "de": "Zuständige Person",
+            "es": "Persona asignada",
+            "fr": "Personne assignée"
+          },
+          "options_from": {
+            "endpoint": "plugin.beyonders-studio.github.list-assignees",
+            "key": "logins",
+            "needs": {
+              "repo": "repo"
+            }
+          }
+        },
+        {
+          "key": "milestone",
+          "type": "int",
+          "label": {
+            "en": "Milestone",
+            "de": "Meilenstein",
+            "es": "Hito",
+            "fr": "Jalon"
+          },
+          "options_from": {
+            "endpoint": "plugin.beyonders-studio.github.list-milestones",
+            "key": "numbers",
+            "label_key": "titles",
+            "needs": {
+              "repo": "repo"
+            }
+          }
+        },
+        {
+          "key": "since",
+          "type": "datetime",
+          "label": {
+            "en": "Since",
+            "de": "Seit",
+            "es": "Desde",
+            "fr": "Depuis"
+          }
+        },
+        {
+          "key": "since_days",
+          "type": "int",
+          "label": {
+            "en": "Days back",
+            "de": "Tage zurück",
+            "es": "Días atrás",
+            "fr": "Jours en arrière"
+          }
+        },
+        {
+          "key": "sort",
+          "type": "select",
+          "label": {
+            "en": "Order by",
+            "de": "Sortieren nach",
+            "es": "Ordenar por",
+            "fr": "Trier par"
+          },
+          "options": [
+            "created",
+            "updated",
+            "comments"
+          ]
+        },
+        {
+          "key": "direction",
+          "type": "select",
+          "label": {
+            "en": "Order",
+            "de": "Reihenfolge",
+            "es": "Orden",
+            "fr": "Ordre"
+          },
+          "options": [
+            "desc",
+            "asc"
+          ]
+        },
+        {
+          "key": "limit",
+          "type": "int",
+          "label": {
+            "en": "How many",
+            "de": "Wie viele",
+            "es": "Cuántos",
+            "fr": "Combien"
+          }
+        }
+      ],
+      "returns": [
+        {
+          "key": "numbers",
+          "type": "int",
+          "list": true
+        },
+        {
+          "key": "titles",
+          "type": "string",
+          "list": true
+        },
+        {
+          "key": "urls",
+          "type": "url",
+          "list": true
+        },
+        {
+          "key": "states",
+          "type": "string",
+          "list": true
+        },
+        {
+          "key": "created_at",
+          "type": "string",
+          "label": {
+            "en": "Opened",
+            "de": "Geöffnet",
+            "es": "Abierta",
+            "fr": "Ouvert"
+          },
+          "list": true
+        },
+        {
+          "key": "updated_at",
+          "type": "string",
+          "label": {
+            "en": "Last updated",
+            "de": "Zuletzt aktualisiert",
+            "es": "Última actualización",
+            "fr": "Dernière mise à jour"
+          },
+          "list": true
+        },
+        {
+          "key": "closed_at",
+          "type": "string",
+          "list": true
+        },
+        {
+          "key": "count",
+          "type": "int",
+          "label": {
+            "en": "How many",
+            "de": "Wie viele",
+            "es": "Cuántos",
+            "fr": "Combien"
+          }
+        },
+        {
+          "key": "total",
+          "type": "int",
+          "label": {
+            "en": "How many in all",
+            "de": "Wie viele insgesamt",
+            "es": "Cuántos en total",
+            "fr": "Combien en tout"
+          }
+        },
+        {
+          "key": "unavailable",
+          "type": "string",
+          "label": {
+            "en": "Why there is no answer",
+            "de": "Warum es keine Antwort gibt",
+            "es": "Por qué no hay respuesta",
+            "fr": "Pourquoi il n'y a pas de réponse"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "url": "\"https://api.github.com/graphql\"",
+        "headers": {
+          "Accept": "\"application/vnd.github+json\"",
+          "X-GitHub-Api-Version": "\"2022-11-28\"",
+          "User-Agent": "\"initiative-github\""
+        },
+        "graphql": {
+          "query": "query Issues($owner: String!, $repo: String!, $first: Int!, $filter: IssueFilters, $order: IssueOrder!) { repository(owner: $owner, name: $repo) { issues(first: $first, filterBy: $filter, orderBy: $order) { totalCount nodes { number title url state createdAt updatedAt closedAt } } } }",
+          "variables": "{\n      \"owner\": connections.workspace.owner, \"repo\": (\n  $repo := params.repo;\n  $type($repo) = \"string\" and $length($repo) <= 100 and $contains($repo, /^[A-Za-z0-9._-]+$/) and $not($repo in [\".\", \"..\"])\n    ? $repo : \"\"\n),\n      \"first\": ($exists(params.limit) ? $min([$max([params.limit, 1]), 100]) : 30),\n      \"order\": {\n  \"field\": params.sort = \"updated\" ? \"UPDATED_AT\" : params.sort = \"comments\" ? \"COMMENTS\" : \"CREATED_AT\",\n  \"direction\": params.direction = \"asc\" ? \"ASC\" : \"DESC\"\n},\n      \"filter\": $merge([\n        {\"states\": params.state = \"all\" ? null : params.state = \"closed\" ? [\"CLOSED\"] : [\"OPEN\"]},\n        $count(params.labels) ? {\"labels\": [params.labels]},\n        params.assignee ? {\"assignee\": params.assignee},\n        $exists(params.milestone) ? {\"milestoneNumber\": $string(params.milestone)},\n        ($since := (\n  params.since ? $fromMillis($toMillis(params.since))\n  : params.since_days > 0 ? $fromMillis($millis() - params.since_days * 86400000)\n); $since ? {\"since\": $since})\n      ])\n    }"
+        },
+        "connection": "workspace"
+      },
+      "unavailable": [
+        "repository-required"
+      ],
+      "errors": [
+        {
+          "status": "2xx",
+          "when": "(\n  $repo := params.repo;\n  $type($repo) = \"string\" and $length($repo) <= 100 and $contains($repo, /^[A-Za-z0-9._-]+$/) and $not($repo in [\".\", \"..\"])\n    ? $repo : \"\"\n) = \"\"",
+          "code": "repository-required"
+        },
+        {
+          "status": "4xx",
+          "when": "(\n  $repo := params.repo;\n  $type($repo) = \"string\" and $length($repo) <= 100 and $contains($repo, /^[A-Za-z0-9._-]+$/) and $not($repo in [\".\", \"..\"])\n    ? $repo : \"\"\n) = \"\"",
+          "code": "repository-required"
+        },
+        {
+          "status": 403,
+          "when": "$exists(response.headers.\"retry-after\") or response.headers.\"x-ratelimit-remaining\" = \"0\"",
+          "code": "transient"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors[type = \"RATE_LIMITED\"]",
+          "code": "transient"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors[type in [\"FORBIDDEN\", \"INSUFFICIENT_SCOPES\"]]",
+          "code": "not-authorized"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors and $not($exists(response.body.data) and $boolean(response.body.data))",
+          "code": "invalid"
+        }
+      ],
+      "map": "(\n    $issues := response.body.data.repository.issues;\n    $issues ? (\n    $rows := $issues.nodes[$type($) = \"object\"];\n    {\n      \"numbers\": [$rows.(number ? number : 0)],\n      \"titles\": [$rows.(title ? title : \"\")],\n      \"urls\": [$rows.(url ? url : \"\")],\n      \"states\": [$rows.(state ? $lowercase(state) : \"\")],\n      \"created_at\": [$rows.(createdAt ? createdAt : \"\")],\n      \"updated_at\": [$rows.(updatedAt ? updatedAt : \"\")],\n      \"closed_at\": [$rows.(closedAt ? closedAt : \"\")],\n      \"count\": $count($rows),\n      \"total\": $issues.totalCount\n    }\n  ) : {\"unavailable\": \"not-found\"}\n  )"
+    },
+    {
+      "id": "plugin.beyonders-studio.github.get-pull-request",
+      "direction": "read",
+      "label": {
+        "en": "Get a pull request",
+        "de": "Pull Request abrufen",
+        "es": "Obtener una pull request",
+        "fr": "Récupérer une pull request"
+      },
+      "description": {
+        "en": "One pull request by number: whether it is a draft, and whether it merged.",
+        "de": "Ein Pull Request nach Nummer: ob er ein Entwurf ist und ob er gemergt wurde.",
+        "es": "Una pull request por número: si es un borrador y si se fusionó.",
+        "fr": "Une pull request par numéro : si c'est un brouillon, et si elle a été fusionnée."
+      },
+      "group": "reviews",
+      "public": true,
+      "actors": [
+        "installation",
+        "member"
+      ],
+      "requires": {
+        "all_of": [
+          "workspace"
+        ]
+      },
+      "cache_ttl_seconds": 0,
+      "params": [
+        {
+          "key": "repo",
+          "type": "string",
+          "label": {
+            "en": "Repository",
+            "de": "Repository",
+            "es": "Repositorio",
+            "fr": "Dépôt"
+          },
+          "options_from": {
+            "endpoint": "plugin.beyonders-studio.github.list-repositories",
+            "key": "names"
+          }
+        },
+        {
+          "key": "number",
+          "type": "int",
+          "label": {
+            "en": "Number",
+            "de": "Nummer",
+            "es": "Número",
+            "fr": "Numéro"
+          }
+        }
+      ],
+      "returns": [
+        {
+          "key": "repository",
+          "type": "string"
+        },
+        {
+          "key": "owner",
+          "type": "string"
+        },
+        {
+          "key": "number",
+          "type": "int"
+        },
+        {
+          "key": "title",
+          "type": "string"
+        },
+        {
+          "key": "state",
+          "type": "string"
+        },
+        {
+          "key": "merged",
+          "type": "bool"
+        },
+        {
+          "key": "draft",
+          "type": "bool"
+        },
+        {
+          "key": "url",
+          "type": "url"
+        },
+        {
+          "key": "author",
+          "type": "string"
+        },
+        {
+          "key": "labels",
+          "type": "string",
+          "list": true
+        },
+        {
+          "key": "assignees",
+          "type": "string",
+          "list": true
+        },
+        {
+          "key": "milestone",
+          "type": "string"
+        },
+        {
+          "key": "comments",
+          "type": "int"
+        },
+        {
+          "key": "head_ref",
+          "type": "string",
+          "label": {
+            "en": "From branch",
+            "de": "Von Branch",
+            "es": "Desde la rama",
+            "fr": "Depuis la branche"
+          }
+        },
+        {
+          "key": "base_ref",
+          "type": "string",
+          "label": {
+            "en": "Into branch",
+            "de": "Nach Branch",
+            "es": "Hacia la rama",
+            "fr": "Vers la branche"
+          }
+        },
+        {
+          "key": "commits",
+          "type": "int"
+        },
+        {
+          "key": "changed_files",
+          "type": "int"
+        },
+        {
+          "key": "created_at",
+          "type": "string",
+          "label": {
+            "en": "Opened",
+            "de": "Geöffnet",
+            "es": "Abierta",
+            "fr": "Ouvert"
+          }
+        },
+        {
+          "key": "updated_at",
+          "type": "string",
+          "label": {
+            "en": "Last updated",
+            "de": "Zuletzt aktualisiert",
+            "es": "Última actualización",
+            "fr": "Dernière mise à jour"
+          }
+        },
+        {
+          "key": "closed_at",
+          "type": "string"
+        },
+        {
+          "key": "merged_at",
+          "type": "string"
+        },
+        {
+          "key": "unavailable",
+          "type": "string",
+          "label": {
+            "en": "Why there is no answer",
+            "de": "Warum es keine Antwort gibt",
+            "es": "Por qué no hay respuesta",
+            "fr": "Pourquoi il n'y a pas de réponse"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "url": "\"https://api.github.com/graphql\"",
+        "headers": {
+          "Accept": "\"application/vnd.github+json\"",
+          "X-GitHub-Api-Version": "\"2022-11-28\"",
+          "User-Agent": "\"initiative-github\""
+        },
+        "graphql": {
+          "query": "query Pull($owner: String!, $repo: String!, $number: Int!) { repository(owner: $owner, name: $repo) { name owner { login } pullRequest(number: $number) { number title url state createdAt updatedAt closedAt author { login } milestone { title } comments { totalCount } labels(first: 50) { nodes { name } } assignees(first: 20) { nodes { login } } isDraft merged mergedAt headRefName baseRefName changedFiles commits { totalCount } } } }",
+          "variables": "{\"owner\": connections.workspace.owner, \"repo\": (\n  $repo := params.repo;\n  $type($repo) = \"string\" and $length($repo) <= 100 and $contains($repo, /^[A-Za-z0-9._-]+$/) and $not($repo in [\".\", \"..\"])\n    ? $repo : \"\"\n), \"number\": params.number}"
+        },
+        "connection": "workspace"
+      },
+      "unavailable": [
+        "repository-required",
+        "number-required"
+      ],
+      "errors": [
+        {
+          "status": "2xx",
+          "when": "(\n  $repo := params.repo;\n  $type($repo) = \"string\" and $length($repo) <= 100 and $contains($repo, /^[A-Za-z0-9._-]+$/) and $not($repo in [\".\", \"..\"])\n    ? $repo : \"\"\n) = \"\"",
+          "code": "repository-required"
+        },
+        {
+          "status": "4xx",
+          "when": "(\n  $repo := params.repo;\n  $type($repo) = \"string\" and $length($repo) <= 100 and $contains($repo, /^[A-Za-z0-9._-]+$/) and $not($repo in [\".\", \"..\"])\n    ? $repo : \"\"\n) = \"\"",
+          "code": "repository-required"
+        },
+        {
+          "status": "2xx",
+          "when": "$not($exists(params.number)) or params.number = \"\"",
+          "code": "number-required"
+        },
+        {
+          "status": "4xx",
+          "when": "$not($exists(params.number)) or params.number = \"\"",
+          "code": "number-required"
+        },
+        {
+          "status": 403,
+          "when": "$exists(response.headers.\"retry-after\") or response.headers.\"x-ratelimit-remaining\" = \"0\"",
+          "code": "transient"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors[type = \"RATE_LIMITED\"]",
+          "code": "transient"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors[type in [\"FORBIDDEN\", \"INSUFFICIENT_SCOPES\"]]",
+          "code": "not-authorized"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors and $not($exists(response.body.data) and $boolean(response.body.data))",
+          "code": "invalid"
+        }
+      ],
+      "map": "(\n    $text := function($value) { $type($value) = \"string\" ? $value : null };\n    $repository := response.body.data.repository;\n    $node := $repository.pullRequest;\n    $node ? $merge([\n      {\n        \"repository\": $repository.name,\n        \"owner\": $repository.owner.login,\n        \"number\": $node.number,\n        \"title\": $text($node.title),\n        \"state\": $node.state ? $lowercase($node.state) : null,\n        \"url\": $text($node.url),\n        \"author\": $text($node.author.login),\n        \"labels\": [$node.labels.nodes.name],\n        \"assignees\": [$node.assignees.nodes.login],\n        \"milestone\": $text($node.milestone.title),\n        \"comments\": $node.comments.totalCount ? $node.comments.totalCount : 0,\n        \"created_at\": $text($node.createdAt),\n        \"updated_at\": $text($node.updatedAt),\n        \"closed_at\": $text($node.closedAt)\n      },\n      {\n      \"merged\": $node.merged = true,\n      \"draft\": $node.isDraft = true,\n      \"head_ref\": $text($node.headRefName),\n      \"base_ref\": $text($node.baseRefName),\n      \"commits\": $node.commits.totalCount ? $node.commits.totalCount : 0,\n      \"changed_files\": $node.changedFiles ? $node.changedFiles : 0,\n      \"merged_at\": $text($node.mergedAt)\n    }\n    ]) : {\"unavailable\": \"not-found\"}\n  )"
+    },
+    {
+      "id": "plugin.beyonders-studio.github.find-pull-requests",
+      "direction": "read",
+      "label": {
+        "en": "Find pull requests",
+        "de": "Pull Requests suchen",
+        "es": "Buscar pull requests",
+        "fr": "Rechercher des pull requests"
+      },
+      "description": {
+        "en": "The pull requests matching a question, including the ones waiting on a review.",
+        "de": "Die Pull Requests, die zu einer Frage passen, auch die, die auf eine Review warten.",
+        "es": "Las pull requests que coinciden con una consulta, incluidas las que esperan revisión.",
+        "fr": "Les pull requests correspondant à une question, y compris celles en attente de revue."
+      },
+      "group": "reviews",
+      "public": true,
+      "actors": [
+        "installation",
+        "member"
+      ],
+      "requires": {
+        "all_of": [
+          "workspace"
+        ]
+      },
+      "cache_ttl_seconds": 60,
+      "params": [
+        {
+          "key": "repo",
+          "type": "string",
+          "label": {
+            "en": "Repository",
+            "de": "Repository",
+            "es": "Repositorio",
+            "fr": "Dépôt"
+          },
+          "options_from": {
+            "endpoint": "plugin.beyonders-studio.github.list-repositories",
+            "key": "names"
+          }
+        },
+        {
+          "key": "state",
+          "type": "select",
+          "label": {
+            "en": "State",
+            "de": "Status",
+            "es": "Estado",
+            "fr": "État"
+          },
+          "options": [
+            "open",
+            "closed",
+            "merged",
+            "all"
+          ]
+        },
+        {
+          "key": "labels",
+          "type": "string",
+          "label": {
+            "en": "Labels",
+            "de": "Labels",
+            "es": "Etiquetas",
+            "fr": "Étiquettes"
+          },
+          "list": true,
+          "options_from": {
+            "endpoint": "plugin.beyonders-studio.github.list-labels",
+            "key": "names",
+            "needs": {
+              "repo": "repo"
+            }
+          }
+        },
+        {
+          "key": "base_ref",
+          "type": "string",
+          "label": {
+            "en": "Into branch",
+            "de": "Nach Branch",
+            "es": "Hacia la rama",
+            "fr": "Vers la branche"
+          }
+        },
+        {
+          "key": "head_ref",
+          "type": "string",
+          "label": {
+            "en": "From branch",
+            "de": "Von Branch",
+            "es": "Desde la rama",
+            "fr": "Depuis la branche"
+          }
+        },
+        {
+          "key": "review_requested",
+          "type": "string",
+          "label": {
+            "en": "Waiting on",
+            "de": "Wartet auf",
+            "es": "Esperando a",
+            "fr": "En attente de"
+          },
+          "options_from": {
+            "endpoint": "plugin.beyonders-studio.github.list-assignees",
+            "key": "logins",
+            "needs": {
+              "repo": "repo"
+            }
+          }
+        },
+        {
+          "key": "sort",
+          "type": "select",
+          "label": {
+            "en": "Order by",
+            "de": "Sortieren nach",
+            "es": "Ordenar por",
+            "fr": "Trier par"
+          },
+          "options": [
+            "created",
+            "updated",
+            "comments"
+          ]
+        },
+        {
+          "key": "direction",
+          "type": "select",
+          "label": {
+            "en": "Order",
+            "de": "Reihenfolge",
+            "es": "Orden",
+            "fr": "Ordre"
+          },
+          "options": [
+            "desc",
+            "asc"
+          ]
+        },
+        {
+          "key": "limit",
+          "type": "int",
+          "label": {
+            "en": "How many",
+            "de": "Wie viele",
+            "es": "Cuántos",
+            "fr": "Combien"
+          }
+        }
+      ],
+      "returns": [
+        {
+          "key": "numbers",
+          "type": "int",
+          "list": true
+        },
+        {
+          "key": "titles",
+          "type": "string",
+          "list": true
+        },
+        {
+          "key": "urls",
+          "type": "url",
+          "list": true
+        },
+        {
+          "key": "states",
+          "type": "string",
+          "list": true
+        },
+        {
+          "key": "created_at",
+          "type": "string",
+          "label": {
+            "en": "Opened",
+            "de": "Geöffnet",
+            "es": "Abierta",
+            "fr": "Ouvert"
+          },
+          "list": true
+        },
+        {
+          "key": "updated_at",
+          "type": "string",
+          "label": {
+            "en": "Last updated",
+            "de": "Zuletzt aktualisiert",
+            "es": "Última actualización",
+            "fr": "Dernière mise à jour"
+          },
+          "list": true
+        },
+        {
+          "key": "closed_at",
+          "type": "string",
+          "list": true
+        },
+        {
+          "key": "count",
+          "type": "int",
+          "label": {
+            "en": "How many",
+            "de": "Wie viele",
+            "es": "Cuántos",
+            "fr": "Combien"
+          }
+        },
+        {
+          "key": "total",
+          "type": "int",
+          "label": {
+            "en": "How many in all",
+            "de": "Wie viele insgesamt",
+            "es": "Cuántos en total",
+            "fr": "Combien en tout"
+          }
+        },
+        {
+          "key": "unavailable",
+          "type": "string",
+          "label": {
+            "en": "Why there is no answer",
+            "de": "Warum es keine Antwort gibt",
+            "es": "Por qué no hay respuesta",
+            "fr": "Pourquoi il n'y a pas de réponse"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "url": "\"https://api.github.com/graphql\"",
+        "headers": {
+          "Accept": "\"application/vnd.github+json\"",
+          "X-GitHub-Api-Version": "\"2022-11-28\"",
+          "User-Agent": "\"initiative-github\""
+        },
+        "graphql": {
+          "query": "query Search($query: String!, $first: Int!) { search(query: $query, type: ISSUE, first: $first) { issueCount nodes { ... on PullRequest { number title url state createdAt updatedAt closedAt } } } }",
+          "variables": "(\n      $quoted := function($value) { '\"' & $replace($value, '\"', '') & '\"' };\n      {\n        \"query\": $join([\n          \"repo:\" & connections.workspace.owner & \"/\" & (\n  $repo := params.repo;\n  $type($repo) = \"string\" and $length($repo) <= 100 and $contains($repo, /^[A-Za-z0-9._-]+$/) and $not($repo in [\".\", \"..\"])\n    ? $repo : \"\"\n),\n          \"is:pr\",\n          params.state = \"closed\" ? \"is:closed is:unmerged\" : params.state = \"merged\" ? \"is:merged\" : $not(params.state = \"all\") ? \"is:open\",\n          params.labels.(\"label:\" & $quoted($)),\n          params.base_ref ? \"base:\" & $quoted(params.base_ref),\n          params.head_ref ? \"head:\" & $quoted(params.head_ref),\n          params.review_requested and ($login := params.review_requested; $length($login) <= 39 and $contains($login, /^[A-Za-z0-9]+(-[A-Za-z0-9]+)*$/)) ? \"review-requested:\" & params.review_requested,\n          \"sort:\" & (params.sort ? params.sort : \"created\") & \"-\" & (params.direction = \"asc\" ? \"asc\" : \"desc\")\n        ], \" \"),\n        \"first\": ($exists(params.limit) ? $min([$max([params.limit, 1]), 100]) : 30)\n      }\n    )"
+        },
+        "connection": "workspace"
+      },
+      "unavailable": [
+        "repository-required",
+        "bad-login"
+      ],
+      "errors": [
+        {
+          "status": "2xx",
+          "when": "(\n  $repo := params.repo;\n  $type($repo) = \"string\" and $length($repo) <= 100 and $contains($repo, /^[A-Za-z0-9._-]+$/) and $not($repo in [\".\", \"..\"])\n    ? $repo : \"\"\n) = \"\"",
+          "code": "repository-required"
+        },
+        {
+          "status": "4xx",
+          "when": "(\n  $repo := params.repo;\n  $type($repo) = \"string\" and $length($repo) <= 100 and $contains($repo, /^[A-Za-z0-9._-]+$/) and $not($repo in [\".\", \"..\"])\n    ? $repo : \"\"\n) = \"\"",
+          "code": "repository-required"
+        },
+        {
+          "status": "2xx",
+          "when": "params.review_requested and $not(($login := params.review_requested; $length($login) <= 39 and $contains($login, /^[A-Za-z0-9]+(-[A-Za-z0-9]+)*$/)))",
+          "code": "bad-login"
+        },
+        {
+          "status": "4xx",
+          "when": "params.review_requested and $not(($login := params.review_requested; $length($login) <= 39 and $contains($login, /^[A-Za-z0-9]+(-[A-Za-z0-9]+)*$/)))",
+          "code": "bad-login"
+        },
+        {
+          "status": 403,
+          "when": "$exists(response.headers.\"retry-after\") or response.headers.\"x-ratelimit-remaining\" = \"0\"",
+          "code": "transient"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors[type = \"RATE_LIMITED\"]",
+          "code": "transient"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors[type in [\"FORBIDDEN\", \"INSUFFICIENT_SCOPES\"]]",
+          "code": "not-authorized"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors and $not($exists(response.body.data) and $boolean(response.body.data))",
+          "code": "invalid"
+        }
+      ],
+      "map": "(\n  $search := response.body.data.search;\n  (\n    $rows := $search.nodes[$type($) = \"object\"];\n    {\n      \"numbers\": [$rows.(number ? number : 0)],\n      \"titles\": [$rows.(title ? title : \"\")],\n      \"urls\": [$rows.(url ? url : \"\")],\n      \"states\": [$rows.(state ? $lowercase(state) : \"\")],\n      \"created_at\": [$rows.(createdAt ? createdAt : \"\")],\n      \"updated_at\": [$rows.(updatedAt ? updatedAt : \"\")],\n      \"closed_at\": [$rows.(closedAt ? closedAt : \"\")],\n      \"count\": $count($rows),\n      \"total\": $search.issueCount\n    }\n  )\n)"
+    },
+    {
+      "id": "plugin.beyonders-studio.github.review-queue",
+      "direction": "read",
+      "label": {
+        "en": "Waiting on your review",
+        "de": "Wartet auf deine Review",
+        "es": "Esperando tu revisión",
+        "fr": "En attente de votre revue"
+      },
+      "description": {
+        "en": "The pull requests in a repository that asked for the member's review.",
+        "de": "Die Pull Requests eines Repositories, die die Review des Mitglieds angefragt haben.",
+        "es": "Las pull requests de un repositorio que pidieron la revisión del miembro.",
+        "fr": "Les pull requests d'un dépôt qui ont demandé la revue du membre."
+      },
+      "group": "reviews",
+      "public": true,
+      "actors": [
+        "member"
+      ],
+      "requires": {
+        "all_of": [
+          "workspace",
+          "account"
+        ]
+      },
+      "cache_ttl_seconds": 60,
+      "params": [
+        {
+          "key": "repo",
+          "type": "string",
+          "label": {
+            "en": "Repository",
+            "de": "Repository",
+            "es": "Repositorio",
+            "fr": "Dépôt"
+          },
+          "options_from": {
+            "endpoint": "plugin.beyonders-studio.github.list-repositories",
+            "key": "names"
+          }
+        },
+        {
+          "key": "state",
+          "type": "select",
+          "label": {
+            "en": "State",
+            "de": "Status",
+            "es": "Estado",
+            "fr": "État"
+          },
+          "options": [
+            "open",
+            "closed",
+            "merged",
+            "all"
+          ]
+        },
+        {
+          "key": "labels",
+          "type": "string",
+          "label": {
+            "en": "Labels",
+            "de": "Labels",
+            "es": "Etiquetas",
+            "fr": "Étiquettes"
+          },
+          "list": true,
+          "options_from": {
+            "endpoint": "plugin.beyonders-studio.github.list-labels",
+            "key": "names",
+            "needs": {
+              "repo": "repo"
+            }
+          }
+        },
+        {
+          "key": "base_ref",
+          "type": "string",
+          "label": {
+            "en": "Into branch",
+            "de": "Nach Branch",
+            "es": "Hacia la rama",
+            "fr": "Vers la branche"
+          }
+        },
+        {
+          "key": "head_ref",
+          "type": "string",
+          "label": {
+            "en": "From branch",
+            "de": "Von Branch",
+            "es": "Desde la rama",
+            "fr": "Depuis la branche"
+          }
+        },
+        {
+          "key": "sort",
+          "type": "select",
+          "label": {
+            "en": "Order by",
+            "de": "Sortieren nach",
+            "es": "Ordenar por",
+            "fr": "Trier par"
+          },
+          "options": [
+            "created",
+            "updated",
+            "comments"
+          ]
+        },
+        {
+          "key": "direction",
+          "type": "select",
+          "label": {
+            "en": "Order",
+            "de": "Reihenfolge",
+            "es": "Orden",
+            "fr": "Ordre"
+          },
+          "options": [
+            "desc",
+            "asc"
+          ]
+        },
+        {
+          "key": "limit",
+          "type": "int",
+          "label": {
+            "en": "How many",
+            "de": "Wie viele",
+            "es": "Cuántos",
+            "fr": "Combien"
+          }
+        }
+      ],
+      "returns": [
+        {
+          "key": "numbers",
+          "type": "int",
+          "list": true
+        },
+        {
+          "key": "titles",
+          "type": "string",
+          "list": true
+        },
+        {
+          "key": "urls",
+          "type": "url",
+          "list": true
+        },
+        {
+          "key": "states",
+          "type": "string",
+          "list": true
+        },
+        {
+          "key": "created_at",
+          "type": "string",
+          "label": {
+            "en": "Opened",
+            "de": "Geöffnet",
+            "es": "Abierta",
+            "fr": "Ouvert"
+          },
+          "list": true
+        },
+        {
+          "key": "updated_at",
+          "type": "string",
+          "label": {
+            "en": "Last updated",
+            "de": "Zuletzt aktualisiert",
+            "es": "Última actualización",
+            "fr": "Dernière mise à jour"
+          },
+          "list": true
+        },
+        {
+          "key": "closed_at",
+          "type": "string",
+          "list": true
+        },
+        {
+          "key": "count",
+          "type": "int",
+          "label": {
+            "en": "How many",
+            "de": "Wie viele",
+            "es": "Cuántos",
+            "fr": "Combien"
+          }
+        },
+        {
+          "key": "total",
+          "type": "int",
+          "label": {
+            "en": "How many in all",
+            "de": "Wie viele insgesamt",
+            "es": "Cuántos en total",
+            "fr": "Combien en tout"
+          }
+        },
+        {
+          "key": "unavailable",
+          "type": "string",
+          "label": {
+            "en": "Why there is no answer",
+            "de": "Warum es keine Antwort gibt",
+            "es": "Por qué no hay respuesta",
+            "fr": "Pourquoi il n'y a pas de réponse"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "url": "\"https://api.github.com/graphql\"",
+        "headers": {
+          "Accept": "\"application/vnd.github+json\"",
+          "X-GitHub-Api-Version": "\"2022-11-28\"",
+          "User-Agent": "\"initiative-github\""
+        },
+        "graphql": {
+          "query": "query Search($query: String!, $first: Int!) { search(query: $query, type: ISSUE, first: $first) { issueCount nodes { ... on PullRequest { number title url state createdAt updatedAt closedAt } } } }",
+          "variables": "(\n      $quoted := function($value) { '\"' & $replace($value, '\"', '') & '\"' };\n      {\n        \"query\": $join([\n          \"repo:\" & connections.workspace.owner & \"/\" & (\n  $repo := params.repo;\n  $type($repo) = \"string\" and $length($repo) <= 100 and $contains($repo, /^[A-Za-z0-9._-]+$/) and $not($repo in [\".\", \"..\"])\n    ? $repo : \"\"\n),\n          \"is:pr\",\n          params.state = \"closed\" ? \"is:closed is:unmerged\" : params.state = \"merged\" ? \"is:merged\" : $not(params.state = \"all\") ? \"is:open\",\n          params.labels.(\"label:\" & $quoted($)),\n          params.base_ref ? \"base:\" & $quoted(params.base_ref),\n          params.head_ref ? \"head:\" & $quoted(params.head_ref),\n          \"review-requested:@me\",\n          \"sort:\" & (params.sort ? params.sort : \"created\") & \"-\" & (params.direction = \"asc\" ? \"asc\" : \"desc\")\n        ], \" \"),\n        \"first\": ($exists(params.limit) ? $min([$max([params.limit, 1]), 100]) : 30)\n      }\n    )"
+        },
+        "connection": "account"
+      },
+      "unavailable": [
+        "repository-required"
+      ],
+      "errors": [
+        {
+          "status": "2xx",
+          "when": "(\n  $repo := params.repo;\n  $type($repo) = \"string\" and $length($repo) <= 100 and $contains($repo, /^[A-Za-z0-9._-]+$/) and $not($repo in [\".\", \"..\"])\n    ? $repo : \"\"\n) = \"\"",
+          "code": "repository-required"
+        },
+        {
+          "status": "4xx",
+          "when": "(\n  $repo := params.repo;\n  $type($repo) = \"string\" and $length($repo) <= 100 and $contains($repo, /^[A-Za-z0-9._-]+$/) and $not($repo in [\".\", \"..\"])\n    ? $repo : \"\"\n) = \"\"",
+          "code": "repository-required"
+        },
+        {
+          "status": 403,
+          "when": "$exists(response.headers.\"retry-after\") or response.headers.\"x-ratelimit-remaining\" = \"0\"",
+          "code": "transient"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors[type = \"RATE_LIMITED\"]",
+          "code": "transient"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors[type in [\"FORBIDDEN\", \"INSUFFICIENT_SCOPES\"]]",
+          "code": "not-authorized"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors and $not($exists(response.body.data) and $boolean(response.body.data))",
+          "code": "invalid"
+        }
+      ],
+      "map": "(\n  $search := response.body.data.search;\n  (\n    $rows := $search.nodes[$type($) = \"object\"];\n    {\n      \"numbers\": [$rows.(number ? number : 0)],\n      \"titles\": [$rows.(title ? title : \"\")],\n      \"urls\": [$rows.(url ? url : \"\")],\n      \"states\": [$rows.(state ? $lowercase(state) : \"\")],\n      \"created_at\": [$rows.(createdAt ? createdAt : \"\")],\n      \"updated_at\": [$rows.(updatedAt ? updatedAt : \"\")],\n      \"closed_at\": [$rows.(closedAt ? closedAt : \"\")],\n      \"count\": $count($rows),\n      \"total\": $search.issueCount\n    }\n  )\n)"
+    },
+    {
+      "id": "plugin.beyonders-studio.github.list-alerts",
+      "direction": "read",
+      "label": {
+        "en": "Dependabot alerts",
+        "de": "Dependabot-Warnungen",
+        "es": "Alertas de Dependabot",
+        "fr": "Alertes Dependabot"
+      },
+      "description": {
+        "en": "Open dependency alerts, with the severity and package of each.",
+        "de": "Offene Abhängigkeitswarnungen, mit Schwere und Paket zu jeder.",
+        "es": "Alertas de dependencias abiertas, con la severidad y el paquete de cada una.",
+        "fr": "Alertes de dépendances ouvertes, avec la gravité et le paquet de chacune."
+      },
+      "group": "security",
+      "public": true,
+      "actors": [
+        "installation",
+        "member"
+      ],
+      "requires": {
+        "all_of": [
+          "workspace"
+        ]
+      },
+      "cache_ttl_seconds": 300,
+      "params": [
+        {
+          "key": "repo",
+          "type": "string",
+          "label": {
+            "en": "Repository",
+            "de": "Repository",
+            "es": "Repositorio",
+            "fr": "Dépôt"
+          },
+          "options_from": {
+            "endpoint": "plugin.beyonders-studio.github.list-repositories",
+            "key": "names"
+          }
+        }
+      ],
+      "returns": [
+        {
+          "key": "numbers",
+          "type": "int",
+          "label": {
+            "en": "Alert numbers",
+            "de": "Warnungsnummern",
+            "es": "Números de alerta",
+            "fr": "Numéros d'alerte"
+          },
+          "list": true
+        },
+        {
+          "key": "severities",
+          "type": "string",
+          "list": true
+        },
+        {
+          "key": "packages",
+          "type": "string",
+          "list": true
+        },
+        {
+          "key": "urls",
+          "type": "url",
+          "list": true
+        },
+        {
+          "key": "count",
+          "type": "int",
+          "label": {
+            "en": "How many",
+            "de": "Wie viele",
+            "es": "Cuántos",
+            "fr": "Combien"
+          }
+        },
+        {
+          "key": "total",
+          "type": "int",
+          "label": {
+            "en": "How many in all",
+            "de": "Wie viele insgesamt",
+            "es": "Cuántos en total",
+            "fr": "Combien en tout"
+          }
+        },
+        {
+          "key": "url",
+          "type": "url"
+        },
+        {
+          "key": "unavailable",
+          "type": "string",
+          "label": {
+            "en": "Why there is no answer",
+            "de": "Warum es keine Antwort gibt",
+            "es": "Por qué no hay respuesta",
+            "fr": "Pourquoi il n'y a pas de réponse"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "url": "\"https://api.github.com/graphql\"",
+        "headers": {
+          "Accept": "\"application/vnd.github+json\"",
+          "X-GitHub-Api-Version": "\"2022-11-28\"",
+          "User-Agent": "\"initiative-github\""
+        },
+        "graphql": {
+          "query": "query Alerts($owner: String!, $repo: String!, $first: Int!) { repository(owner: $owner, name: $repo) { name owner { login } vulnerabilityAlerts(first: $first, states: [OPEN]) { totalCount nodes { number securityVulnerability { severity package { name } } } } } }",
+          "variables": "{\"owner\": connections.workspace.owner, \"repo\": (\n  $repo := params.repo;\n  $type($repo) = \"string\" and $length($repo) <= 100 and $contains($repo, /^[A-Za-z0-9._-]+$/) and $not($repo in [\".\", \"..\"])\n    ? $repo : \"\"\n), \"first\": 100}"
+        },
+        "connection": "workspace"
+      },
+      "unavailable": [
+        "repository-required"
+      ],
+      "errors": [
+        {
+          "status": "2xx",
+          "when": "(\n  $repo := params.repo;\n  $type($repo) = \"string\" and $length($repo) <= 100 and $contains($repo, /^[A-Za-z0-9._-]+$/) and $not($repo in [\".\", \"..\"])\n    ? $repo : \"\"\n) = \"\"",
+          "code": "repository-required"
+        },
+        {
+          "status": "4xx",
+          "when": "(\n  $repo := params.repo;\n  $type($repo) = \"string\" and $length($repo) <= 100 and $contains($repo, /^[A-Za-z0-9._-]+$/) and $not($repo in [\".\", \"..\"])\n    ? $repo : \"\"\n) = \"\"",
+          "code": "repository-required"
+        },
+        {
+          "status": 403,
+          "when": "$exists(response.headers.\"retry-after\") or response.headers.\"x-ratelimit-remaining\" = \"0\"",
+          "code": "transient"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors[type = \"RATE_LIMITED\"]",
+          "code": "transient"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors[type in [\"FORBIDDEN\", \"INSUFFICIENT_SCOPES\"]]",
+          "code": "not-authorized"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors and $not($exists(response.body.data) and $boolean(response.body.data))",
+          "code": "invalid"
+        }
+      ],
+      "map": "(\n    $repository := response.body.data.repository;\n    $found := $repository.vulnerabilityAlerts;\n    $page := \"https://github.com/\" & $repository.owner.login & \"/\" & $repository.name & \"/security/dependabot\";\n    $alerts := $found.nodes[$type($) = \"object\"];\n    $found ? {\n      \"numbers\": [$alerts.(number ? number : 0)],\n      \"severities\": [$alerts.(\n        $severity := securityVulnerability.severity ? $lowercase(securityVulnerability.severity) : \"\";\n        $severity = \"moderate\" ? \"medium\" : $severity\n      )],\n      \"packages\": [$alerts.(securityVulnerability.package.name ? securityVulnerability.package.name : \"\")],\n      \"urls\": [$alerts.($page & \"/\" & (number ? number : \"\"))],\n      \"count\": $count($alerts),\n      \"total\": $found.totalCount,\n      \"url\": $page\n    } : {\"unavailable\": \"not-found\"}\n  )"
+    },
+    {
+      "id": "plugin.beyonders-studio.github.list-projects",
+      "direction": "read",
+      "label": {
+        "en": "Project boards",
+        "de": "Projektboards",
+        "es": "Tableros de proyecto",
+        "fr": "Tableaux de projet"
+      },
+      "description": {
+        "en": "The Projects boards on the installation's account.",
+        "de": "Die Projects-Boards des Kontos der Installation.",
+        "es": "Los tableros de Projects de la cuenta de la instalación.",
+        "fr": "Les tableaux Projects du compte de l'installation."
+      },
+      "group": "projects",
+      "public": true,
+      "actors": [
+        "installation",
+        "member"
+      ],
+      "requires": {
+        "all_of": [
+          "workspace"
+        ]
+      },
+      "cache_ttl_seconds": 300,
+      "returns": [
+        {
+          "key": "ids",
+          "type": "string",
+          "label": {
+            "en": "Boards",
+            "de": "Boards",
+            "es": "Tableros",
+            "fr": "Tableaux"
+          },
+          "list": true
+        },
+        {
+          "key": "titles",
+          "type": "string",
+          "list": true
+        },
+        {
+          "key": "numbers",
+          "type": "int",
+          "list": true
+        },
+        {
+          "key": "urls",
+          "type": "url",
+          "list": true
+        },
+        {
+          "key": "count",
+          "type": "int",
+          "label": {
+            "en": "How many",
+            "de": "Wie viele",
+            "es": "Cuántos",
+            "fr": "Combien"
+          }
+        },
+        {
+          "key": "total",
+          "type": "int",
+          "label": {
+            "en": "How many in all",
+            "de": "Wie viele insgesamt",
+            "es": "Cuántos en total",
+            "fr": "Combien en tout"
+          }
+        },
+        {
+          "key": "unavailable",
+          "type": "string",
+          "label": {
+            "en": "Why there is no answer",
+            "de": "Warum es keine Antwort gibt",
+            "es": "Por qué no hay respuesta",
+            "fr": "Pourquoi il n'y a pas de réponse"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "url": "\"https://api.github.com/graphql\"",
+        "headers": {
+          "Accept": "\"application/vnd.github+json\"",
+          "X-GitHub-Api-Version": "\"2022-11-28\"",
+          "User-Agent": "\"initiative-github\""
+        },
+        "graphql": {
+          "query": "query Boards($login: String!, $first: Int!) { repositoryOwner(login: $login) { ... on Organization { projectsV2(first: $first) { totalCount nodes { id title number url } } } ... on User { projectsV2(first: $first) { totalCount nodes { id title number url } } } } }",
+          "variables": "{\"login\": connections.workspace.owner, \"first\": 100}"
+        },
+        "connection": "workspace"
+      },
+      "errors": [
+        {
+          "status": 403,
+          "when": "$exists(response.headers.\"retry-after\") or response.headers.\"x-ratelimit-remaining\" = \"0\"",
+          "code": "transient"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors[type = \"RATE_LIMITED\"]",
+          "code": "transient"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors[type in [\"FORBIDDEN\", \"INSUFFICIENT_SCOPES\"]]",
+          "code": "not-authorized"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors and $not($exists(response.body.data) and $boolean(response.body.data))",
+          "code": "invalid"
+        }
+      ],
+      "map": "(\n    $found := response.body.data.repositoryOwner.projectsV2;\n    $boards := $found.nodes[$type(id) = \"string\"];\n    $found ? {\n      \"ids\": [$boards.id],\n      \"titles\": [$boards.(title ? title : \"\")],\n      \"numbers\": [$boards.(number ? number : 0)],\n      \"urls\": [$boards.(url ? url : \"\")],\n      \"count\": $count($boards),\n      \"total\": $found.totalCount\n    } : {\"unavailable\": \"not-found\"}\n  )"
+    },
+    {
+      "id": "plugin.beyonders-studio.github.list-project-fields",
+      "direction": "read",
+      "label": {
+        "en": "Project fields",
+        "de": "Projektfelder",
+        "es": "Campos de proyecto",
+        "fr": "Champs de projet"
+      },
+      "description": {
+        "en": "The single-select fields one board has: its columns, and anything else set that way.",
+        "de": "Die Einfachauswahl-Felder eines Boards: seine Spalten und alles andere dieser Art.",
+        "es": "Los campos de selección única de un tablero: sus columnas y cualquier otro similar.",
+        "fr": "Les champs à choix unique d'un tableau : ses colonnes, et tout autre du même type."
+      },
+      "group": "projects",
+      "public": true,
+      "actors": [
+        "installation",
+        "member"
+      ],
+      "requires": {
+        "all_of": [
+          "workspace"
+        ]
+      },
+      "cache_ttl_seconds": 300,
+      "params": [
+        {
+          "key": "project_id",
+          "type": "string",
+          "label": {
+            "en": "Project",
+            "de": "Projekt",
+            "es": "Proyecto",
+            "fr": "Projet"
+          },
+          "options_from": {
+            "endpoint": "plugin.beyonders-studio.github.list-projects",
+            "key": "ids",
+            "label_key": "titles"
+          }
+        }
+      ],
+      "returns": [
+        {
+          "key": "ids",
+          "type": "string",
+          "label": {
+            "en": "Fields",
+            "de": "Felder",
+            "es": "Campos",
+            "fr": "Champs"
+          },
+          "list": true
+        },
+        {
+          "key": "names",
+          "type": "string",
+          "label": {
+            "en": "Field names",
+            "de": "Feldnamen",
+            "es": "Nombres de campos",
+            "fr": "Noms des champs"
+          },
+          "list": true
+        },
+        {
+          "key": "count",
+          "type": "int",
+          "label": {
+            "en": "How many",
+            "de": "Wie viele",
+            "es": "Cuántos",
+            "fr": "Combien"
+          }
+        },
+        {
+          "key": "unavailable",
+          "type": "string",
+          "label": {
+            "en": "Why there is no answer",
+            "de": "Warum es keine Antwort gibt",
+            "es": "Por qué no hay respuesta",
+            "fr": "Pourquoi il n'y a pas de réponse"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "url": "\"https://api.github.com/graphql\"",
+        "headers": {
+          "Accept": "\"application/vnd.github+json\"",
+          "X-GitHub-Api-Version": "\"2022-11-28\"",
+          "User-Agent": "\"initiative-github\""
+        },
+        "graphql": {
+          "query": "query Fields($project: ID!, $first: Int!) { node(id: $project) { ... on ProjectV2 { owner { ... on Organization { login } ... on User { login } } fields(first: $first) { nodes { ... on ProjectV2SingleSelectField { id name options { id name } } } } } } }",
+          "variables": "{\"project\": params.project_id, \"first\": 100}"
+        },
+        "connection": "workspace"
+      },
+      "unavailable": [
+        "project-required",
+        "no-such-project",
+        "project-not-listed"
+      ],
+      "errors": [
+        {
+          "status": "2xx",
+          "when": "$not($exists(params.project_id)) or params.project_id = \"\"",
+          "code": "project-required"
+        },
+        {
+          "status": "4xx",
+          "when": "$not($exists(params.project_id)) or params.project_id = \"\"",
+          "code": "project-required"
+        },
+        {
+          "status": 403,
+          "when": "$exists(response.headers.\"retry-after\") or response.headers.\"x-ratelimit-remaining\" = \"0\"",
+          "code": "transient"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors[type = \"RATE_LIMITED\"]",
+          "code": "transient"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors[type in [\"FORBIDDEN\", \"INSUFFICIENT_SCOPES\"]]",
+          "code": "not-authorized"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors and $not($exists(response.body.data) and $boolean(response.body.data))",
+          "code": "invalid"
+        }
+      ],
+      "map": "(\n    $board := response.body.data.node;\n    $fields := $board.fields.nodes[$type(id) = \"string\"];\n    $owned := $type($board.owner.login) = \"string\" and $lowercase($board.owner.login) = $lowercase(connections.workspace.owner);\n    $board.fields ? ($owned ? {\"ids\": [$fields.id], \"names\": [$fields.(name ? name : \"\")], \"count\": $count($fields)} : {\"unavailable\": \"project-not-listed\"}) : {\"unavailable\": \"no-such-project\"}\n  )"
+    },
+    {
+      "id": "plugin.beyonders-studio.github.list-project-options",
+      "direction": "read",
+      "label": {
+        "en": "Project field values",
+        "de": "Werte eines Projektfelds",
+        "es": "Valores de un campo de proyecto",
+        "fr": "Valeurs d'un champ de projet"
+      },
+      "description": {
+        "en": "What one single-select field on a board can be set to.",
+        "de": "Worauf ein Einfachauswahl-Feld eines Boards gesetzt werden kann.",
+        "es": "A qué se puede establecer un campo de selección única de un tablero.",
+        "fr": "Ce à quoi un champ à choix unique d'un tableau peut être défini."
+      },
+      "group": "projects",
+      "public": true,
+      "actors": [
+        "installation",
+        "member"
+      ],
+      "requires": {
+        "all_of": [
+          "workspace"
+        ]
+      },
+      "cache_ttl_seconds": 300,
+      "params": [
+        {
+          "key": "project_id",
+          "type": "string",
+          "label": {
+            "en": "Project",
+            "de": "Projekt",
+            "es": "Proyecto",
+            "fr": "Projet"
+          },
+          "options_from": {
+            "endpoint": "plugin.beyonders-studio.github.list-projects",
+            "key": "ids",
+            "label_key": "titles"
+          }
+        },
+        {
+          "key": "field",
+          "type": "string",
+          "label": {
+            "en": "Field",
+            "de": "Feld",
+            "es": "Campo",
+            "fr": "Champ"
+          },
+          "options_from": {
+            "endpoint": "plugin.beyonders-studio.github.list-project-fields",
+            "key": "ids",
+            "label_key": "names",
+            "needs": {
+              "project_id": "project_id"
+            }
+          }
+        }
+      ],
+      "returns": [
+        {
+          "key": "field_id",
+          "type": "string"
+        },
+        {
+          "key": "field_name",
+          "type": "string"
+        },
+        {
+          "key": "option_ids",
+          "type": "string",
+          "label": {
+            "en": "Values",
+            "de": "Werte",
+            "es": "Valores",
+            "fr": "Valeurs"
+          },
+          "list": true
+        },
+        {
+          "key": "option_names",
+          "type": "string",
+          "label": {
+            "en": "Value names",
+            "de": "Wertnamen",
+            "es": "Nombres de valores",
+            "fr": "Noms des valeurs"
+          },
+          "list": true
+        },
+        {
+          "key": "unavailable",
+          "type": "string",
+          "label": {
+            "en": "Why there is no answer",
+            "de": "Warum es keine Antwort gibt",
+            "es": "Por qué no hay respuesta",
+            "fr": "Pourquoi il n'y a pas de réponse"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "url": "\"https://api.github.com/graphql\"",
+        "headers": {
+          "Accept": "\"application/vnd.github+json\"",
+          "X-GitHub-Api-Version": "\"2022-11-28\"",
+          "User-Agent": "\"initiative-github\""
+        },
+        "graphql": {
+          "query": "query Fields($project: ID!, $first: Int!) { node(id: $project) { ... on ProjectV2 { owner { ... on Organization { login } ... on User { login } } fields(first: $first) { nodes { ... on ProjectV2SingleSelectField { id name options { id name } } } } } } }",
+          "variables": "{\"project\": params.project_id, \"first\": 100}"
+        },
+        "connection": "workspace"
+      },
+      "unavailable": [
+        "field-required",
+        "project-required",
+        "no-such-project",
+        "project-not-listed",
+        "no-such-field"
+      ],
+      "errors": [
+        {
+          "status": "2xx",
+          "when": "$not($exists(params.field)) or params.field = \"\"",
+          "code": "field-required"
+        },
+        {
+          "status": "4xx",
+          "when": "$not($exists(params.field)) or params.field = \"\"",
+          "code": "field-required"
+        },
+        {
+          "status": "2xx",
+          "when": "$not($exists(params.project_id)) or params.project_id = \"\"",
+          "code": "project-required"
+        },
+        {
+          "status": "4xx",
+          "when": "$not($exists(params.project_id)) or params.project_id = \"\"",
+          "code": "project-required"
+        },
+        {
+          "status": 403,
+          "when": "$exists(response.headers.\"retry-after\") or response.headers.\"x-ratelimit-remaining\" = \"0\"",
+          "code": "transient"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors[type = \"RATE_LIMITED\"]",
+          "code": "transient"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors[type in [\"FORBIDDEN\", \"INSUFFICIENT_SCOPES\"]]",
+          "code": "not-authorized"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors and $not($exists(response.body.data) and $boolean(response.body.data))",
+          "code": "invalid"
+        }
+      ],
+      "map": "(\n    $board := response.body.data.node;\n    $fields := $board.fields.nodes[$type(id) = \"string\"];\n    $owned := $type($board.owner.login) = \"string\" and $lowercase($board.owner.login) = $lowercase(connections.workspace.owner);\n    $board.fields ? ($owned ? (\n    $wanted := params.field;\n    $field := $fields[id = $wanted or $lowercase(name) = $lowercase($wanted)][0];\n    $options := $field.options[$type(id) = \"string\"];\n    $field ? {\n      \"field_id\": $field.id,\n      \"field_name\": $field.name ? $field.name : \"\",\n      \"option_ids\": [$options.id],\n      \"option_names\": [$options.(name ? name : \"\")]\n    } : {\"unavailable\": \"no-such-field\"}\n  ) : {\"unavailable\": \"project-not-listed\"}) : {\"unavailable\": \"no-such-project\"}\n  )"
+    },
+    {
+      "id": "plugin.beyonders-studio.github.find-project-item",
+      "direction": "read",
+      "label": {
+        "en": "Find a project card",
+        "de": "Projektkarte finden",
+        "es": "Encontrar una tarjeta de proyecto",
+        "fr": "Trouver une carte de projet"
+      },
+      "description": {
+        "en": "The card an issue or pull request has on a board.",
+        "de": "Die Karte, die ein Issue oder Pull Request auf einem Board hat.",
+        "es": "La tarjeta que una incidencia o pull request tiene en un tablero.",
+        "fr": "La carte qu'un ticket ou une pull request a sur un tableau."
+      },
+      "group": "projects",
+      "public": true,
+      "actors": [
+        "installation",
+        "member"
+      ],
+      "requires": {
+        "all_of": [
+          "workspace"
+        ]
+      },
+      "cache_ttl_seconds": 0,
+      "params": [
+        {
+          "key": "project_id",
+          "type": "string",
+          "label": {
+            "en": "Project",
+            "de": "Projekt",
+            "es": "Proyecto",
+            "fr": "Projet"
+          },
+          "options_from": {
+            "endpoint": "plugin.beyonders-studio.github.list-projects",
+            "key": "ids",
+            "label_key": "titles"
+          }
+        },
+        {
+          "key": "repo",
+          "type": "string",
+          "label": {
+            "en": "Repository",
+            "de": "Repository",
+            "es": "Repositorio",
+            "fr": "Dépôt"
+          },
+          "options_from": {
+            "endpoint": "plugin.beyonders-studio.github.list-repositories",
+            "key": "names"
+          }
+        },
+        {
+          "key": "number",
+          "type": "int",
+          "label": {
+            "en": "Number",
+            "de": "Nummer",
+            "es": "Número",
+            "fr": "Numéro"
+          }
+        }
+      ],
+      "returns": [
+        {
+          "key": "item_id",
+          "type": "string",
+          "label": {
+            "en": "Card",
+            "de": "Karte",
+            "es": "Tarjeta",
+            "fr": "Carte"
+          }
+        },
+        {
+          "key": "repository",
+          "type": "string"
+        },
+        {
+          "key": "owner",
+          "type": "string"
+        },
+        {
+          "key": "number",
+          "type": "int"
+        },
+        {
+          "key": "unavailable",
+          "type": "string",
+          "label": {
+            "en": "Why there is no answer",
+            "de": "Warum es keine Antwort gibt",
+            "es": "Por qué no hay respuesta",
+            "fr": "Pourquoi il n'y a pas de réponse"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "url": "\"https://api.github.com/graphql\"",
+        "headers": {
+          "Accept": "\"application/vnd.github+json\"",
+          "X-GitHub-Api-Version": "\"2022-11-28\"",
+          "User-Agent": "\"initiative-github\""
+        },
+        "graphql": {
+          "query": "query Card($owner: String!, $repo: String!, $number: Int!, $first: Int!) { repository(owner: $owner, name: $repo) { name owner { login } issueOrPullRequest(number: $number) { ... on Issue { projectItems(first: $first) { nodes { id project { id } } } } ... on PullRequest { projectItems(first: $first) { nodes { id project { id } } } } } } }",
+          "variables": "{\"owner\": connections.workspace.owner, \"repo\": (\n  $repo := params.repo;\n  $type($repo) = \"string\" and $length($repo) <= 100 and $contains($repo, /^[A-Za-z0-9._-]+$/) and $not($repo in [\".\", \"..\"])\n    ? $repo : \"\"\n), \"number\": params.number, \"first\": 100}"
+        },
+        "connection": "workspace"
+      },
+      "unavailable": [
+        "repository-required",
+        "project-required",
+        "number-required",
+        "not-on-that-board"
+      ],
+      "errors": [
+        {
+          "status": "2xx",
+          "when": "(\n  $repo := params.repo;\n  $type($repo) = \"string\" and $length($repo) <= 100 and $contains($repo, /^[A-Za-z0-9._-]+$/) and $not($repo in [\".\", \"..\"])\n    ? $repo : \"\"\n) = \"\"",
+          "code": "repository-required"
+        },
+        {
+          "status": "4xx",
+          "when": "(\n  $repo := params.repo;\n  $type($repo) = \"string\" and $length($repo) <= 100 and $contains($repo, /^[A-Za-z0-9._-]+$/) and $not($repo in [\".\", \"..\"])\n    ? $repo : \"\"\n) = \"\"",
+          "code": "repository-required"
+        },
+        {
+          "status": "2xx",
+          "when": "$not($exists(params.project_id)) or params.project_id = \"\"",
+          "code": "project-required"
+        },
+        {
+          "status": "4xx",
+          "when": "$not($exists(params.project_id)) or params.project_id = \"\"",
+          "code": "project-required"
+        },
+        {
+          "status": "2xx",
+          "when": "$not($exists(params.number)) or params.number = \"\"",
+          "code": "number-required"
+        },
+        {
+          "status": "4xx",
+          "when": "$not($exists(params.number)) or params.number = \"\"",
+          "code": "number-required"
+        },
+        {
+          "status": 403,
+          "when": "$exists(response.headers.\"retry-after\") or response.headers.\"x-ratelimit-remaining\" = \"0\"",
+          "code": "transient"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors[type = \"RATE_LIMITED\"]",
+          "code": "transient"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors[type in [\"FORBIDDEN\", \"INSUFFICIENT_SCOPES\"]]",
+          "code": "not-authorized"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors and $not($exists(response.body.data) and $boolean(response.body.data))",
+          "code": "invalid"
+        }
+      ],
+      "map": "(\n    $repository := response.body.data.repository;\n    $item := $repository.issueOrPullRequest;\n    $wanted := params.project_id;\n    $card := $item.projectItems.nodes[$type(id) = \"string\" and project.id = $wanted][0];\n    $item ? (\n      $card ? {\"item_id\": $card.id, \"repository\": $repository.name, \"owner\": $repository.owner.login, \"number\": params.number}\n      : {\"unavailable\": \"not-on-that-board\"}\n    ) : {\"unavailable\": \"not-found\"}\n  )"
+    },
+    {
+      "id": "plugin.beyonders-studio.github.open-issue",
+      "direction": "write",
+      "label": {
+        "en": "Open an issue",
+        "de": "Issue öffnen",
+        "es": "Abrir una incidencia",
+        "fr": "Ouvrir un ticket"
+      },
+      "description": {
+        "en": "Opens one in a repository the installation covers, as the member.",
+        "de": "Öffnet eines in einem Repository der Installation, als das Mitglied.",
+        "es": "Abre una en un repositorio que cubre la instalación, como el miembro.",
+        "fr": "En ouvre un dans un dépôt couvert par l'installation, en tant que le membre."
+      },
+      "group": "issues",
+      "public": true,
+      "actors": [
+        "member"
+      ],
+      "requires": {
+        "all_of": [
+          "workspace",
+          "account"
+        ]
+      },
+      "params": [
+        {
+          "key": "repo",
+          "type": "string",
+          "label": {
+            "en": "Repository",
+            "de": "Repository",
+            "es": "Repositorio",
+            "fr": "Dépôt"
+          },
+          "options_from": {
+            "endpoint": "plugin.beyonders-studio.github.list-repositories",
+            "key": "names"
+          }
+        },
+        {
+          "key": "title",
+          "type": "string",
+          "label": {
+            "en": "Title",
+            "de": "Titel",
+            "es": "Título",
+            "fr": "Titre"
+          },
+          "required": true
+        },
+        {
+          "key": "body",
+          "type": "string",
+          "label": {
+            "en": "Body",
+            "de": "Text",
+            "es": "Cuerpo",
+            "fr": "Corps"
+          }
+        },
+        {
+          "key": "labels",
+          "type": "string",
+          "label": {
+            "en": "Labels",
+            "de": "Labels",
+            "es": "Etiquetas",
+            "fr": "Étiquettes"
+          },
+          "list": true,
+          "options_from": {
+            "endpoint": "plugin.beyonders-studio.github.list-labels",
+            "key": "names",
+            "needs": {
+              "repo": "repo"
+            }
+          }
+        },
+        {
+          "key": "assignees",
+          "type": "string",
+          "label": {
+            "en": "Assignees",
+            "de": "Zuständige",
+            "es": "Asignados",
+            "fr": "Assignés"
+          },
+          "list": true,
+          "options_from": {
+            "endpoint": "plugin.beyonders-studio.github.list-assignees",
+            "key": "logins",
+            "needs": {
+              "repo": "repo"
+            }
+          }
+        }
+      ],
+      "returns": [
+        {
+          "key": "repository",
+          "type": "string"
+        },
+        {
+          "key": "number",
+          "type": "int"
+        },
+        {
+          "key": "html_url",
+          "type": "url",
+          "label": {
+            "en": "Link",
+            "de": "Link",
+            "es": "Enlace",
+            "fr": "Lien"
+          }
+        },
+        {
+          "key": "id",
+          "type": "int",
+          "label": {
+            "en": "GitHub id",
+            "de": "GitHub-ID",
+            "es": "ID de GitHub",
+            "fr": "Identifiant GitHub"
+          }
+        }
+      ],
+      "identity": {
+        "kind": "issue",
+        "key": [
+          "repository",
+          "number"
+        ]
+      },
+      "request": {
+        "method": "POST",
+        "url": "\"https://api.github.com\" & \"/repos/\" & connections.workspace.owner & \"/\" & (\n  $repo := params.repo;\n  $type($repo) = \"string\" and $length($repo) <= 100 and $contains($repo, /^[A-Za-z0-9._-]+$/) and $not($repo in [\".\", \"..\"])\n    ? $repo : \"\"\n) & \"/issues\"",
+        "headers": {
+          "Accept": "\"application/vnd.github+json\"",
+          "X-GitHub-Api-Version": "\"2022-11-28\"",
+          "User-Agent": "\"initiative-github\""
+        },
+        "connection": "account",
+        "body": "$merge([\n      {\"title\": params.title},\n      params.body ? {\"body\": params.body},\n      $count(params.labels) ? {\"labels\": [params.labels]},\n      $count(params.assignees) ? {\"assignees\": [params.assignees]}\n    ])"
+      },
+      "errors": [
+        {
+          "status": 403,
+          "when": "$exists(response.headers.\"retry-after\") or response.headers.\"x-ratelimit-remaining\" = \"0\"",
+          "code": "transient"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors[type = \"RATE_LIMITED\"]",
+          "code": "transient"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors[type in [\"FORBIDDEN\", \"INSUFFICIENT_SCOPES\"]]",
+          "code": "not-authorized"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors and $not($exists(response.body.data) and $boolean(response.body.data))",
+          "code": "invalid"
+        }
+      ],
+      "map": "{\n    \"repository\": $split(response.body.repository_url, \"/\")[-1],\n    \"number\": response.body.number,\n    \"html_url\": response.body.html_url,\n    \"id\": response.body.id\n  }"
+    },
+    {
+      "id": "plugin.beyonders-studio.github.comment",
+      "direction": "write",
+      "label": {
+        "en": "Comment",
+        "de": "Kommentieren",
+        "es": "Comentar",
+        "fr": "Commenter"
+      },
+      "description": {
+        "en": "Adds a comment to an issue or a pull request, as the member.",
+        "de": "Fügt einem Issue oder Pull Request einen Kommentar hinzu, als das Mitglied.",
+        "es": "Añade un comentario a una incidencia o pull request, como el miembro.",
+        "fr": "Ajoute un commentaire à un ticket ou une pull request, en tant que le membre."
+      },
+      "group": "issues",
+      "public": true,
+      "actors": [
+        "member"
+      ],
+      "requires": {
+        "all_of": [
+          "workspace",
+          "account"
+        ]
+      },
+      "params": [
+        {
+          "key": "repo",
+          "type": "string",
+          "label": {
+            "en": "Repository",
+            "de": "Repository",
+            "es": "Repositorio",
+            "fr": "Dépôt"
+          },
+          "options_from": {
+            "endpoint": "plugin.beyonders-studio.github.list-repositories",
+            "key": "names"
+          }
+        },
+        {
+          "key": "number",
+          "type": "int",
+          "label": {
+            "en": "Number",
+            "de": "Nummer",
+            "es": "Número",
+            "fr": "Numéro"
+          }
+        },
+        {
+          "key": "body",
+          "type": "string",
+          "label": {
+            "en": "Body",
+            "de": "Text",
+            "es": "Cuerpo",
+            "fr": "Corps"
+          },
+          "required": true
+        }
+      ],
+      "returns": [
+        {
+          "key": "repository",
+          "type": "string"
+        },
+        {
+          "key": "number",
+          "type": "int"
+        },
+        {
+          "key": "id",
+          "type": "int",
+          "label": {
+            "en": "Comment id",
+            "de": "Kommentar-ID",
+            "es": "ID del comentario",
+            "fr": "Identifiant du commentaire"
+          }
+        },
+        {
+          "key": "html_url",
+          "type": "url",
+          "label": {
+            "en": "Link",
+            "de": "Link",
+            "es": "Enlace",
+            "fr": "Lien"
+          }
+        }
+      ],
+      "identity": {
+        "kind": "issue",
+        "key": [
+          "repository",
+          "number"
+        ]
+      },
+      "request": {
+        "method": "POST",
+        "url": "\"https://api.github.com\" & \"/repos/\" & connections.workspace.owner & \"/\" & (\n  $repo := params.repo;\n  $type($repo) = \"string\" and $length($repo) <= 100 and $contains($repo, /^[A-Za-z0-9._-]+$/) and $not($repo in [\".\", \"..\"])\n    ? $repo : \"\"\n) & \"/issues/\" & params.number & \"/comments\"",
+        "headers": {
+          "Accept": "\"application/vnd.github+json\"",
+          "X-GitHub-Api-Version": "\"2022-11-28\"",
+          "User-Agent": "\"initiative-github\""
+        },
+        "connection": "account",
+        "body": "{\"body\": params.body}"
+      },
+      "errors": [
+        {
+          "status": 403,
+          "when": "$exists(response.headers.\"retry-after\") or response.headers.\"x-ratelimit-remaining\" = \"0\"",
+          "code": "transient"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors[type = \"RATE_LIMITED\"]",
+          "code": "transient"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors[type in [\"FORBIDDEN\", \"INSUFFICIENT_SCOPES\"]]",
+          "code": "not-authorized"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors and $not($exists(response.body.data) and $boolean(response.body.data))",
+          "code": "invalid"
+        }
+      ],
+      "map": "{\n    \"repository\": $split(response.body.issue_url, \"/\")[-3],\n    \"number\": params.number,\n    \"id\": response.body.id,\n    \"html_url\": response.body.html_url\n  }"
+    },
+    {
+      "id": "plugin.beyonders-studio.github.close-issue",
+      "direction": "write",
+      "label": {
+        "en": "Close an issue",
+        "de": "Issue schließen",
+        "es": "Cerrar una incidencia",
+        "fr": "Fermer un ticket"
+      },
+      "description": {
+        "en": "Closes it as completed or as not planned, as the member.",
+        "de": "Schließt es als erledigt oder als nicht geplant, als das Mitglied.",
+        "es": "La cierra como completada o como no planificada, como el miembro.",
+        "fr": "Le ferme comme terminé ou comme non planifié, en tant que le membre."
+      },
+      "group": "issues",
+      "public": true,
+      "actors": [
+        "member"
+      ],
+      "requires": {
+        "all_of": [
+          "workspace",
+          "account"
+        ]
+      },
+      "params": [
+        {
+          "key": "repo",
+          "type": "string",
+          "label": {
+            "en": "Repository",
+            "de": "Repository",
+            "es": "Repositorio",
+            "fr": "Dépôt"
+          },
+          "options_from": {
+            "endpoint": "plugin.beyonders-studio.github.list-repositories",
+            "key": "names"
+          }
+        },
+        {
+          "key": "number",
+          "type": "int",
+          "label": {
+            "en": "Number",
+            "de": "Nummer",
+            "es": "Número",
+            "fr": "Numéro"
+          }
+        },
+        {
+          "key": "reason",
+          "type": "select",
+          "label": {
+            "en": "Reason",
+            "de": "Grund",
+            "es": "Motivo",
+            "fr": "Raison"
+          },
+          "options": [
+            "completed",
+            "not_planned"
+          ]
+        }
+      ],
+      "returns": [
+        {
+          "key": "repository",
+          "type": "string"
+        },
+        {
+          "key": "number",
+          "type": "int"
+        },
+        {
+          "key": "state",
+          "type": "string"
+        },
+        {
+          "key": "html_url",
+          "type": "url",
+          "label": {
+            "en": "Link",
+            "de": "Link",
+            "es": "Enlace",
+            "fr": "Lien"
+          }
+        }
+      ],
+      "identity": {
+        "kind": "issue",
+        "key": [
+          "repository",
+          "number"
+        ]
+      },
+      "request": {
+        "method": "PATCH",
+        "url": "\"https://api.github.com\" & \"/repos/\" & connections.workspace.owner & \"/\" & (\n  $repo := params.repo;\n  $type($repo) = \"string\" and $length($repo) <= 100 and $contains($repo, /^[A-Za-z0-9._-]+$/) and $not($repo in [\".\", \"..\"])\n    ? $repo : \"\"\n) & \"/issues/\" & params.number",
+        "headers": {
+          "Accept": "\"application/vnd.github+json\"",
+          "X-GitHub-Api-Version": "\"2022-11-28\"",
+          "User-Agent": "\"initiative-github\""
+        },
+        "connection": "account",
+        "body": "$merge([{\"state\": \"closed\"}, params.reason in [\"completed\", \"not_planned\"] ? {\"state_reason\": params.reason}])"
+      },
+      "errors": [
+        {
+          "status": 403,
+          "when": "$exists(response.headers.\"retry-after\") or response.headers.\"x-ratelimit-remaining\" = \"0\"",
+          "code": "transient"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors[type = \"RATE_LIMITED\"]",
+          "code": "transient"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors[type in [\"FORBIDDEN\", \"INSUFFICIENT_SCOPES\"]]",
+          "code": "not-authorized"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors and $not($exists(response.body.data) and $boolean(response.body.data))",
+          "code": "invalid"
+        }
+      ],
+      "map": "{\n      \"repository\": $split(response.body.repository_url, \"/\")[-1],\n      \"number\": response.body.number,\n      \"state\": response.body.state,\n      \"html_url\": response.body.html_url\n    }"
+    },
+    {
+      "id": "plugin.beyonders-studio.github.reopen-issue",
+      "direction": "write",
+      "label": {
+        "en": "Reopen an issue",
+        "de": "Issue wieder öffnen",
+        "es": "Reabrir una incidencia",
+        "fr": "Rouvrir un ticket"
+      },
+      "description": {
+        "en": "Puts a closed issue back into the open state, as the member.",
+        "de": "Versetzt ein geschlossenes Issue zurück in den offenen Zustand, als das Mitglied.",
+        "es": "Devuelve una incidencia cerrada al estado abierto, como el miembro.",
+        "fr": "Remet un ticket fermé à l'état ouvert, en tant que le membre."
+      },
+      "group": "issues",
+      "public": true,
+      "actors": [
+        "member"
+      ],
+      "requires": {
+        "all_of": [
+          "workspace",
+          "account"
+        ]
+      },
+      "params": [
+        {
+          "key": "repo",
+          "type": "string",
+          "label": {
+            "en": "Repository",
+            "de": "Repository",
+            "es": "Repositorio",
+            "fr": "Dépôt"
+          },
+          "options_from": {
+            "endpoint": "plugin.beyonders-studio.github.list-repositories",
+            "key": "names"
+          }
+        },
+        {
+          "key": "number",
+          "type": "int",
+          "label": {
+            "en": "Number",
+            "de": "Nummer",
+            "es": "Número",
+            "fr": "Numéro"
+          }
+        }
+      ],
+      "returns": [
+        {
+          "key": "repository",
+          "type": "string"
+        },
+        {
+          "key": "number",
+          "type": "int"
+        },
+        {
+          "key": "state",
+          "type": "string"
+        },
+        {
+          "key": "html_url",
+          "type": "url",
+          "label": {
+            "en": "Link",
+            "de": "Link",
+            "es": "Enlace",
+            "fr": "Lien"
+          }
+        }
+      ],
+      "identity": {
+        "kind": "issue",
+        "key": [
+          "repository",
+          "number"
+        ]
+      },
+      "request": {
+        "method": "PATCH",
+        "url": "\"https://api.github.com\" & \"/repos/\" & connections.workspace.owner & \"/\" & (\n  $repo := params.repo;\n  $type($repo) = \"string\" and $length($repo) <= 100 and $contains($repo, /^[A-Za-z0-9._-]+$/) and $not($repo in [\".\", \"..\"])\n    ? $repo : \"\"\n) & \"/issues/\" & params.number",
+        "headers": {
+          "Accept": "\"application/vnd.github+json\"",
+          "X-GitHub-Api-Version": "\"2022-11-28\"",
+          "User-Agent": "\"initiative-github\""
+        },
+        "connection": "account",
+        "body": "{\"state\": \"open\"}"
+      },
+      "errors": [
+        {
+          "status": 403,
+          "when": "$exists(response.headers.\"retry-after\") or response.headers.\"x-ratelimit-remaining\" = \"0\"",
+          "code": "transient"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors[type = \"RATE_LIMITED\"]",
+          "code": "transient"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors[type in [\"FORBIDDEN\", \"INSUFFICIENT_SCOPES\"]]",
+          "code": "not-authorized"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors and $not($exists(response.body.data) and $boolean(response.body.data))",
+          "code": "invalid"
+        }
+      ],
+      "map": "{\n      \"repository\": $split(response.body.repository_url, \"/\")[-1],\n      \"number\": response.body.number,\n      \"state\": response.body.state,\n      \"html_url\": response.body.html_url\n    }"
+    },
+    {
+      "id": "plugin.beyonders-studio.github.label",
+      "direction": "write",
+      "label": {
+        "en": "Change labels",
+        "de": "Labels ändern",
+        "es": "Cambiar etiquetas",
+        "fr": "Modifier les étiquettes"
+      },
+      "description": {
+        "en": "Adds or removes labels on an issue or a pull request, as the member.",
+        "de": "Fügt an einem Issue oder Pull Request Labels hinzu oder entfernt sie, als das Mitglied.",
+        "es": "Añade o quita etiquetas en una incidencia o pull request, como el miembro.",
+        "fr": "Ajoute ou retire des étiquettes sur un ticket ou une pull request, en tant que le membre."
+      },
+      "group": "issues",
+      "public": true,
+      "actors": [
+        "member"
+      ],
+      "requires": {
+        "all_of": [
+          "workspace",
+          "account"
+        ]
+      },
+      "params": [
+        {
+          "key": "repo",
+          "type": "string",
+          "label": {
+            "en": "Repository",
+            "de": "Repository",
+            "es": "Repositorio",
+            "fr": "Dépôt"
+          },
+          "options_from": {
+            "endpoint": "plugin.beyonders-studio.github.list-repositories",
+            "key": "names"
+          }
+        },
+        {
+          "key": "number",
+          "type": "int",
+          "label": {
+            "en": "Number",
+            "de": "Nummer",
+            "es": "Número",
+            "fr": "Numéro"
+          }
+        },
+        {
+          "key": "add",
+          "type": "string",
+          "label": {
+            "en": "Labels to add",
+            "de": "Hinzuzufügende Labels",
+            "es": "Etiquetas a añadir",
+            "fr": "Étiquettes à ajouter"
+          },
+          "list": true,
+          "options_from": {
+            "endpoint": "plugin.beyonders-studio.github.list-labels",
+            "key": "names",
+            "needs": {
+              "repo": "repo"
+            }
+          }
+        },
+        {
+          "key": "remove",
+          "type": "string",
+          "label": {
+            "en": "Labels to remove",
+            "de": "Zu entfernende Labels",
+            "es": "Etiquetas a quitar",
+            "fr": "Étiquettes à retirer"
+          },
+          "list": true,
+          "options_from": {
+            "endpoint": "plugin.beyonders-studio.github.list-labels",
+            "key": "names",
+            "needs": {
+              "repo": "repo"
+            }
+          }
+        }
+      ],
+      "returns": [
+        {
+          "key": "repository",
+          "type": "string"
+        },
+        {
+          "key": "number",
+          "type": "int"
+        }
+      ],
+      "identity": {
+        "kind": "issue",
+        "key": [
+          "repository",
+          "number"
+        ]
+      },
+      "steps": [
+        {
+          "name": "issue",
+          "request": {
+            "method": "GET",
+            "url": "\"https://api.github.com\" & \"/repos/\" & connections.workspace.owner & \"/\" & (\n  $repo := params.repo;\n  $type($repo) = \"string\" and $length($repo) <= 100 and $contains($repo, /^[A-Za-z0-9._-]+$/) and $not($repo in [\".\", \"..\"])\n    ? $repo : \"\"\n) & \"/issues/\" & params.number",
+            "headers": {
+              "Accept": "\"application/vnd.github+json\"",
+              "X-GitHub-Api-Version": "\"2022-11-28\"",
+              "User-Agent": "\"initiative-github\""
+            },
+            "connection": "workspace"
+          }
+        },
+        {
+          "name": "labels",
+          "request": {
+            "method": "PUT",
+            "url": "\"https://api.github.com\" & \"/repos/\" & connections.workspace.owner & \"/\" & (\n  $repo := params.repo;\n  $type($repo) = \"string\" and $length($repo) <= 100 and $contains($repo, /^[A-Za-z0-9._-]+$/) and $not($repo in [\".\", \"..\"])\n    ? $repo : \"\"\n) & \"/issues/\" & params.number & \"/labels\"",
+            "headers": {
+              "Accept": "\"application/vnd.github+json\"",
+              "X-GitHub-Api-Version": "\"2022-11-28\"",
+              "User-Agent": "\"initiative-github\""
+            },
+            "connection": "account",
+            "body": "(\n          $add := [params.add];\n          $gone := [params.remove.$lowercase($), $add.$lowercase($)];\n          {\"labels\": [steps.issue.body.labels.name[$not($lowercase($) in $gone)], $distinct($add)]}\n        )"
+          }
+        }
+      ],
+      "errors": [
+        {
+          "status": "2xx",
+          "when": "$count(params.add) + $count(params.remove) = 0",
+          "code": "invalid"
+        },
+        {
+          "status": 403,
+          "when": "$exists(response.headers.\"retry-after\") or response.headers.\"x-ratelimit-remaining\" = \"0\"",
+          "code": "transient"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors[type = \"RATE_LIMITED\"]",
+          "code": "transient"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors[type in [\"FORBIDDEN\", \"INSUFFICIENT_SCOPES\"]]",
+          "code": "not-authorized"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors and $not($exists(response.body.data) and $boolean(response.body.data))",
+          "code": "invalid"
+        }
+      ],
+      "map": "{\"repository\": $split(steps.issue.body.repository_url, \"/\")[-1], \"number\": params.number}"
+    },
+    {
+      "id": "plugin.beyonders-studio.github.request-review",
+      "direction": "write",
+      "label": {
+        "en": "Request a review",
+        "de": "Review anfragen",
+        "es": "Solicitar una revisión",
+        "fr": "Demander une revue"
+      },
+      "description": {
+        "en": "Asks people or teams to review a pull request, as the member.",
+        "de": "Bittet Personen oder Teams, einen Pull Request zu prüfen, als das Mitglied.",
+        "es": "Pide a personas o equipos que revisen una pull request, como el miembro.",
+        "fr": "Demande à des personnes ou des équipes de relire une pull request, en tant que le membre."
+      },
+      "group": "reviews",
+      "public": true,
+      "actors": [
+        "member"
+      ],
+      "requires": {
+        "all_of": [
+          "workspace",
+          "account"
+        ]
+      },
+      "params": [
+        {
+          "key": "repo",
+          "type": "string",
+          "label": {
+            "en": "Repository",
+            "de": "Repository",
+            "es": "Repositorio",
+            "fr": "Dépôt"
+          },
+          "options_from": {
+            "endpoint": "plugin.beyonders-studio.github.list-repositories",
+            "key": "names"
+          }
+        },
+        {
+          "key": "number",
+          "type": "int",
+          "label": {
+            "en": "Number",
+            "de": "Nummer",
+            "es": "Número",
+            "fr": "Numéro"
+          }
+        },
+        {
+          "key": "reviewers",
+          "type": "string",
+          "label": {
+            "en": "Reviewers",
+            "de": "Reviewer",
+            "es": "Revisores",
+            "fr": "Relecteurs"
+          },
+          "list": true,
+          "options_from": {
+            "endpoint": "plugin.beyonders-studio.github.list-assignees",
+            "key": "logins",
+            "needs": {
+              "repo": "repo"
+            }
+          }
+        },
+        {
+          "key": "team_reviewers",
+          "type": "string",
+          "label": {
+            "en": "Team reviewers",
+            "de": "Team-Reviewer",
+            "es": "Equipos revisores",
+            "fr": "Équipes relectrices"
+          },
+          "list": true
+        }
+      ],
+      "returns": [
+        {
+          "key": "repository",
+          "type": "string"
+        },
+        {
+          "key": "number",
+          "type": "int"
+        },
+        {
+          "key": "html_url",
+          "type": "url",
+          "label": {
+            "en": "Link",
+            "de": "Link",
+            "es": "Enlace",
+            "fr": "Lien"
+          }
+        }
+      ],
+      "identity": {
+        "kind": "issue",
+        "key": [
+          "repository",
+          "number"
+        ]
+      },
+      "request": {
+        "method": "POST",
+        "url": "\"https://api.github.com\" & \"/repos/\" & connections.workspace.owner & \"/\" & (\n  $repo := params.repo;\n  $type($repo) = \"string\" and $length($repo) <= 100 and $contains($repo, /^[A-Za-z0-9._-]+$/) and $not($repo in [\".\", \"..\"])\n    ? $repo : \"\"\n) & \"/pulls/\" & params.number & \"/requested_reviewers\"",
+        "headers": {
+          "Accept": "\"application/vnd.github+json\"",
+          "X-GitHub-Api-Version": "\"2022-11-28\"",
+          "User-Agent": "\"initiative-github\""
+        },
+        "connection": "account",
+        "body": "$merge([\n      $count(params.reviewers) ? {\"reviewers\": [params.reviewers]},\n      $count(params.team_reviewers) ? {\"team_reviewers\": [params.team_reviewers]}\n    ])"
+      },
+      "errors": [
+        {
+          "status": 403,
+          "when": "$exists(response.headers.\"retry-after\") or response.headers.\"x-ratelimit-remaining\" = \"0\"",
+          "code": "transient"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors[type = \"RATE_LIMITED\"]",
+          "code": "transient"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors[type in [\"FORBIDDEN\", \"INSUFFICIENT_SCOPES\"]]",
+          "code": "not-authorized"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors and $not($exists(response.body.data) and $boolean(response.body.data))",
+          "code": "invalid"
+        }
+      ],
+      "map": "{\"repository\": response.body.base.repo.name, \"number\": params.number, \"html_url\": response.body.html_url}"
+    },
+    {
+      "id": "plugin.beyonders-studio.github.move-project-item",
+      "direction": "write",
+      "label": {
+        "en": "Move a project card",
+        "de": "Projektkarte verschieben",
+        "es": "Mover una tarjeta de proyecto",
+        "fr": "Déplacer une carte de projet"
+      },
+      "description": {
+        "en": "Sets one single-select field on a Projects card, as the member.",
+        "de": "Setzt ein Einfachauswahl-Feld auf einer Projects-Karte, als das Mitglied.",
+        "es": "Establece un campo de selección única en una tarjeta de Projects, como el miembro.",
+        "fr": "Définit un champ à choix unique sur une carte Projects, en tant que le membre."
+      },
+      "group": "projects",
+      "public": true,
+      "actors": [
+        "member"
+      ],
+      "requires": {
+        "all_of": [
+          "workspace",
+          "account"
+        ]
+      },
+      "params": [
+        {
+          "key": "project_id",
+          "type": "string",
+          "label": {
+            "en": "Project",
+            "de": "Projekt",
+            "es": "Proyecto",
+            "fr": "Projet"
+          },
+          "options_from": {
+            "endpoint": "plugin.beyonders-studio.github.list-projects",
+            "key": "ids",
+            "label_key": "titles"
+          }
+        },
+        {
+          "key": "item_id",
+          "type": "string",
+          "label": {
+            "en": "Card",
+            "de": "Karte",
+            "es": "Tarjeta",
+            "fr": "Carte"
+          }
+        },
+        {
+          "key": "field_id",
+          "type": "string",
+          "label": {
+            "en": "Field",
+            "de": "Feld",
+            "es": "Campo",
+            "fr": "Champ"
+          },
+          "options_from": {
+            "endpoint": "plugin.beyonders-studio.github.list-project-fields",
+            "key": "ids",
+            "label_key": "names",
+            "needs": {
+              "project_id": "project_id"
+            }
+          }
+        },
+        {
+          "key": "option_id",
+          "type": "string",
+          "label": {
+            "en": "Value",
+            "de": "Wert",
+            "es": "Valor",
+            "fr": "Valeur"
+          },
+          "options_from": {
+            "endpoint": "plugin.beyonders-studio.github.list-project-options",
+            "key": "option_ids",
+            "label_key": "option_names",
+            "needs": {
+              "project_id": "project_id",
+              "field": "field_id"
+            }
+          }
+        }
+      ],
+      "returns": [
+        {
+          "key": "item_id",
+          "type": "string",
+          "label": {
+            "en": "Card",
+            "de": "Karte",
+            "es": "Tarjeta",
+            "fr": "Carte"
+          }
+        }
+      ],
+      "identity": {
+        "kind": "project_card",
+        "key": [
+          "item_id"
+        ]
+      },
+      "request": {
+        "method": "POST",
+        "url": "\"https://api.github.com/graphql\"",
+        "headers": {
+          "Accept": "\"application/vnd.github+json\"",
+          "X-GitHub-Api-Version": "\"2022-11-28\"",
+          "User-Agent": "\"initiative-github\""
+        },
+        "graphql": {
+          "query": "mutation Move($project: ID!, $item: ID!, $field: ID!, $option: String!) { updateProjectV2ItemFieldValue(input: { projectId: $project, itemId: $item, fieldId: $field, value: { singleSelectOptionId: $option } }) { projectV2Item { id } } }",
+          "variables": "{\"project\": params.project_id, \"item\": params.item_id, \"field\": params.field_id, \"option\": params.option_id}"
+        },
+        "connection": "account"
+      },
+      "errors": [
+        {
+          "status": 403,
+          "when": "$exists(response.headers.\"retry-after\") or response.headers.\"x-ratelimit-remaining\" = \"0\"",
+          "code": "transient"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors[type = \"RATE_LIMITED\"]",
+          "code": "transient"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors[type in [\"FORBIDDEN\", \"INSUFFICIENT_SCOPES\"]]",
+          "code": "not-authorized"
+        },
+        {
+          "status": "2xx",
+          "when": "response.body.errors and $not($exists(response.body.data) and $boolean(response.body.data))",
+          "code": "invalid"
+        }
+      ],
+      "map": "(\n    $moved := response.body.data.updateProjectV2ItemFieldValue.projectV2Item.id;\n    {\"item_id\": $moved ? $moved : params.item_id}\n  )"
+    },
+    {
+      "id": "plugin.beyonders-studio.github.issue-opened",
+      "direction": "emit",
+      "label": {
+        "en": "An issue was opened",
+        "de": "Ein Issue wurde geöffnet",
+        "es": "Se abrió una incidencia",
+        "fr": "Un ticket a été ouvert"
+      },
+      "description": {
+        "en": "When somebody opens an issue in a repository the installation covers.",
+        "de": "Wenn jemand ein Issue in einem Repository der Installation öffnet.",
+        "es": "Cuando alguien abre una incidencia en un repositorio que cubre la instalación.",
+        "fr": "Quand quelqu'un ouvre un ticket dans un dépôt couvert par l'installation."
+      },
+      "group": "issues",
+      "returns": [
+        {
+          "key": "repository",
+          "type": "string"
+        },
+        {
+          "key": "owner",
+          "type": "string"
+        },
+        {
+          "key": "number",
+          "type": "int"
+        },
+        {
+          "key": "title",
+          "type": "string"
+        },
+        {
+          "key": "url",
+          "type": "url"
+        },
+        {
+          "key": "author",
+          "type": "string"
+        },
+        {
+          "key": "labels",
+          "type": "string",
+          "list": true
+        }
+      ],
+      "identity": {
+        "kind": "issue",
+        "key": [
+          "repository",
+          "number"
+        ]
+      }
+    },
+    {
+      "id": "plugin.beyonders-studio.github.issue-closed",
+      "direction": "emit",
+      "label": {
+        "en": "An issue was closed",
+        "de": "Ein Issue wurde geschlossen",
+        "es": "Se cerró una incidencia",
+        "fr": "Un ticket a été fermé"
+      },
+      "description": {
+        "en": "When somebody closes an issue in a repository the installation covers.",
+        "de": "Wenn jemand ein Issue in einem Repository der Installation schließt.",
+        "es": "Cuando alguien cierra una incidencia en un repositorio que cubre la instalación.",
+        "fr": "Quand quelqu'un ferme un ticket dans un dépôt couvert par l'installation."
+      },
+      "group": "issues",
+      "returns": [
+        {
+          "key": "repository",
+          "type": "string"
+        },
+        {
+          "key": "owner",
+          "type": "string"
+        },
+        {
+          "key": "number",
+          "type": "int"
+        },
+        {
+          "key": "title",
+          "type": "string"
+        },
+        {
+          "key": "url",
+          "type": "url"
+        },
+        {
+          "key": "author",
+          "type": "string"
+        },
+        {
+          "key": "labels",
+          "type": "string",
+          "list": true
+        }
+      ],
+      "identity": {
+        "kind": "issue",
+        "key": [
+          "repository",
+          "number"
+        ]
+      }
+    },
+    {
+      "id": "plugin.beyonders-studio.github.review-requested",
+      "direction": "emit",
+      "label": {
+        "en": "A review was requested",
+        "de": "Eine Review wurde angefragt",
+        "es": "Se solicitó una revisión",
+        "fr": "Une revue a été demandée"
+      },
+      "description": {
+        "en": "When a pull request asks a person or a team to review it.",
+        "de": "Wenn ein Pull Request eine Person oder ein Team um eine Review bittet.",
+        "es": "Cuando una pull request pide a una persona o un equipo que la revise.",
+        "fr": "Quand une pull request demande à une personne ou une équipe de la relire."
+      },
+      "group": "reviews",
+      "returns": [
+        {
+          "key": "repository",
+          "type": "string"
+        },
+        {
+          "key": "owner",
+          "type": "string"
+        },
+        {
+          "key": "number",
+          "type": "int"
+        },
+        {
+          "key": "title",
+          "type": "string"
+        },
+        {
+          "key": "url",
+          "type": "url"
+        },
+        {
+          "key": "author",
+          "type": "string"
+        },
+        {
+          "key": "reviewer",
+          "type": "string"
+        }
+      ],
+      "identity": {
+        "kind": "issue",
+        "key": [
+          "repository",
+          "number"
+        ]
+      }
+    },
+    {
+      "id": "plugin.beyonders-studio.github.release-published",
+      "direction": "emit",
+      "label": {
+        "en": "A release was published",
+        "de": "Ein Release wurde veröffentlicht",
+        "es": "Se publicó una versión",
+        "fr": "Une version a été publiée"
+      },
+      "description": {
+        "en": "When a full release goes out in a repository the installation covers. Pre-releases have their own announcement.",
+        "de": "Wenn ein vollständiges Release in einem Repository der Installation erscheint. Pre-Releases haben eine eigene Ankündigung.",
+        "es": "Cuando sale una versión completa en un repositorio que cubre la instalación. Las versiones preliminares tienen su propio aviso.",
+        "fr": "Quand une version complète sort dans un dépôt couvert par l'installation. Les préversions ont leur propre annonce."
+      },
+      "group": "releases",
+      "returns": [
+        {
+          "key": "repository",
+          "type": "string"
+        },
+        {
+          "key": "owner",
+          "type": "string"
+        },
+        {
+          "key": "tag",
+          "type": "string"
+        },
+        {
+          "key": "name",
+          "type": "string",
+          "label": {
+            "en": "Title",
+            "de": "Titel",
+            "es": "Título",
+            "fr": "Titre"
+          }
+        },
+        {
+          "key": "branch",
+          "type": "string",
+          "label": {
+            "en": "Released from",
+            "de": "Veröffentlicht aus",
+            "es": "Publicado desde",
+            "fr": "Publié depuis"
+          }
+        },
+        {
+          "key": "url",
+          "type": "url"
+        },
+        {
+          "key": "author",
+          "type": "string"
+        }
+      ],
+      "identity": {
+        "kind": "release",
+        "key": [
+          "repository",
+          "tag"
+        ]
+      }
+    },
+    {
+      "id": "plugin.beyonders-studio.github.prerelease-published",
+      "direction": "emit",
+      "label": {
+        "en": "A pre-release was published",
+        "de": "Ein Pre-Release wurde veröffentlicht",
+        "es": "Se publicó una versión preliminar",
+        "fr": "Une préversion a été publiée"
+      },
+      "description": {
+        "en": "When a release marked as a pre-release goes out in a repository the installation covers.",
+        "de": "Wenn ein als Pre-Release markiertes Release in einem Repository der Installation erscheint.",
+        "es": "Cuando sale una versión marcada como preliminar en un repositorio que cubre la instalación.",
+        "fr": "Quand une version marquée comme préversion sort dans un dépôt couvert par l'installation."
+      },
+      "group": "releases",
+      "returns": [
+        {
+          "key": "repository",
+          "type": "string"
+        },
+        {
+          "key": "owner",
+          "type": "string"
+        },
+        {
+          "key": "tag",
+          "type": "string"
+        },
+        {
+          "key": "name",
+          "type": "string",
+          "label": {
+            "en": "Title",
+            "de": "Titel",
+            "es": "Título",
+            "fr": "Titre"
+          }
+        },
+        {
+          "key": "branch",
+          "type": "string",
+          "label": {
+            "en": "Released from",
+            "de": "Veröffentlicht aus",
+            "es": "Publicado desde",
+            "fr": "Publié depuis"
+          }
+        },
+        {
+          "key": "url",
+          "type": "url"
+        },
+        {
+          "key": "author",
+          "type": "string"
+        }
+      ],
+      "identity": {
+        "kind": "release",
+        "key": [
+          "repository",
+          "tag"
+        ]
+      }
+    },
+    {
+      "id": "plugin.beyonders-studio.github.tag-created",
+      "direction": "emit",
+      "label": {
+        "en": "A tag was pushed",
+        "de": "Ein Tag wurde gepusht",
+        "es": "Se subió una etiqueta",
+        "fr": "Une étiquette a été poussée"
+      },
+      "description": {
+        "en": "When a tag is created in a repository the installation covers. GitHub does not say which branch a tag is on.",
+        "de": "Wenn in einem Repository der Installation ein Tag erstellt wird. GitHub gibt nicht an, auf welchem Branch ein Tag liegt.",
+        "es": "Cuando se crea una etiqueta en un repositorio que cubre la instalación. GitHub no indica en qué rama está una etiqueta.",
+        "fr": "Quand une étiquette est créée dans un dépôt couvert par l'installation. GitHub n'indique pas sur quelle branche se trouve une étiquette."
+      },
+      "group": "releases",
+      "returns": [
+        {
+          "key": "repository",
+          "type": "string"
+        },
+        {
+          "key": "owner",
+          "type": "string"
+        },
+        {
+          "key": "tag",
+          "type": "string"
+        },
+        {
+          "key": "url",
+          "type": "url"
+        },
+        {
+          "key": "author",
+          "type": "string"
+        }
+      ],
+      "identity": {
+        "kind": "tag",
+        "key": [
+          "repository",
+          "tag"
+        ]
+      }
+    }
+  ],
+  "widgets": [
+    {
+      "id": "open-issues",
+      "meta": {
+        "name": {
+          "en": "Open issues",
+          "de": "Offene Issues",
+          "es": "Incidencias abiertas",
+          "fr": "Tickets ouverts"
+        },
+        "description": {
+          "en": "How many issues are open.",
+          "de": "Wie viele Issues offen sind.",
+          "es": "Cuántas incidencias están abiertas.",
+          "fr": "Combien de tickets sont ouverts."
+        }
+      },
+      "endpoints": [
+        "plugin.beyonders-studio.github.find-issues"
+      ],
+      "module_source": "(() => {\n  // src/widgets/missing.ts\n  var WHY = {\n    \"repository-required\": \"Choose a repository for this tile\",\n    \"not-found\": \"That repository is not there, or not visible to the plug-in\",\n    \"not-authorized\": \"The organization has not granted the plug-in this\"\n  };\n  function missing(values) {\n    const why = values.unavailable;\n    if (!why) return null;\n    return { v: 1, scene: { kind: \"empty\", message: WHY[why] || \"There is nothing to show\" } };\n  }\n\n  // src/widgets/open-issues.ts\n  function render(data) {\n    const nothing = missing(data.values);\n    if (nothing) return nothing;\n    const total = data.values.total;\n    return { v: 1, scene: { kind: \"metric\", value: typeof total === \"number\" ? total : data.rows.length, label: \"Open issues\" } };\n  }\n\n  // widget.js\n  globalThis.render = render;\n})();",
+      "sample_data": {
+        "plugin.beyonders-studio.github.find-issues": {
+          "numbers": [
+            812
+          ],
+          "titles": [
+            "Cache the issue counts"
+          ],
+          "count": 1,
+          "total": 42
+        }
+      },
+      "requires": {
+        "all_of": [
+          "workspace"
+        ]
+      }
+    },
+    {
+      "id": "review-queue",
+      "meta": {
+        "name": {
+          "en": "Waiting on you",
+          "de": "Wartet auf dich",
+          "es": "Esperando por ti",
+          "fr": "En attente de vous"
+        },
+        "description": {
+          "en": "Pull requests that asked for your review.",
+          "de": "Pull Requests, die deine Review angefragt haben.",
+          "es": "Pull requests que pidieron tu revisión.",
+          "fr": "Pull requests qui ont demandé votre revue."
+        }
+      },
+      "endpoints": [
+        "plugin.beyonders-studio.github.review-queue"
+      ],
+      "module_source": "(() => {\n  // src/widgets/missing.ts\n  var WHY = {\n    \"repository-required\": \"Choose a repository for this tile\",\n    \"not-found\": \"That repository is not there, or not visible to the plug-in\",\n    \"not-authorized\": \"The organization has not granted the plug-in this\"\n  };\n  function missing(values) {\n    const why = values.unavailable;\n    if (!why) return null;\n    return { v: 1, scene: { kind: \"empty\", message: WHY[why] || \"There is nothing to show\" } };\n  }\n\n  // src/widgets/review-queue.ts\n  function render(data) {\n    const nothing = missing(data.values);\n    if (nothing) return nothing;\n    if (!data.rows.length) return { v: 1, scene: { kind: \"empty\", message: \"Nothing is waiting on you\" } };\n    return {\n      v: 1,\n      scene: {\n        kind: \"table\",\n        columns: [\n          { key: \"number\", label: \"#\", align: \"end\" },\n          { key: \"title\", label: \"Pull request\" }\n        ],\n        rows: data.rows.slice(0, 10).map((row) => ({ number: row.numbers || \"\", title: row.titles || \"\" }))\n      }\n    };\n  }\n\n  // widget.js\n  globalThis.render = render;\n})();",
+      "sample_data": {
+        "plugin.beyonders-studio.github.review-queue": {
+          "numbers": [
+            812,
+            809
+          ],
+          "titles": [
+            "Cache the issue counts",
+            "Drop the unused index"
+          ],
+          "urls": [
+            "#",
+            "#"
+          ],
+          "count": 2,
+          "total": 2
+        }
+      },
+      "requires": {
+        "all_of": [
+          "workspace",
+          "account"
+        ]
+      }
+    },
+    {
+      "id": "dependabot-alerts",
+      "meta": {
+        "name": {
+          "en": "Dependabot alerts",
+          "de": "Dependabot-Warnungen",
+          "es": "Alertas de Dependabot",
+          "fr": "Alertes Dependabot"
+        },
+        "description": {
+          "en": "Open dependency alerts by severity, worst first.",
+          "de": "Offene Abhängigkeitswarnungen nach Schwere, die schlimmsten zuerst.",
+          "es": "Alertas de dependencias abiertas por severidad, las peores primero.",
+          "fr": "Alertes de dépendances ouvertes par gravité, les pires d'abord."
+        }
+      },
+      "endpoints": [
+        "plugin.beyonders-studio.github.list-alerts"
+      ],
+      "module_source": "(() => {\n  // src/widgets/missing.ts\n  var WHY = {\n    \"repository-required\": \"Choose a repository for this tile\",\n    \"not-found\": \"That repository is not there, or not visible to the plug-in\",\n    \"not-authorized\": \"The organization has not granted the plug-in this\"\n  };\n  function missing(values) {\n    const why = values.unavailable;\n    if (!why) return null;\n    return { v: 1, scene: { kind: \"empty\", message: WHY[why] || \"There is nothing to show\" } };\n  }\n\n  // src/widgets/dependabot-alerts.ts\n  function render(data) {\n    const nothing = missing(data.values);\n    if (nothing) return nothing;\n    const counts = {};\n    for (const row of data.rows) {\n      if (row.severities) counts[row.severities] = (counts[row.severities] || 0) + 1;\n    }\n    const shown = [\"critical\", \"high\", \"medium\", \"low\"].filter((severity) => counts[severity]);\n    if (!shown.length) return { v: 1, scene: { kind: \"empty\", message: \"No open Dependabot alerts\" } };\n    return {\n      v: 1,\n      scene: {\n        kind: \"series\",\n        mark: \"bar\",\n        series: [\n          {\n            name: \"Alerts\",\n            points: shown.map((severity) => ({ x: severity.charAt(0).toUpperCase() + severity.slice(1), y: counts[severity] }))\n          }\n        ]\n      }\n    };\n  }\n\n  // widget.js\n  globalThis.render = render;\n})();",
+      "sample_data": {
+        "plugin.beyonders-studio.github.list-alerts": {
+          "severities": [
+            "critical",
+            "high",
+            "high",
+            "medium",
+            "medium",
+            "medium",
+            "medium"
+          ],
+          "packages": [
+            "left-pad",
+            "lodash",
+            "lodash",
+            "minimist",
+            "minimist",
+            "qs",
+            "qs"
+          ],
+          "count": 7,
+          "total": 7,
+          "url": "#"
+        }
+      },
+      "requires": {
+        "all_of": [
+          "workspace"
+        ]
+      }
+    },
+    {
+      "id": "issue-throughput",
+      "meta": {
+        "name": {
+          "en": "Issues opened and closed",
+          "de": "Geöffnete und geschlossene Issues",
+          "es": "Incidencias abiertas y cerradas",
+          "fr": "Tickets ouverts et fermés"
+        },
+        "description": {
+          "en": "A fortnight of opens against closes.",
+          "de": "Zwei Wochen Öffnungen gegen Schließungen.",
+          "es": "Dos semanas de aperturas frente a cierres.",
+          "fr": "Deux semaines d'ouvertures contre fermetures."
+        }
+      },
+      "endpoints": [
+        "plugin.beyonders-studio.github.find-issues"
+      ],
+      "module_source": "(() => {\n  // src/widgets/missing.ts\n  var WHY = {\n    \"repository-required\": \"Choose a repository for this tile\",\n    \"not-found\": \"That repository is not there, or not visible to the plug-in\",\n    \"not-authorized\": \"The organization has not granted the plug-in this\"\n  };\n  function missing(values) {\n    const why = values.unavailable;\n    if (!why) return null;\n    return { v: 1, scene: { kind: \"empty\", message: WHY[why] || \"There is nothing to show\" } };\n  }\n\n  // src/widgets/issue-throughput.ts\n  function render(data) {\n    const nothing = missing(data.values);\n    if (nothing) return nothing;\n    const days = {};\n    const bucket = (iso) => {\n      const day = String(iso).slice(0, 10);\n      if (!days[day]) days[day] = { opened: 0, closed: 0 };\n      return days[day];\n    };\n    for (const row of data.rows) {\n      if (row.created_at) bucket(row.created_at).opened += 1;\n      if (row.closed_at) bucket(row.closed_at).closed += 1;\n    }\n    const ordered = Object.keys(days).sort();\n    if (!ordered.length) return { v: 1, scene: { kind: \"empty\", message: \"Nothing opened or closed in this window\" } };\n    return {\n      v: 1,\n      scene: {\n        kind: \"series\",\n        mark: \"line\",\n        series: [\n          { name: \"Opened\", points: ordered.map((day) => ({ x: day, y: days[day].opened })) },\n          { name: \"Closed\", points: ordered.map((day) => ({ x: day, y: days[day].closed })) }\n        ]\n      }\n    };\n  }\n\n  // widget.js\n  globalThis.render = render;\n})();",
+      "sample_data": {
+        "plugin.beyonders-studio.github.find-issues": {
+          "created_at": [
+            "2026-08-17T09:00:00Z",
+            "2026-08-17T11:00:00Z",
+            "2026-08-18T09:00:00Z",
+            "2026-08-19T09:00:00Z"
+          ],
+          "closed_at": [
+            "2026-08-17T15:00:00Z",
+            "2026-08-19T15:00:00Z",
+            "",
+            ""
+          ],
+          "count": 4,
+          "total": 4
+        }
+      },
+      "requires": {
+        "all_of": [
+          "workspace"
+        ]
+      }
+    }
+  ],
+  "dashboards": [
+    {
+      "uid": "YB67VZS8NB161S",
+      "public_id": "beyonders-studio.github-overview",
+      "name": "GitHub overview",
+      "description": "A repository at a glance: open issues, reviews, alerts and throughput.",
+      "layout": {
+        "columns": 12
+      },
+      "widgets": [
+        {
+          "id": "open",
+          "type": "open-issues",
+          "title": "Open issues",
+          "grid": {
+            "x": 0,
+            "y": 0,
+            "w": 3,
+            "h": 3
+          },
+          "binding": {
+            "endpoint_id": "plugin.beyonders-studio.github.find-issues",
+            "params": {
+              "state": "open",
+              "limit": 1
+            }
+          }
+        },
+        {
+          "id": "reviews",
+          "type": "review-queue",
+          "title": "Waiting on your review",
+          "grid": {
+            "x": 3,
+            "y": 0,
+            "w": 6,
+            "h": 3
+          },
+          "binding": {
+            "endpoint_id": "plugin.beyonders-studio.github.review-queue",
+            "params": {
+              "state": "open",
+              "limit": 10
+            }
+          }
+        },
+        {
+          "id": "alerts",
+          "type": "dependabot-alerts",
+          "title": "Dependabot alerts",
+          "grid": {
+            "x": 9,
+            "y": 0,
+            "w": 3,
+            "h": 3
+          },
+          "binding": {
+            "endpoint_id": "plugin.beyonders-studio.github.list-alerts"
+          }
+        },
+        {
+          "id": "throughput",
+          "type": "issue-throughput",
+          "title": "Opened and closed",
+          "grid": {
+            "x": 0,
+            "y": 3,
+            "w": 12,
+            "h": 4
+          },
+          "binding": {
+            "endpoint_id": "plugin.beyonders-studio.github.find-issues",
+            "params": {
+              "state": "all",
+              "since_days": 14,
+              "limit": 100,
+              "sort": "updated"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
